@@ -1,6 +1,5 @@
 call_contract_function_response = {
     "consensus_data": {
-        "final": bool,
         "leader_receipt": {
             "class_name": str,
             "calldata": str,

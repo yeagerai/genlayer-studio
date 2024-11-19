@@ -49,6 +49,8 @@ class TransactionsProcessor:
                 transaction.hash
                 for transaction in transaction_data.triggered_transactions
             ],
+            "appealed": transaction_data.appealed,
+            "timestamp_accepted": transaction_data.timestamp_accepted,
         }
 
     @staticmethod
@@ -150,6 +152,8 @@ class TransactionsProcessor:
                 if triggered_by_hash
                 else None
             ),
+            appealed=False,
+            timestamp_accepted=None,
         )
 
         self.session.add(new_transaction)
@@ -179,6 +183,7 @@ class TransactionsProcessor:
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.status = new_status
+        self.session.commit()
 
     def set_transaction_result(self, transaction_hash: str, consensus_data: dict):
         transaction = (
@@ -246,3 +251,20 @@ class TransactionsProcessor:
         return [
             self._parse_transaction_data(transaction) for transaction in transactions
         ]
+
+    def set_transaction_appeal(self, transaction_hash: str, appeal: bool):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.appealed = appeal
+
+    def set_transaction_timestamp_accepted(
+        self, transaction_hash: str, timestamp_accepted: int = None
+    ):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        if timestamp_accepted:
+            transaction.timestamp_accepted = timestamp_accepted
+        else:
+            transaction.timestamp_accepted = int(time.time())

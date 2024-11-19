@@ -158,3 +158,7 @@ thread_crawl_snapshot.start()
 # Thread for the run_consensus method
 thread_consensus = threading.Thread(target=consensus.run_consensus_loop)
 thread_consensus.start()
+
+# Thread for the appeal_window method
+thread_consensus = threading.Thread(target=consensus.run_appeal_window_loop)
+thread_consensus.start()

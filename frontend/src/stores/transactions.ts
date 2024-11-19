@@ -82,6 +82,10 @@ export const useTransactionsStore = defineStore('transactionsStore', () => {
     );
   }
 
+  async function setTransactionAppeal(tx_address: string) {
+    rpcClient.setTransactionAppeal(tx_address);
+  }
+
   function subscribe(topics: string[]) {
     subscriptions.add(topics);
     if (webSocketClient.connected) {
@@ -107,6 +111,7 @@ export const useTransactionsStore = defineStore('transactionsStore', () => {
     removeTransaction,
     updateTransaction,
     clearTransactionsForContract,
+    setTransactionAppeal,
     refreshPendingTransactions,
     initSubscriptions,
   };

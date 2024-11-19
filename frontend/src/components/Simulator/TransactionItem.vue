@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { TransactionItem } from '@/types';
 import TransactionStatusBadge from '@/components/Simulator/TransactionStatusBadge.vue';
 import { useTimeAgo } from '@vueuse/core';
 import ModalSection from '@/components/Simulator/ModalSection.vue';
 import JsonViewer from '@/components/JsonViewer/json-viewer.vue';
-import { useUIStore, useNodeStore } from '@/stores';
+import { useUIStore, useNodeStore, useTransactionsStore } from '@/stores';
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/vue/16/solid';
 import CopyTextButton from '../global/CopyTextButton.vue';
 import { FilterIcon } from 'lucide-vue-next';
+import { GavelIcon } from 'lucide-vue-next';
 
 const uiStore = useUIStore();
 const nodeStore = useNodeStore();
+const transactionsStore = useTransactionsStore();
 
 const props = defineProps<{
   transaction: TransactionItem;
@@ -40,6 +42,23 @@ const leaderReceipt = computed(() => {
 const shortHash = computed(() => {
   return props.transaction.hash?.slice(0, 6);
 });
+
+const isAppealed = ref(false);
+
+const handleSetTransactionAppeal = () => {
+  transactionsStore.setTransactionAppeal(props.transaction.hash);
+
+  isAppealed.value = true;
+};
+
+watch(
+  () => props.transaction.status,
+  (newStatus) => {
+    if (newStatus !== 'ACCEPTED') {
+      isAppealed.value = false;
+    }
+  },
+);
 </script>
 
 <template>
@@ -80,6 +99,19 @@ const shortHash = computed(() => {
 
     <div class="flex items-center justify-between gap-2 p-1">
       <Loader :size="15" v-if="transaction.status !== 'FINALIZED'" />
+
+      <TransactionStatusBadge
+        as="button"
+        @click.stop="handleSetTransactionAppeal"
+        :class="{ '!bg-green-500': isAppealed }"
+        v-if="transaction.status == 'ACCEPTED'"
+        v-tooltip="'Appeal transaction'"
+      >
+        <div class="flex items-center gap-1">
+          APPEAL
+          <GavelIcon class="h-3 w-3" />
+        </div>
+      </TransactionStatusBadge>
 
       <TransactionStatusBadge class="px-[4px] py-[1px] text-[9px]">
         {{ transaction.status }}

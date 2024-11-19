@@ -1,7 +1,7 @@
 """remove client session id from transactions
 
 Revision ID: 579e86111b36
-Revises: 1ecaa2085aec
+Revises: 37196a51038e
 Create Date: 2024-11-08 10:41:56.112444
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "579e86111b36"
-down_revision: Union[str, None] = "1ecaa2085aec"
+down_revision: Union[str, None] = "37196a51038e"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

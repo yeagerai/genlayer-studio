@@ -186,4 +186,12 @@ export class JsonRpcService implements IJsonRpcService {
       'Error getting transaction count',
     );
   }
+
+  async setTransactionAppeal(tx_address: string): Promise<any> {
+    return this.callRpcMethod<any>(
+      'sim_appealTransaction',
+      [String(tx_address)],
+      'Error setting transaction appeal flag',
+    );
+  }
 }
