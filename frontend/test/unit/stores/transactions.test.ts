@@ -28,6 +28,9 @@ const testTransaction: TransactionItem = {
   type: 'deploy',
   status: 'PENDING',
   contractAddress: '0xAf4ec2548dBBdc43ab6dCFbD4EdcEedde3FEAFB5',
+  data: {
+    contract_address: '0xAf4ec2548dBBdc43ab6dCFbD4EdcEedde3FEAFB5',
+  },
   localContractId: '47490604-6ee9-4c0e-bf31-05d33197eedd',
 };
 

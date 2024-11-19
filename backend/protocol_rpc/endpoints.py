@@ -361,7 +361,7 @@ def get_transaction_count(
 
 def get_transaction_by_hash(
     transactions_processor: TransactionsProcessor, transaction_hash: str
-) -> dict:
+) -> dict | None:
     return transactions_processor.get_transaction_by_hash(transaction_hash)
 
 

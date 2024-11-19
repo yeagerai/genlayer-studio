@@ -35,11 +35,7 @@ export const useTransactionsStore = defineStore('transactionsStore', () => {
         data: tx,
       });
 
-      if (
-        currentTx.status === 'ACCEPTED' &&
-        currentTx.type === 'deploy' &&
-        tx.status === 'FINALIZED'
-      ) {
+      if (currentTx.type === 'deploy' && tx.status === 'FINALIZED') {
         contractsStore.addDeployedContract({
           contractId: currentTx.localContractId,
           address: tx.data.contract_address,
@@ -61,6 +57,12 @@ export const useTransactionsStore = defineStore('transactionsStore', () => {
     await Promise.all(
       pendingTxs.map(async (tx) => {
         const newTx = await getTransaction(tx.hash);
+
+        if (!newTx) {
+          removeTransaction(tx);
+          return;
+        }
+
         updateTransaction(newTx);
       }),
     );
