@@ -94,6 +94,7 @@ class Transactions(Base):
     r: Mapped[Optional[int]] = mapped_column(Integer)
     s: Mapped[Optional[int]] = mapped_column(Integer)
     v: Mapped[Optional[int]] = mapped_column(Integer)
+    ghost_contract_address: Mapped[Optional[str]] = mapped_column(String(255))
 
     # Relationship for triggered transactions
     triggered_by_hash: Mapped[Optional[str]] = mapped_column(
@@ -112,38 +113,6 @@ class Transactions(Base):
         "Transactions",
         back_populates="triggered_by",
         init=False,
-    )
-
-
-class RollupTransactions(Base):
-    __tablename__ = "rollup_transactions"
-    __table_args__ = (
-        PrimaryKeyConstraint("transaction_hash", name="rollup_transactions_pkey"),
-    )
-
-    transaction_hash: Mapped[str] = mapped_column(
-        String(66), primary_key=True, unique=True
-    )
-    from_: Mapped[str] = mapped_column(
-        String(255),
-    )
-    to_: Mapped[Optional[dict]] = mapped_column(
-        String(255),
-    )
-    gas: Mapped[int] = mapped_column(
-        Integer,
-    )
-    gas_price: Mapped[int] = mapped_column(
-        Integer,
-    )
-    value: Mapped[Optional[int]] = mapped_column(
-        Integer,
-    )
-    input: Mapped[str] = mapped_column(
-        Text,
-    )
-    nonce: Mapped[int] = mapped_column(
-        BigInteger,
     )
 
 

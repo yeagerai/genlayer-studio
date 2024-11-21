@@ -1,0 +1,20 @@
+FROM node:20.11-alpine3.19
+
+WORKDIR /app
+
+RUN apk add --no-cache python3 make g++ netcat-openbsd
+
+COPY ./hardhat/package*.json ./
+RUN npm install
+
+COPY ./hardhat .
+
+ENV PATH="/app/node_modules/.bin:${PATH}"
+
+RUN echo -e '#!/bin/sh\necho "Compiling contracts..."\nnpx hardhat compile --force\necho "Starting Hardhat node..."\nexec ./node_modules/.bin/hardhat node --network hardhat' > /app/start.sh && \
+    chmod +x /app/start.sh && \
+    ls -la /app/start.sh
+
+EXPOSE 8545
+
+CMD ["/app/start.sh"]

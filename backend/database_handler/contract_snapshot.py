@@ -9,7 +9,7 @@ class ContractSnapshot:
     """
     Warning: if you initialize this class with a contract_address:
     - The contract_address must exist in the database.
-    - `self.contract_data`, `self.contract_code` and `self.cencoded_state` will be loaded from the database **only once** at initialization.
+    - `self.contract_data`, `self.contract_code`, `self.encoded_state` and `self.ghost_contract_address` will be loaded from the database **only once** at initialization.
     """
 
     def __init__(self, contract_address: str, session: Session):
@@ -22,6 +22,7 @@ class ContractSnapshot:
             self.contract_data = contract_account.data
             self.contract_code = self.contract_data["code"]
             self.encoded_state = self.contract_data["state"]
+            self.ghost_contract_address = self.contract_data["ghost_contract_address"]
 
     def _load_contract_account(self) -> CurrentState:
         """Load and return the current state of the contract from the database."""

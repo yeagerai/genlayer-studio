@@ -144,4 +144,13 @@ consensus/nodes/nodes.json
 # npm
 node_modules/
 package-lock.json
-package.json
+/package.json
+
+# Hardhat files
+hardhat/cache
+hardhat/artifacts
+hardhat/.openzeppelin
+hardhat/coverage
+hardhat/coverage.json
+hardhat/typechain
+hardhat/typechain-types
