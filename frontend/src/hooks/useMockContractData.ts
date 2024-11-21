@@ -3,11 +3,14 @@ import { type DeployedContract, type TransactionItem } from '@/types';
 export function useMockContractData() {
   const mockContractId = '1a621cad-1cfd-4dbd-892a-f6bbde7a2fab';
   const mockContractAddress = '0x3F9Fb6C6aBaBD0Ae6cB27c513E7b0fE4C0B3E9C8';
+  const mockStorage = {
+    storage: 'Hello World',
+  };
 
   const mockDeployedContract: DeployedContract = {
     address: mockContractAddress,
     contractId: mockContractId,
-    defaultState: '{}',
+    defaultState: `{"storage":"${mockStorage.storage}"}`,
   };
 
   const mockContractSchema = {
@@ -18,6 +21,7 @@ export function useMockContractData() {
           {
             name: 'initial_storage',
             type: 'string',
+            default: 'Hello World',
           },
         ],
         type: 'constructor',
@@ -31,11 +35,12 @@ export function useMockContractData() {
       {
         inputs: [
           {
-            name: 'update',
+            name: 'new_storage',
             type: 'string',
+            default: 'Goodbye World',
           },
         ],
-        name: 'new_storage',
+        name: 'update_storage',
         outputs: '',
         type: 'function',
       },
@@ -47,14 +52,32 @@ export function useMockContractData() {
     localContractId: mockContractId,
     hash: '0x123',
     type: 'deploy',
-    status: 'FINALIZED',
+    status: 'PENDING',
     data: {},
   };
 
+  const mockWriteMethodTx: TransactionItem = {
+    contractAddress: mockContractAddress,
+    localContractId: mockContractId,
+    hash: '0x123',
+    type: 'method',
+    status: 'PENDING',
+    data: {
+      method_name: 'update_storage',
+      method_args: ['Goodbye world'],
+      output: '',
+      data: {
+        function_name: 'update_storage',
+      },
+    },
+  };
+
   return {
+    mockStorage,
     mockContractId,
     mockDeployedContract,
     mockContractSchema,
     mockDeploymentTx,
+    mockWriteMethodTx,
   };
 }

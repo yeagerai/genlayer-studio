@@ -99,7 +99,6 @@ describe('Settings - Manage Providers', () => {
     const existingProviders = await settingsPage.getProvidersElements();
 
     const existingProvidersLength = existingProviders.length;
-
     expect(
       existingProvidersLength,
       'number of providers should be greather than 0',

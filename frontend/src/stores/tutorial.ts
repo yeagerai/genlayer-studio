@@ -5,8 +5,14 @@ import { useTransactionsStore } from './transactions';
 import { useMockContractData } from '@/hooks/useMockContractData';
 import contractBlob from '@/assets/examples/contracts/storage.py?raw';
 
-const { mockContractId, mockDeployedContract, mockDeploymentTx } =
-  useMockContractData();
+const {
+  mockContractId,
+  mockDeployedContract,
+  mockDeploymentTx,
+  mockWriteMethodTx,
+} = useMockContractData();
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const useTutorialStore = defineStore('tutorialStore', () => {
   const contractsStore = useContractsStore();
@@ -39,15 +45,16 @@ export const useTutorialStore = defineStore('tutorialStore', () => {
     // For now we instantly mock the deployment of contract
     // In the future, we can improve this by properly mocking through the single contract store like for the schema
     // and thus preserve the appearance of async delays / loading times
-
-    contractsStore.addDeployedContract(mockDeployedContract);
-
+    transactionsStore.addTransaction(mockDeploymentTx);
     nodeStore.logs.push({
       scope: 'GenVM',
       name: 'deploying_contract',
       type: 'info',
       message: 'Deploying contract',
     });
+
+    await sleep(1000);
+    contractsStore.addDeployedContract(mockDeployedContract);
 
     nodeStore.logs.push({
       scope: 'GenVM',
@@ -62,9 +69,80 @@ export const useTutorialStore = defineStore('tutorialStore', () => {
       },
     });
 
-    transactionsStore.addTransaction(mockDeploymentTx);
+    setTimeout(() => {
+      transactionsStore.updateTransaction({
+        ...mockDeploymentTx,
+        status: 'FINALIZED',
+      });
+    }, 1000);
 
     return mockDeployedContract;
+  }
+
+  async function expandReadMethod() {
+    const method: HTMLElement | null = document.querySelector(
+      '[data-testid="expand-method-btn-get_storage"]',
+    );
+
+    method?.click();
+  }
+
+  async function callReadMethod() {
+    const method: HTMLElement | null = document.querySelector(
+      '[data-testid="read-method-btn-get_storage"]',
+    );
+
+    nodeStore.logs.push({
+      scope: 'GenVM',
+      name: 'read_contract',
+      type: 'info',
+      message: 'Call method: get_storage',
+      data: {
+        method_name: 'get_storage',
+        method_args: [],
+        result: 'Hello world!',
+        output: '',
+      },
+    });
+
+    method?.click();
+  }
+
+  async function expandWriteMethod() {
+    const method: HTMLElement | null = document.querySelector(
+      '[data-testid="expand-method-btn-update_storage"]',
+    );
+
+    method?.click();
+  }
+
+  async function callWriteMethod() {
+    const method: HTMLElement | null = document.querySelector(
+      '[data-testid="write-method-btn-update_storage"]',
+    );
+
+    method?.click();
+
+    nodeStore.logs.push({
+      scope: 'GenVM',
+      name: 'write_contract',
+      type: 'info',
+      message: 'Execute method: update_storage',
+      data: {
+        method_name: 'update_storage',
+        method_args: ['Goodbye world'],
+        output: '',
+      },
+    });
+
+    transactionsStore.addTransaction(mockWriteMethodTx);
+
+    setTimeout(() => {
+      transactionsStore.updateTransaction({
+        ...mockWriteMethodTx,
+        status: 'FINALIZED',
+      });
+    }, 1000);
   }
 
   return {
@@ -72,5 +150,9 @@ export const useTutorialStore = defineStore('tutorialStore', () => {
     resetTutorialState,
     addAndOpenContract,
     deployMockContract,
+    expandReadMethod,
+    expandWriteMethod,
+    callReadMethod,
+    callWriteMethod,
   };
 });

@@ -24,7 +24,8 @@ export function useContractQueries() {
   const wallet = useWallet();
   const contract = computed(() => contractsStore.currentContract);
 
-  const { mockContractId, mockContractSchema } = useMockContractData();
+  const { mockContractId, mockContractSchema, mockStorage } =
+    useMockContractData();
 
   const isMock = computed(() => contract.value?.id === mockContractId);
 
@@ -162,6 +163,10 @@ export function useContractQueries() {
     method: string,
     args: calldata.CalldataEncodable[],
   ) {
+    if (isMock.value) {
+      return mockStorage.storage;
+    }
+
     try {
       const data = [calldata.encode({ method, args })];
       const encodedData = wallet.encodeTransactionData(data);
@@ -188,6 +193,11 @@ export function useContractQueries() {
     args: calldata.CalldataEncodable[];
     leaderOnly: boolean;
   }) {
+    if (isMock.value) {
+      mockStorage.storage = params[0];
+      return true;
+    }
+
     try {
       if (!accountsStore.currentPrivateKey) {
         throw new Error('Error Deploying the contract');

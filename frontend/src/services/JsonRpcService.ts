@@ -169,11 +169,11 @@ export class JsonRpcService implements IJsonRpcService {
     );
   }
 
-  async getTransactionByHash(txId: string): Promise<TransactionItem> {
+  async getTransactionByHash(txHash: string): Promise<TransactionItem> {
     return this.callRpcMethod<TransactionItem>(
       'eth_getTransactionByHash',
-      [String(txId)],
-      'Error getting transaction by ID',
+      [String(txHash)],
+      'Error getting transaction by hash',
     ) as Promise<TransactionItem>;
   }
 

@@ -46,7 +46,9 @@ const steps = ref([
       'Deploy contracts along with constructor inputs from here.<br/><br/>Click “Next” to automatically deploy the contract.',
     placement: 'right',
     onNextStep: async () => {
-      await tutorialStore.deployMockContract();
+      tutorialStore.deployMockContract();
+      await sleep(1100);
+      tutorialStore.expandReadMethod();
     },
   },
   {
@@ -54,8 +56,23 @@ const steps = ref([
     header: {
       title: 'Reading contract state',
     },
-    content: 'Here you can read the contract state by calling read methods.',
+    content:
+      'Here you can read the contract state by calling read methods.<br/><br/>Click “Next” to call <i>get_storage</i>.',
     placement: 'right',
+    onNextStep: async () => {
+      tutorialStore.callReadMethod();
+    },
+  },
+  {
+    target: '#tutorial-read-methods',
+    header: {
+      title: 'Reading contract state',
+    },
+    content: 'You can now see the response of the read method.',
+    placement: 'right',
+    onNextStep: async () => {
+      await tutorialStore.expandWriteMethod();
+    },
   },
   {
     target: '#tutorial-write-methods',
@@ -63,8 +80,11 @@ const steps = ref([
       title: 'Writing to a contract',
     },
     content:
-      'Here you can interact with the contract by calling write methods.',
+      'Here you can interact with the contract by calling write methods.<br/><br/>Click “Next” to call <i>update_storage</i>.',
     placement: 'right',
+    onNextStep: async () => {
+      await tutorialStore.callWriteMethod();
+    },
   },
   {
     target: '#tutorial-tx-response',
