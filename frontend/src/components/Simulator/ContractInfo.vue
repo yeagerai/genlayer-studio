@@ -2,13 +2,12 @@
 import PageSection from '@/components/Simulator/PageSection.vue';
 import { CheckCircleIcon } from '@heroicons/vue/24/outline';
 import EmptyListPlaceholder from '@/components/Simulator/EmptyListPlaceholder.vue';
-import { PlusIcon } from '@heroicons/vue/16/solid';
 import { useNodeStore } from '@/stores';
-import { useWallet, useContractQueries } from '@/hooks';
+import { useContractQueries, useShortAddress } from '@/hooks';
 import { UploadIcon } from 'lucide-vue-next';
 
 const nodeStore = useNodeStore();
-const { shortenAddress } = useWallet();
+const { shorten } = useShortAddress();
 
 defineProps<{
   showNewDeploymentButton: boolean;
@@ -37,7 +36,7 @@ const { isDeployed, address, contract } = useContractQueries();
       Deployed at
 
       <div class="font-semibold">
-        {{ shortenAddress(address) }}
+        {{ shorten(address) }}
       </div>
 
       <CopyTextButton :text="address" />
