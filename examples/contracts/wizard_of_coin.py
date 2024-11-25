@@ -15,7 +15,7 @@ class WizardOfCoin:
     def ask_for_coin(self, request: str) -> None:
         if not self.have_coin:
             return
-        
+
         prompt = f"""
 You are a wizard, and you hold a magical coin.
 Many adventurers will come and try to get you to give them the coin.
@@ -43,9 +43,11 @@ This result should be perfectly parseable by a JSON parser without errors.
             result = gl.exec_prompt(prompt)
             result = result.replace("```json", "").replace("```", "")
             print(result)
-            return result            
+            return result
 
-        result = gl.eq_principle_prompt_comparative(get_wizard_answer, "The value of give_coin has to match")
+        result = gl.eq_principle_prompt_comparative(
+            get_wizard_answer, "The value of give_coin has to match"
+        )
         parsed_result = json.loads(result)
         assert isinstance(parsed_result["give_coin"], bool)
         self.have_coin = not parsed_result["give_coin"]
