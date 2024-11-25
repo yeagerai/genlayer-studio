@@ -11,7 +11,7 @@ import os
 from backend.domain.types import Validator, Transaction, TransactionType
 from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
 import backend.node.genvm.base as genvmbase
-import backend.node.genvm.origin.host_fns as genvmconsts
+import backend.node.genvm.origin.calldata as calldata
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.node.types import Receipt, ExecutionMode, Vote, ExecutionResultStatus
 from backend.protocol_rpc.message_handler.base import MessageHandler
@@ -180,9 +180,54 @@ class Node:
             from_address, calldata, readonly=True, is_init=False
         )
 
-    async def get_contract_schema(self, code: str) -> str:
+    async def _execution_finished(self, res: genvmbase.ExecutionResult):
+        msg_handler = self.msg_handler
+        if msg_handler is None:
+            return
+        msg_handler.send_message(
+            LogEvent(
+                name="execution_finished",
+                type=EventType.INFO,
+                scope=EventScope.GENVM,
+                message="execution finished",
+                data={
+                    "result": f"{res.result!r}",
+                    "stdout": res.stdout,
+                    "stderr": res.stderr,
+                    "genvm_log": res.genvm_log,
+                },
+            )
+        )
+
+    async def get_contract_schema(self, code: str) -> str | dict:
         genvm = self._create_genvm()
-        return await genvm.get_contract_schema(code.encode("utf-8"))
+        res = await genvm.get_contract_schema(code.encode("utf-8"))
+        await self._execution_finished(res)
+        err_data = {
+            "stdout": res.stdout,
+            "stderr": res.stderr,
+            "genvm_log": res.genvm_log,
+            "result": f"{res.result!r}",
+        }
+        if not isinstance(res.result, genvmbase.ExecutionReturn):
+            return {
+                "message": f"execution failed",
+                "data": err_data,
+            }
+        ret_calldata = res.result.ret
+        try:
+            schema = calldata.decode(ret_calldata)
+        except Exception as e:
+            return {
+                "message": f"abi violation, can't parse calldata #{e}",
+                "data": err_data,
+            }
+        if not isinstance(schema, str):
+            return {
+                "message": f"abi violation, invalid return type #{type(schema)}",
+                "data": err_data,
+            }
+        return schema
 
     async def _run_genvm(
         self,
@@ -241,20 +286,7 @@ class Node:
             "mode": self.validator_mode,
             "node_config": self.validator.to_dict(),
         }
-        if self.msg_handler is not None:
-            self.msg_handler.send_message(
-                LogEvent(
-                    name="execution_finished",
-                    type=EventType.INFO,
-                    scope=EventScope.GENVM,
-                    message="execution finished",
-                    data={
-                        "result": f"{res.result!r}",
-                        "stdout": res.stdout,
-                        "stderr": res.stderr,
-                    },
-                )
-            )
+        await self._execution_finished(res)
 
         returned = None
         error = None

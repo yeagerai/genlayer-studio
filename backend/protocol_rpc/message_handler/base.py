@@ -7,10 +7,10 @@ import traceback
 from flask import request
 from loguru import logger
 import sys
-import asyncio
 
 from backend.protocol_rpc.message_handler.types import LogEvent
 from flask_socketio import SocketIO
+from flask_jsonrpc.exceptions import JSONRPCError
 
 from backend.protocol_rpc.configuration import GlobalConfiguration
 from backend.protocol_rpc.message_handler.types import EventScope, EventType, LogEvent
@@ -130,6 +130,10 @@ def log_endpoint_info_wrapper(msg_handler: MessageHandler, config: GlobalConfigu
                     )
                 return result
             except Exception as e:
+                as_jsonrpc = None
+                if isinstance(e, JSONRPCError):
+                    as_jsonrpc = e.jsonrpc_format
+                    print(e, as_jsonrpc)
                 msg_handler.send_message(
                     LogEvent(
                         "endpoint_error",
@@ -140,6 +144,7 @@ def log_endpoint_info_wrapper(msg_handler: MessageHandler, config: GlobalConfigu
                             "endpoint_name": func.__name__,
                             "error": str(e),
                             "traceback": traceback.format_exc(),
+                            "jsonrpc": as_jsonrpc,
                         },
                     )
                 )
