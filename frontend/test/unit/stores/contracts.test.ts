@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useContractsStore } from '@/stores';
-import { useDb, useFileName, useSetupStores } from '@/hooks';
+import {
+  useDb,
+  useFileName,
+  useSetupStores,
+  useRpcClient,
+  useWebSocketClient,
+} from '@/hooks';
 import { notify } from '@kyvg/vue3-notification';
 
 const testContract = {
@@ -21,6 +27,8 @@ vi.mock('@/hooks', () => ({
   useDb: vi.fn(),
   useFileName: vi.fn(),
   useSetupStores: vi.fn(),
+  useRpcClient: vi.fn(),
+  useWebSocketClient: vi.fn(),
 }));
 
 vi.mock('@kyvg/vue3-notification', () => ({
@@ -40,6 +48,11 @@ describe('useContractsStore', () => {
       anyOf: vi.fn().mockReturnThis(),
       delete: vi.fn(),
     },
+    transactions: {
+      where: vi.fn().mockReturnThis(),
+      equals: vi.fn().mockReturnThis(),
+      delete: vi.fn().mockResolvedValue(undefined),
+    },
   };
 
   const mockFileName = {
@@ -55,6 +68,8 @@ describe('useContractsStore', () => {
     (useDb as Mock).mockReturnValue(mockDb);
     (useFileName as Mock).mockReturnValue(mockFileName);
     (useSetupStores as Mock).mockReturnValue(mockSetupStores);
+    (useRpcClient as Mock).mockReturnValue({});
+    (useWebSocketClient as Mock).mockReturnValue({});
 
     contractsStore = useContractsStore();
     vi.clearAllMocks();

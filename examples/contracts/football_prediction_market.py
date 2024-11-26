@@ -9,7 +9,6 @@ import typing
 @gl.contract
 class PredictionMarket:
     has_resolved: bool
-    game_date: str
     team1: str
     team2: str
     resolution_url: str
@@ -33,7 +32,6 @@ class PredictionMarket:
             team2 (str): The name of the second team.
         """
         self.has_resolved = False
-        self.game_date = game_date
         self.resolution_url = (
             "https://www.bbc.com/sport/football/scores-fixtures/" + game_date
         )

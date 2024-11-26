@@ -42,19 +42,22 @@ class MessageHandler:
         return log_endpoint_info_wrapper(self, self.config)(func)
 
     def _socket_emit(self, log_event: LogEvent):
-        if log_event.name == "transaction_status_updated":
+        if log_event.transaction_hash:
             self.socketio.emit(
                 log_event.name,
                 log_event.to_dict(),
-                room=log_event.data.get("hash"),
+                room=log_event.transaction_hash,
             )
         else:
+            client_session_id = (
+                log_event.client_session_id
+                or self.client_session_id
+                or get_client_session_id()
+            )
             self.socketio.emit(
                 log_event.name,
                 log_event.to_dict(),
-                to=log_event.client_session_id
-                or self.client_session_id
-                or get_client_session_id(),
+                to=client_session_id,
             )
 
     def _log_message(self, log_event: LogEvent):

@@ -107,12 +107,14 @@ class Node:
                 transaction.from_address,
                 transaction_data["contract_code"],
                 calldata,
+                transaction.hash,
             )
         elif transaction.type == TransactionType.RUN_CONTRACT:
             calldata = base64.b64decode(transaction_data["calldata"])
             receipt = await self.run_contract(
                 transaction.from_address,
                 calldata,
+                transaction.hash,
             )
         else:
             raise Exception(f"unknown transaction type {transaction.type}")
@@ -159,16 +161,27 @@ class Node:
         from_address: str,
         code_to_deploy: str,
         calldata: bytes,
+        transaction_hash: str,
     ) -> Receipt:
         assert self.contract_snapshot is not None
         self.contract_snapshot.contract_code = code_to_deploy
         return await self._run_genvm(
-            from_address, calldata, readonly=False, is_init=True
+            from_address,
+            calldata,
+            readonly=False,
+            is_init=True,
+            transaction_hash=transaction_hash,
         )
 
-    async def run_contract(self, from_address: str, calldata: bytes) -> Receipt:
+    async def run_contract(
+        self, from_address: str, calldata: bytes, transaction_hash: str
+    ) -> Receipt:
         return await self._run_genvm(
-            from_address, calldata, readonly=False, is_init=False
+            from_address,
+            calldata,
+            readonly=False,
+            is_init=False,
+            transaction_hash=transaction_hash,
         )
 
     async def get_contract_data(
@@ -236,6 +249,7 @@ class Node:
         *,
         readonly: bool,
         is_init: bool,
+        transaction_hash: str | None = None,
     ) -> Receipt:
         genvm = self._create_genvm()
         leader_res: None | dict[int, bytes]
@@ -286,7 +300,22 @@ class Node:
             "mode": self.validator_mode,
             "node_config": self.validator.to_dict(),
         }
-        await self._execution_finished(res)
+
+        if self.msg_handler is not None:
+            self.msg_handler.send_message(
+                LogEvent(
+                    name="execution_finished",
+                    type=EventType.INFO,
+                    scope=EventScope.GENVM,
+                    message="Execution finished",
+                    data={
+                        "result": f"{res.result!r}",
+                        "stdout": res.stdout,
+                        "stderr": res.stderr,
+                    },
+                    transaction_hash=transaction_hash,
+                )
+            )
 
         returned = None
         error = None

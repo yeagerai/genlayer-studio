@@ -145,3 +145,7 @@ consensus/nodes/nodes.json
 node_modules/
 package-lock.json
 package.json
+
+# Nginx TLS certificates and keys
+nginx/ssl/*.key
+nginx/ssl/*.crt

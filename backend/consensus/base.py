@@ -323,6 +323,7 @@ class ConsensusAlgorithm:
                     EventType.ERROR,
                     EventScope.CONSENSUS,
                     "Failed to reach consensus",
+                    transaction_hash=transaction.hash,
                 )
             )
             ConsensusAlgorithm.dispatch_transaction_status_update(
@@ -353,6 +354,7 @@ class ConsensusAlgorithm:
                 EventScope.CONSENSUS,
                 "Reached consensus",
                 consensus_data.to_dict(),
+                transaction_hash=transaction.hash,
             )
         )
 
@@ -367,7 +369,6 @@ class ConsensusAlgorithm:
                     },
                 }
                 leaders_contract_snapshot.register_contract(new_contract)
-
                 msg_handler.send_message(
                     LogEvent(
                         "deployed_contract",
@@ -375,6 +376,7 @@ class ConsensusAlgorithm:
                         EventScope.GENVM,
                         "Contract deployed",
                         new_contract,
+                        transaction_hash=transaction.hash,
                     )
                 )
 
@@ -492,6 +494,7 @@ class ConsensusAlgorithm:
                     "hash": str(transaction_hash),
                     "new_status": str(new_status.value),
                 },
+                transaction_hash=transaction_hash,
             )
         )
 

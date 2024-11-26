@@ -3,6 +3,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { notify } from '@kyvg/vue3-notification';
 import { useDb, useFileName, useSetupStores } from '@/hooks';
+import { useTransactionsStore } from '@/stores';
 
 export const useContractsStore = defineStore('contractsStore', () => {
   const contracts = ref<ContractFile[]>([]);
@@ -10,6 +11,7 @@ export const useContractsStore = defineStore('contractsStore', () => {
   const db = useDb();
   const { setupStores } = useSetupStores();
   const { cleanupFileName } = useFileName();
+  const transactionsStore = useTransactionsStore();
 
   const currentContractId = ref<string | undefined>(
     localStorage.getItem('contractsStore.currentContractId') || '',
@@ -147,6 +149,10 @@ export const useContractsStore = defineStore('contractsStore', () => {
         .anyOf(idsToDelete)
         .delete();
       await db.contractFiles.where('id').anyOf(idsToDelete).delete();
+
+      idsToDelete.forEach((id) => {
+        transactionsStore.clearTransactionsForContract(id);
+      });
 
       deployedContracts.value = [
         ...deployedContracts.value.filter(
