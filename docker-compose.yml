@@ -65,7 +65,6 @@ services:
       dockerfile: ./docker/Dockerfile.backend
       target: ${BACKEND_BUILD_TARGET:-prod}
     environment:
-      - FLASK_SERVER_PORT=${RPCPORT}
       # TODO: remove this in production
       - PYTHONUNBUFFERED=1
       - RPCDEBUGPORT=${RPCDEBUGPORT}
@@ -111,7 +110,6 @@ services:
       - ./.env:/app/webrequest/.env
       - ./webrequest:/app/webrequest
     environment:
-      - FLASK_SERVER_PORT=${WEBREQUESTPORT}
       - WEBREQUESTSELENIUMPORT=${WEBREQUESTSELENIUMPORT}
       # TODO: remove this in production
       - PYTHONUNBUFFERED=1
