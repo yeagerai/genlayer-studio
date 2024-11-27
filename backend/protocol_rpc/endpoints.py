@@ -46,6 +46,8 @@ from backend.node.base import Node
 from backend.node.types import ExecutionMode, ExecutionResultStatus
 
 from flask import request
+from flask_jsonrpc.exceptions import JSONRPCError
+import base64
 
 
 ####### HELPER ENDPOINTS #######
@@ -377,7 +379,7 @@ async def call(
     msg_handler: MessageHandler,
     params: dict,
     block_tag: str = "latest",
-) -> Any:
+) -> str:
     to_address = params["to"]
     from_address = params["from"] if "from" in params else None
     data = params["data"]
@@ -418,12 +420,10 @@ async def call(
     # - write methods can return as well and it is not supported at all in the UI
     # - no calldata decoding should happen here, the frontend (caller) should be responsible for that
     if receipt.execution_result != ExecutionResultStatus.SUCCESS:
-        return receipt.to_dict()
-    try:
-        return genvm_calldata.to_str(genvm_calldata.decode(receipt.returned))
-    except:
-        pass
-    return receipt.to_dict()
+        raise JSONRPCError(
+            message="running contract failed", data={"receipt": receipt.to_dict()}
+        )
+    return base64.b64encode(receipt.returned).decode("ascii")
 
 
 def send_raw_transaction(

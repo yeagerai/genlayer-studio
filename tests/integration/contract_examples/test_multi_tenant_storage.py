@@ -109,7 +109,7 @@ def test_multi_tenant_storage(setup_validators):
         [],
     )
 
-    assert json.loads(storages) == {
+    assert storages == {
         second_storage_contract_address: "user_a_storage",
         first_storage_contract_address: "user_b_storage",
     }

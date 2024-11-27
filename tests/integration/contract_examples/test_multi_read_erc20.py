@@ -79,7 +79,7 @@ def test_multi_read_erc20(setup_validators):
         [],
     )
 
-    assert json.loads(call_method_response_get_balances) == {
+    assert call_method_response_get_balances == {
         from_account_doge.address: {
             doge_contract_address: TOKEN_TOTAL_SUPPLY,
             shiba_contract_address: 0,
@@ -104,7 +104,7 @@ def test_multi_read_erc20(setup_validators):
         [],
     )
 
-    assert json.loads(call_method_response_get_balances) == {
+    assert call_method_response_get_balances == {
         from_account_doge.address: {
             doge_contract_address: TOKEN_TOTAL_SUPPLY,
             shiba_contract_address: 0,

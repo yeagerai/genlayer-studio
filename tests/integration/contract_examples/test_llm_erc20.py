@@ -53,7 +53,7 @@ def test_llm_erc20(setup_validators):
     contract_state_1 = call_contract_method(
         contract_address, from_account_a, "get_balances", []
     )
-    assert json.loads(contract_state_1)[from_account_a.address] == TOKEN_TOTAL_SUPPLY
+    assert contract_state_1[from_account_a.address] == TOKEN_TOTAL_SUPPLY
 
     ########################################
     #### TRANSFER from User A to User B ####
@@ -75,20 +75,20 @@ def test_llm_erc20(setup_validators):
     )
     assert has_success_status(contract_state_2_1)
     assert (
-        json.loads(contract_state_2_1)[from_account_a.address]
+        contract_state_2_1[from_account_a.address]
         == TOKEN_TOTAL_SUPPLY - TRANSFER_AMOUNT
     )
 
-    assert json.loads(contract_state_2_1)[from_account_b.address] == TRANSFER_AMOUNT
+    assert contract_state_2_1[from_account_b.address] == TRANSFER_AMOUNT
 
     # Get Updated State
     contract_state_2_2 = call_contract_method(
         contract_address, from_account_a, "get_balance_of", [from_account_a.address]
     )
-    assert json.loads(contract_state_2_2) == TOKEN_TOTAL_SUPPLY - TRANSFER_AMOUNT
+    assert contract_state_2_2 == TOKEN_TOTAL_SUPPLY - TRANSFER_AMOUNT
 
     # Get Updated State
     contract_state_2_3 = call_contract_method(
         contract_address, from_account_a, "get_balance_of", [from_account_b.address]
     )
-    assert json.loads(contract_state_2_3) == TRANSFER_AMOUNT
+    assert contract_state_2_3 == TRANSFER_AMOUNT

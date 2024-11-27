@@ -46,6 +46,8 @@ def generate_rpc_endpoint(
                 result = await result
             return _serialize(result)
 
+        except JSONRPCError as e:
+            raise e
         except Exception as e:
             raise JSONRPCError(code=-32000, message=str(e))
 

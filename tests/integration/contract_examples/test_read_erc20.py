@@ -56,4 +56,4 @@ def test_read_erc20(setup_validators, from_account):
             "get_balance_of",
             [from_account.address],
         )
-        assert json.loads(contract_state) == TOKEN_TOTAL_SUPPLY
+        assert contract_state == TOKEN_TOTAL_SUPPLY

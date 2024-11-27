@@ -59,7 +59,6 @@ def test_football_prediction_market(setup_validators, from_account):
         contract_address, from_account, "get_resolution_data", []
     )
 
-    parsed_contract_state_2 = json.loads(contract_state_2)
-    assert parsed_contract_state_2["winner"] == 1
-    assert parsed_contract_state_2["score"] == "2:0"
-    assert parsed_contract_state_2["has_resolved"] == True
+    assert contract_state_2["winner"] == 1
+    assert contract_state_2["score"] == "2:0"
+    assert contract_state_2["has_resolved"] == True

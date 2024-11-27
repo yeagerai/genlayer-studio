@@ -7,6 +7,7 @@ import { ChevronDownIcon } from '@heroicons/vue/16/solid';
 import { useEventTracking, useContractQueries } from '@/hooks';
 import { unfoldArgsData, type ArgData } from './ContractParams';
 import ContractParams from './ContractParams.vue';
+import * as calldata from '@/calldata';
 
 const { callWriteMethod, callReadMethod, contract } = useContractQueries();
 const { trackEvent } = useEventTracking();
@@ -37,8 +38,13 @@ const handleCallReadMethod = async () => {
       }),
     );
 
-    responseMessage.value =
-      typeof result === 'string' ? result : JSON.stringify(result);
+    let repr: string;
+    if (typeof result === 'string') {
+      const val = Uint8Array.from(atob(result), (c) => c.charCodeAt(0));
+      responseMessage.value = calldata.toString(calldata.decode(val));
+    } else {
+      responseMessage.value = '<unknown>';
+    }
 
     trackEvent('called_read_method', {
       contract_name: contract.value?.name || '',

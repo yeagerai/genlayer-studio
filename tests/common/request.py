@@ -5,6 +5,7 @@ import requests
 import time
 from dotenv import load_dotenv
 from eth_account import Account
+import base64
 
 from tests.common.transactions import sign_transaction, encode_transaction_data
 
@@ -72,7 +73,8 @@ def call_contract_method(
             },
         )
     ).json()
-    return method_response["result"]
+    enc_result = method_response["result"]
+    return calldata.decode(base64.b64decode(enc_result))
 
 
 def send_transaction(

@@ -46,7 +46,7 @@ def test_storage(setup_validators, from_account):
     contract_state_1 = call_contract_method(
         contract_address, from_account, "get_storage", []
     )
-    assert json.loads(contract_state_1) == INITIAL_STATE
+    assert contract_state_1 == INITIAL_STATE
 
     # Update State
     transaction_response_call_1 = send_transaction(
@@ -62,4 +62,4 @@ def test_storage(setup_validators, from_account):
     contract_state_2 = call_contract_method(
         contract_address, from_account, "get_storage", []
     )
-    assert json.loads(contract_state_2) == UPDATED_STATE
+    assert contract_state_2 == UPDATED_STATE
