@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { useContractsStore } from '@/stores';
+import { useContractsStore, useTransactionsStore } from '@/stores';
 import {
   useDb,
   useFileName,
@@ -37,21 +37,16 @@ vi.mock('@kyvg/vue3-notification', () => ({
 
 describe('useContractsStore', () => {
   let contractsStore: ReturnType<typeof useContractsStore>;
+  let transactionsStore: ReturnType<typeof useTransactionsStore>;
   const mockDb = {
     deployedContracts: {
-      where: vi.fn().mockReturnThis(),
-      anyOf: vi.fn().mockReturnThis(),
-      delete: vi.fn(),
+      clear: vi.fn(),
     },
     contractFiles: {
-      where: vi.fn().mockReturnThis(),
-      anyOf: vi.fn().mockReturnThis(),
-      delete: vi.fn(),
+      clear: vi.fn(),
     },
     transactions: {
-      where: vi.fn().mockReturnThis(),
-      equals: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockResolvedValue(undefined),
+      clear: vi.fn(),
     },
   };
 
@@ -72,6 +67,7 @@ describe('useContractsStore', () => {
     (useWebSocketClient as Mock).mockReturnValue({});
 
     contractsStore = useContractsStore();
+    transactionsStore = useTransactionsStore();
     vi.clearAllMocks();
   });
 
@@ -132,10 +128,11 @@ describe('useContractsStore', () => {
     contractsStore.contracts = exampleContracts;
 
     await contractsStore.resetStorage();
+    await transactionsStore.resetStorage();
 
-    expect(mockDb.deployedContracts.delete).toHaveBeenCalled();
-    expect(mockDb.contractFiles.delete).toHaveBeenCalled();
-    expect(mockSetupStores.setupStores).toHaveBeenCalled();
+    expect(mockDb.deployedContracts.clear).toHaveBeenCalled();
+    expect(mockDb.contractFiles.clear).toHaveBeenCalled();
+    expect(mockDb.transactions.clear).toHaveBeenCalled();
     expect(contractsStore.contracts).toHaveLength(0);
     expect(contractsStore.openedFiles).toHaveLength(0);
   });

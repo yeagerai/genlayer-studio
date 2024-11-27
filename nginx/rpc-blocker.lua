@@ -26,7 +26,7 @@ end
 local function filter_rpc_methods()
     ngx.req.read_body()
     local body = ngx.req.get_body_data()
-    
+
     if not body then
         ngx.status = 400
         ngx.say(cjson.encode({
@@ -37,7 +37,7 @@ local function filter_rpc_methods()
         }))
         return ngx.exit(ngx.HTTP_BAD_REQUEST)
     end
-    
+
     local success, request = pcall(cjson.decode, body)
     if not success then
         ngx.status = 400
@@ -49,13 +49,13 @@ local function filter_rpc_methods()
         }))
         return ngx.exit(ngx.HTTP_BAD_REQUEST)
     end
-    
+
     -- Handle both single requests and batch requests
     local requests = request
     if not request[1] then
         requests = {request}
     end
-    
+
     -- Check each request in the batch
     for _, req in ipairs(requests) do
         if type(req.method) == "string" and restricted_lookup[req.method] then
@@ -69,7 +69,7 @@ local function filter_rpc_methods()
             return ngx.exit(ngx.HTTP_FORBIDDEN)
         end
     end
-    
+
     -- If we get here, the request is valid and can be passed through
     return
 end

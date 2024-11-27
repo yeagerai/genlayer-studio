@@ -8,7 +8,6 @@ import type {
 } from '@/types';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { useContractsStore } from './contracts';
 import { notify } from '@kyvg/vue3-notification';
 import { useRpcClient, useWebSocketClient } from '@/hooks';
 
@@ -16,7 +15,6 @@ export const useNodeStore = defineStore('nodeStore', () => {
   const rpcClient = useRpcClient();
   const webSocketClient = useWebSocketClient();
   const logs = ref<NodeLog[]>([]);
-  const contractsStore = useContractsStore();
   const nodeProviders = ref<GetProvidersAndModelsData>([]);
   const validators = ref<ValidatorModel[]>([]);
   const isLoadingValidatorData = ref<boolean>(true);
@@ -178,10 +176,6 @@ export const useNodeStore = defineStore('nodeStore', () => {
     getProvidersData();
   }
 
-  const contractsToDelete = computed(() =>
-    contractsStore.contracts.filter((c) => c.example),
-  );
-
   const validatorsOrderedById = computed(() =>
     validators.value.slice().sort((a, b) => a.id - b.id),
   );
@@ -218,7 +212,6 @@ export const useNodeStore = defineStore('nodeStore', () => {
     logs,
     validators,
     nodeProviders,
-    contractsToDelete,
     isLoadingValidatorData,
     isLoadingProviders,
     searchFilter,

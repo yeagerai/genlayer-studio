@@ -2,7 +2,6 @@
 import PageSection from '@/components/Simulator/PageSection.vue';
 import { CheckCircleIcon } from '@heroicons/vue/24/outline';
 import EmptyListPlaceholder from '@/components/Simulator/EmptyListPlaceholder.vue';
-import { PlusIcon } from '@heroicons/vue/16/solid';
 import { useNodeStore } from '@/stores';
 import { useWallet, useContractQueries } from '@/hooks';
 import { UploadIcon } from 'lucide-vue-next';
@@ -54,8 +53,8 @@ const { isDeployed, address, contract } = useContractQueries();
       You need at least one validator before you can deploy or interact with a
       contract.
 
-      <RouterLink :to="{ name: 'settings' }"
-        ><Btn secondary tiny class="mt-1">Go to settings</Btn></RouterLink
+      <RouterLink :to="{ name: 'validators' }"
+        ><Btn secondary tiny class="mt-1">Go to validators</Btn></RouterLink
       >
     </Alert>
 

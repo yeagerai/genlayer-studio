@@ -79,15 +79,19 @@ onMounted(() => {
 });
 </script>
 <template>
-  <EmptyListPlaceholder v-if="methodBase === undefined || args === undefined">
+  <EmptyListPlaceholder
+    v-if="
+      methodBase === undefined || args === undefined || args.args.length === 0
+    "
+  >
     No parameters.
   </EmptyListPlaceholder>
+
   <div
     v-else
     class="flex flex-col justify-start gap-1"
     :class="false && 'pointer-events-none opacity-60'"
   >
-    <!-- isDeploying was stripped... -->
     <div
       v-for="([paramName, paramType], i) in methodBase.params || []"
       :key="paramName"

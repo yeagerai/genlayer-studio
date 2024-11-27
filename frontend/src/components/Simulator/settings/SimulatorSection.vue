@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { notify } from '@kyvg/vue3-notification';
-import { useNodeStore, useContractsStore } from '@/stores';
+import { useTransactionsStore, useContractsStore } from '@/stores';
 import { ref } from 'vue';
 import PageSection from '@/components/Simulator/PageSection.vue';
-import { ArchiveXIcon } from 'lucide-vue-next';
+import { ArchiveXIcon, XIcon } from 'lucide-vue-next';
+import { useSetupStores } from '@/hooks';
 
 const contractsStore = useContractsStore();
-const nodeStore = useNodeStore();
+const transactionsStore = useTransactionsStore();
+const { setupStores } = useSetupStores();
+
 const isResetStorageModalOpen = ref(false);
 const isResetting = ref(false);
 
@@ -14,6 +17,8 @@ const handleResetStorage = async () => {
   isResetting.value = true;
   try {
     await contractsStore.resetStorage();
+    await transactionsStore.resetStorage();
+    await setupStores();
 
     notify({
       title: 'Storage reset successfully',
@@ -37,15 +42,7 @@ const handleResetStorage = async () => {
   <PageSection>
     <template #title>Storage</template>
 
-    <Btn
-      @click="isResetStorageModalOpen = true"
-      :icon="ArchiveXIcon"
-      :disabled="nodeStore.contractsToDelete.length < 1"
-      secondary
-      v-tooltip="
-        nodeStore.contractsToDelete.length < 1 && 'No contracts files to delete'
-      "
-    >
+    <Btn @click="isResetStorageModalOpen = true" :icon="ArchiveXIcon" secondary>
       Reset Storage
     </Btn>
 
@@ -59,25 +56,32 @@ const handleResetStorage = async () => {
       :confirming="isResetting"
     >
       <template #title>Reset Studio Storage</template>
-      <template #description
-        >Are you sure? All the examples will be restored, and the following
-        intelligent contracts will be removed.</template
-      >
 
-      <template #info>
-        <div
-          class="text-xs"
-          v-for="contract in nodeStore.contractsToDelete"
-          :key="contract.id"
-        >
-          {{ contract.name }}
-        </div>
+      <template #description
+        >The following items will be deleted from your local storage:
       </template>
 
-      <div class="mt-1 text-xs italic">
-        <span class="font-semibold">Note:</span> if you want to preserve any of
-        these contracts, make a copy of them in the files section.
+      <div class="mx-auto text-sm font-normal">
+        <div class="flex flex-row items-center gap-2">
+          <XIcon :size="16" class="text-red-500" /> All contract files
+        </div>
+        <div class="flex flex-row items-center gap-2">
+          <XIcon :size="16" class="text-red-500" /> All contract deployments
+        </div>
+        <div class="flex flex-row items-center gap-2">
+          <XIcon :size="16" class="text-red-500" /> All transactions
+        </div>
       </div>
+
+      <Alert info>
+        If you want to preserve contracts, download a copy of them from the
+        <RouterLink
+          :to="{ name: 'contracts' }"
+          class="underline"
+          @click="isResetStorageModalOpen = false"
+          >contracts section</RouterLink
+        >.
+      </Alert>
     </ConfirmationModal>
   </PageSection>
 </template>

@@ -2,16 +2,13 @@ import type { ContractFile, DeployedContract } from '@/types';
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { notify } from '@kyvg/vue3-notification';
-import { useDb, useFileName, useSetupStores } from '@/hooks';
-import { useTransactionsStore } from '@/stores';
+import { useDb, useFileName } from '@/hooks';
 
 export const useContractsStore = defineStore('contractsStore', () => {
   const contracts = ref<ContractFile[]>([]);
   const openedFiles = ref<string[]>([]);
   const db = useDb();
-  const { setupStores } = useSetupStores();
   const { cleanupFileName } = useFileName();
-  const transactionsStore = useTransactionsStore();
 
   const currentContractId = ref<string | undefined>(
     localStorage.getItem('contractsStore.currentContractId') || '',
@@ -139,43 +136,12 @@ export const useContractsStore = defineStore('contractsStore', () => {
   }
 
   async function resetStorage(): Promise<void> {
-    try {
-      const idsToDelete = contracts.value
-        .filter((c) => c.example)
-        .map((c) => c.id);
+    contracts.value = [];
+    openedFiles.value = [];
+    currentContractId.value = '';
 
-      await db.deployedContracts
-        .where('contractId')
-        .anyOf(idsToDelete)
-        .delete();
-      await db.contractFiles.where('id').anyOf(idsToDelete).delete();
-
-      idsToDelete.forEach((id) => {
-        transactionsStore.clearTransactionsForContract(id);
-      });
-
-      deployedContracts.value = [
-        ...deployedContracts.value.filter(
-          (c) => !idsToDelete.includes(c.contractId),
-        ),
-      ];
-      contracts.value = [
-        ...contracts.value.filter((c) => !idsToDelete.includes(c.id)),
-      ];
-      openedFiles.value = [
-        ...openedFiles.value.filter((c) => !idsToDelete.includes(c)),
-      ];
-      if (
-        currentContractId.value &&
-        idsToDelete.includes(currentContractId.value)
-      ) {
-        currentContractId.value = '';
-      }
-
-      await setupStores();
-    } catch (error) {
-      console.error(error);
-    }
+    await db.deployedContracts.clear();
+    await db.contractFiles.clear();
   }
 
   const currentContract = computed(() => {
