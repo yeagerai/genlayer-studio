@@ -56,6 +56,11 @@ class ValidatorsRegistry:
         self.session.add(_to_db_model(validator))
         return self.get_validator(validator.address)
 
+    def register_leader_as_validator(self, validator: Validator) -> dict:
+        if not self.validator_exists(validator.address):
+            self.create_validator(validator)
+        return self.get_validator(validator.address)
+
     def update_validator(
         self,
         new_validator: Validator,
@@ -78,6 +83,9 @@ class ValidatorsRegistry:
 
     def delete_all_validators(self):
         self.session.query(Validators).delete()
+
+    def validator_exists(self, validator_address: str) -> bool:
+        return self.session.query(Validators).filter(Validators.address == validator_address).count() > 0
 
 
 # def _to_domain(validator: Validators) -> Validator:

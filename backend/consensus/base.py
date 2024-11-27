@@ -225,7 +225,7 @@ class ConsensusAlgorithm:
             if transaction.leader_only:
                 remaining_validators = []
 
-            num_validators = len(remaining_validators) + 1
+            num_validators = len(remaining_validators) + 1  # +1 for the leader
 
             contract_snapshot_supplier = lambda: contract_snapshot_factory(
                 transaction.to_address
@@ -245,6 +245,10 @@ class ConsensusAlgorithm:
 
             # Leader executes transaction
             leader_receipt = await leader_node.exec_transaction(transaction)
+
+            # Validate leader's receipt
+            if leader_receipt.vote is None:
+                raise Exception("Leader failed to provide a vote.")
 
             votes = {leader["address"]: leader_receipt.vote.value}
             consensus_data.votes = votes

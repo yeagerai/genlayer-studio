@@ -71,3 +71,27 @@ def initialize_validators(
 
         except Exception as e:
             raise ValueError(f"Failed to create validator `{validator_data}`: {str(e)}")
+
+    # Register the leader as a validator
+    leader_validator = ValidatorConfig(
+        stake=100,  # Example stake value
+        provider="leader_provider",
+        model="leader_model", 
+        config=None,
+        plugin=None,
+        plugin_config=None,
+        amount=1
+    )
+    try:
+        validator_creator(
+            validators_registry,
+            accounts_manager,
+            leader_validator.stake,
+            leader_validator.provider,
+            leader_validator.model,
+            leader_validator.config,
+            leader_validator.plugin,
+            leader_validator.plugin_config,
+        )
+    except Exception as e:
+        raise ValueError(f"Failed to register leader as validator: {str(e)}")
