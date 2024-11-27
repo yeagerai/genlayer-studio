@@ -4,6 +4,7 @@ import json
 from functools import partial
 from typing import Any
 from flask_jsonrpc import JSONRPC
+from flask_jsonrpc.exceptions import JSONRPCError
 from sqlalchemy import Table
 from sqlalchemy.orm import Session
 
@@ -344,7 +345,10 @@ async def get_contract_schema_for_code(
         msg_handler=msg_handler.with_client_session(get_client_session_id()),
         contract_snapshot_factory=None,
     )
-    return json.loads(await node.get_contract_schema(contract_code))
+    schema = await node.get_contract_schema(contract_code)
+    if isinstance(schema, dict):
+        raise JSONRPCError(**schema)
+    return json.loads(schema)
 
 
 ####### ETH ENDPOINTS #######

@@ -58,6 +58,7 @@ class ExecutionResult:
     pending_transactions: list[PendingTransaction]
     stdout: str
     stderr: str
+    genvm_log: str
 
 
 # Interface for accessing the blockchain state, it is needed to not tangle current (awfully unoptimized)
@@ -91,7 +92,7 @@ class IGenVM(typing.Protocol):
         config: str,
     ) -> ExecutionResult: ...
 
-    async def get_contract_schema(self, contract_code: bytes) -> str: ...
+    async def get_contract_schema(self, contract_code: bytes) -> ExecutionResult: ...
 
 
 # state proxy that always fails and can give code only for address from a constructor
@@ -152,7 +153,7 @@ class GenVMHost(IGenVM):
             config,
         )
 
-    async def get_contract_schema(self, contract_code: bytes) -> str:
+    async def get_contract_schema(self, contract_code: bytes) -> ExecutionResult:
         NO_ADDR = str(base64.b64encode(b"\x00" * 20), encoding="ascii")
         message = {
             "is_init": False,
@@ -161,7 +162,7 @@ class GenVMHost(IGenVM):
             "value": None,
             "gas": 2**64 - 1,
         }
-        res = await _run_genvm_host(
+        return await _run_genvm_host(
             functools.partial(
                 _Host,
                 calldata_bytes=calldata.encode({"method": "__get_schema__"}),
@@ -171,13 +172,6 @@ class GenVMHost(IGenVM):
             ["--message", json.dumps(message)],
             None,
         )
-        if not isinstance(res.result, ExecutionReturn):
-            raise Exception(f"execution failed {res}")
-        ret_calldata = res.result.ret
-        schema = calldata.decode(ret_calldata)
-        if not isinstance(schema, str):
-            raise Exception(f"abi violation, __get_schema__ returned {schema}")
-        return schema
 
 
 # Class that has logic for handling all genvm host methods and accumulating results
@@ -213,6 +207,7 @@ class _Host(genvmhost.IHost):
             pending_transactions=self._pending_transactions,
             stdout=res.stdout,
             stderr=res.stderr,
+            genvm_log=res.genvm_log,
         )
         if fail is not None:
             return ret(fail)
@@ -260,6 +255,10 @@ class _Host(genvmhost.IHost):
         leader_results = self._leader_results
         if leader_results is None:
             return None
+        if not call_no in leader_results:
+            raise Exception(
+                f"There is no output for nondeterministic block call #{call_no}, most likely leader's execution failed there. Handling this scenario is WIP, but it's likely that it is not desired. Please, inspect leaders execution result"
+            )
         leader_results_mem = memoryview(leader_results[call_no])
         if leader_results_mem[0] == genvmhost.ResultCode.ROLLBACK:
             return str(leader_results_mem[1:], "utf-8")
@@ -328,6 +327,7 @@ async def _run_genvm_host(
             pending_transactions=[],
             stdout="",
             stderr="",
+            genvm_log="",
         )
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)

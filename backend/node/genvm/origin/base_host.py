@@ -145,6 +145,7 @@ async def host_loop(handler: IHost):
 class RunHostAndProgramRes:
     stdout: str
     stderr: str
+    genvm_log: str
     exceptions: list[Exception]
 
 
@@ -172,20 +173,26 @@ async def run_host_and_program(
 
     stdout_rfd, stdout_wfd = os.pipe()
     stderr_rfd, stderr_wfd = os.pipe()
+    genvm_log_rfd, genvm_log_wfd = os.pipe()
     stdout_reader, stdout_transport = await connect_reader(stdout_rfd)
     stderr_reader, stderr_transport = await connect_reader(stderr_rfd)
+    genvm_log_reader, genvm_log_transport = await connect_reader(genvm_log_rfd)
 
     process = await asyncio.create_subprocess_exec(
         program[0],
+        "--log-fd",
+        str(genvm_log_wfd),
         *program[1:],
         stdin=asyncio.subprocess.DEVNULL,
         stdout=stdout_wfd,
         stderr=stderr_wfd,
         cwd=cwd,
         env=env,
+        pass_fds=(genvm_log_wfd,),
     )
     os.close(stdout_wfd)
     os.close(stderr_wfd)
+    os.close(genvm_log_wfd)
     if process.stdin is not None:
         process.stdin.close()
 
@@ -206,12 +213,13 @@ async def run_host_and_program(
     async def wrap_host():
         await host_loop(handler)
 
-    stdout, stderr = [], []
+    stdout, stderr, genvm_log = [], [], []
 
     async def wrap_proc():
         await asyncio.gather(
             read_whole(stdout_reader, stdout_transport, stdout),
             read_whole(stderr_reader, stderr_transport, stderr),
+            read_whole(genvm_log_reader, genvm_log_transport, genvm_log),
             process.wait(),
         )
 
@@ -276,5 +284,8 @@ async def run_host_and_program(
         errors.append(Exception(f"exit code {exit_code} != 0"))
 
     return RunHostAndProgramRes(
-        b"".join(stdout).decode(), b"".join(stderr).decode(), errors
+        b"".join(stdout).decode(),
+        b"".join(stderr).decode(),
+        b"".join(genvm_log).decode(),
+        errors,
     )
