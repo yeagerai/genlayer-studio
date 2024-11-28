@@ -1,0 +1,16 @@
+{
+  "provider": "anthropic",
+  "plugin": "anthropic",
+  "model": "claude-3-opus-20240229",
+  "config": {
+    "temperature": 0.80,
+    "max_tokens": 600,
+    "top_k": 50,
+    "top_p": 0.95,
+    "timeout": 15
+  },
+  "plugin_config": {
+    "api_key_env_var": "ANTHROPIC_API_KEY",
+    "api_url": null
+  }
+}
