@@ -37,3 +37,12 @@ jobs:
         uses: sonarsource/sonarcloud-github-action@v3.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: Generate Coverage Report
+        run: |
+          pytest tests/unit --cov=backend --cov-report=xml
+      - name: Upload Coverage to SonarCloud
+        uses: sonarsource/sonarcloud-github-action@v3.0.0
+        with:
+          projectKey: yeagerai_genlayer-simulator
+          organization: yeagerai
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

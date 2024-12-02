@@ -36,4 +36,7 @@ HEALTHCHECK --interval=5s --timeout=5s --retries=10 --start-period=3s CMD python
 COPY --chown=appuser:appuser webrequest/docker-entry.sh "${base}/webrequest-docker-entry.sh"
 RUN chmod +x "${base}/webrequest-docker-entry.sh"
 WORKDIR $base/$path
-CMD "${base}/webrequest-docker-entry.sh"
+CMD ["gunicorn", "--bind", "0.0.0.0:${WEBREQUESTPORT}", "webrequest.server:app", "--workers", "4", "--worker-class", "gevent"]
+
+ENV GUNICORN_WORKERS=4
+ENV GUNICORN_WORKER_CLASS=gevent

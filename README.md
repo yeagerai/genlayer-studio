@@ -37,6 +37,16 @@ After executing those commands a new tab will open in your browser with the GenL
 ## 📖 The Docs
 Detailed information of how to use the Studio can be found at [GenLayer Docs](https://docs.genlayer.com/).
 
+### Production Server Setup
+The application now uses Gunicorn as the production-grade WSGI server for both `backend` and `webrequest` containers. Ensure that Gunicorn is configured properly in the Dockerfiles.
+
+## 🧪 Testing
+
+To ensure high-quality contributions, run all tests and generate coverage reports before submitting a pull request:
+
+```sh
+$ pytest --cov=backend --cov=webrequest --cov-report=xml
+```
 
 ## Contributing
 As an open-source project in a rapidly developing field, we are extremely open to contributions, whether it be in the form of a new feature, improved infrastructure, or better documentation. Please read our [CONTRIBUTING](https://github.com/yeagerai/genlayer-simulator/blob/main/CONTRIBUTING.md) for guidelines on how to submit your contributions.

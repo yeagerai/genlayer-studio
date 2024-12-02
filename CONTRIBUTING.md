@@ -33,6 +33,10 @@ Have ideas for new features or use cases? We're eager to hear them! But first:
 
 - **1.2. Create a branch**: create the branch that you will work on by using the link provided in the issue details page (right panel at the bottom - section "Development")
 
+- **1.3. Production Server Setup**: When running the application in production mode, use Gunicorn instead of the Flask development server:
+  ```sh
+  gunicorn --bind 0.0.0.0:<PORT> backend.protocol_rpc.server:app --workers 4 --worker-class gevent
+  ```
 - **1.3. Setup the Studio locally**: launch the Studio's frontend and backend by running the docker compose command (Please note that you must have docker, node, and npm installed)
 
    ```sh
@@ -60,9 +64,13 @@ Have ideas for new features or use cases? We're eager to hear them! But first:
 - **2.2. Black Formatter on Save File**: Configure IDE extensions to format your code with [Black](https://github.com/psf/black) before submitting it.
 - **2.3. Code solution**: implement the solution in the code.
 - **2.4. Pull Request**: Submit your changes through a pull request (PR). Fill the entire PR template and set the PR title as a valid conventional commit.
-- **2.5. Check PR and issue linking**: if the issue and the PR are not linked, you can do it manually in the right panel of the Pull Request details page.
-- **2.6. PR Validation and Testing**: Your PR will be automatically validated, analyzed, and tested. Please make sure all tests and validations pass before proceeding.
-- **2.7. Peer Review**: One or more core contributors will review your PR. They may suggest changes or improvements.
+- **2.5. Generate Coverage Reports**: Run tests with coverage before submitting:
+  ```sh
+  pytest --cov=backend --cov=webrequest --cov-report=xml
+  ```
+- **2.6. Check PR and issue linking**: if the issue and the PR are not linked, you can do it manually in the right panel of the Pull Request details page.
+- **2.7. PR Validation and Testing**: Your PR will be automatically validated, analyzed, and tested. Please make sure all tests and validations pass before proceeding.
+- **2.8. Peer Review**: One or more core contributors will review your PR. They may suggest changes or improvements.
 - **2.8. Approval and Merge**: After approval from the reviewers, you can merge your PR with a squash and merge type of action.
 
 #### 3. Other considerations
