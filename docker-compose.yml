@@ -78,6 +78,7 @@ services:
     volumes:
       - ./.env:/app/.env
       - ./backend:/app/backend
+      - ./hardhat/artifacts:/app/hardhat/artifacts
     depends_on:
       database-migration:
         condition: service_completed_successfully
@@ -186,3 +187,19 @@ services:
         condition: service_healthy
       webrequest:
         condition: service_healthy
+
+  hardhat:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.hardhat
+    ports:
+      - "${HARDHAT_PORT:-8545}:8545"
+    volumes:
+      - ./hardhat/contracts:/app/contracts
+      - ./hardhat/scripts:/app/scripts
+      - ./hardhat/test:/app/test
+      - ./hardhat/hardhat.config.js:/app/hardhat.config.js
+      - ./hardhat/artifacts:/app/artifacts
+    environment:
+      - HARDHAT_NETWORK=hardhat
+

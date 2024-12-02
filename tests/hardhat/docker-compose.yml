@@ -1,0 +1,33 @@
+services:
+  hardhat:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.hardhat
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./hardhat/contracts:/app/contracts
+      - ./hardhat/scripts:/app/scripts
+      - ./hardhat/test:/app/test
+      - ./hardhat/hardhat.config.js:/app/hardhat.config.js
+      - ./hardhat/artifacts:/app/artifacts
+    environment:
+      - HARDHAT_NETWORK=hardhat
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8545"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  tests:
+    build:
+      context: ./
+      dockerfile: ./tests/hardhat/Dockerfile
+    volumes:
+      - ./hardhat/artifacts:/app/hardhat/artifacts
+    depends_on:
+      hardhat:
+        condition: service_healthy
+    environment:
+      - HARDHAT_URL=http://hardhat:8545
