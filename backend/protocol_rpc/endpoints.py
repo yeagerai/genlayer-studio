@@ -519,6 +519,12 @@ def get_transactions_for_address(
     )
 
 
+def set_transaction_appeal(
+    transactions_processor: TransactionsProcessor, transaction_hash: str
+) -> None:
+    transactions_processor.set_transaction_appeal(transaction_hash, True)
+
+
 def register_all_rpc_endpoints(
     jsonrpc: JSONRPC,
     msg_handler: MessageHandler,
@@ -636,4 +642,8 @@ def register_all_rpc_endpoints(
     register_rpc_endpoint(
         partial(get_transactions_for_address, transactions_processor, accounts_manager),
         method_name="sim_getTransactionsForAddress",
+    )
+    register_rpc_endpoint(
+        partial(set_transaction_appeal, transactions_processor),
+        method_name="sim_appealTransaction",
     )

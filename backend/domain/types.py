@@ -79,6 +79,8 @@ class Transaction:
     leader_only: bool = (
         False  # Flag to indicate if this transaction should be processed only by the leader. Used for fast and cheap execution of transactions.
     )
+    appealed: bool = False
+    timestamp_accepted: int | None = None
 
     def to_dict(self):
         return {
@@ -97,6 +99,8 @@ class Transaction:
             "s": self.s,
             "v": self.v,
             "leader_only": self.leader_only,
+            "appealed": self.appealed,
+            "timestamp_accepted": self.timestamp_accepted,
         }
 
 
@@ -117,4 +121,6 @@ def transaction_from_dict(input: dict) -> Transaction:
         s=input.get("s"),
         v=input.get("v"),
         leader_only=input.get("leader_only", False),
+        appealed=input.get("appealed"),
+        timestamp_accepted=input.get("timestamp_accepted"),
     )
