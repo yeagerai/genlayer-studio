@@ -7,6 +7,7 @@ import {
   useSetupStores,
   useRpcClient,
   useWebSocketClient,
+  useGenlayer,
 } from '@/hooks';
 import { notify } from '@kyvg/vue3-notification';
 
@@ -29,6 +30,7 @@ vi.mock('@/hooks', () => ({
   useSetupStores: vi.fn(),
   useRpcClient: vi.fn(),
   useWebSocketClient: vi.fn(),
+  useGenlayer: vi.fn(),
 }));
 
 vi.mock('@kyvg/vue3-notification', () => ({
@@ -65,6 +67,7 @@ describe('useContractsStore', () => {
     (useSetupStores as Mock).mockReturnValue(mockSetupStores);
     (useRpcClient as Mock).mockReturnValue({});
     (useWebSocketClient as Mock).mockReturnValue({});
+    (useGenlayer as Mock).mockReturnValue({});
 
     contractsStore = useContractsStore();
     transactionsStore = useTransactionsStore();

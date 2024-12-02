@@ -3,7 +3,6 @@ import { useContractQueries } from '@/hooks';
 import { ref, computed } from 'vue';
 import PageSection from '@/components/Simulator/PageSection.vue';
 import { ArrowUpTrayIcon } from '@heroicons/vue/16/solid';
-import type { ContractMethodBase } from '@/types';
 import ContractParams from './ContractParams.vue';
 import { type ArgData, unfoldArgsData } from './ContractParams';
 
@@ -18,9 +17,7 @@ const { data, isPending, isRefetching, isError } = contractSchemaQuery;
 
 const calldataArguments = ref<ArgData>({ args: [], kwargs: {} });
 
-const ctorMethod = computed(
-  () => data.value?.ctor as ContractMethodBase | undefined,
-);
+const ctorMethod = computed(() => data.value.ctor);
 
 const emit = defineEmits(['deployed-contract']);
 

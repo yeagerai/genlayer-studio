@@ -1,19 +1,19 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { Address } from '@/types';
-import { useWallet, useRpcClient } from '@/hooks';
+import { createAccount, generatePrivateKey } from 'genlayer-js';
+import type { Account } from 'genlayer-js/types';
+import { useShortAddress } from '@/hooks';
 
 export const useAccountsStore = defineStore('accountsStore', () => {
   const key = localStorage.getItem('accountsStore.currentPrivateKey');
   const currentPrivateKey = ref<Address | null>(key ? (key as Address) : null);
-  const wallet = useWallet();
-  const rpcClient = useRpcClient();
-
-  const currentUserAddress = computed(() => {
-    return currentPrivateKey.value
-      ? wallet.privateKeyToAccount(currentPrivateKey.value).address
-      : '';
-  });
+  const currentUserAddress = computed(() =>
+    currentPrivateKey.value
+      ? createAccount(currentPrivateKey.value).address
+      : '',
+  );
+  const { shorten } = useShortAddress();
 
   const privateKeys = ref<Address[]>(
     localStorage.getItem('accountsStore.privateKeys')
@@ -24,14 +24,10 @@ export const useAccountsStore = defineStore('accountsStore', () => {
   );
 
   function generateNewAccount(): Address {
-    const privateKey = wallet.generatePrivateKey();
+    const privateKey = generatePrivateKey();
     privateKeys.value = [...privateKeys.value, privateKey];
     setCurrentAccount(privateKey);
     return privateKey;
-  }
-
-  function accountFromPrivateKey(privateKey: Address) {
-    return wallet.privateKeyToAccount(privateKey);
   }
 
   function removeAccount(privateKey: Address) {
@@ -50,22 +46,12 @@ export const useAccountsStore = defineStore('accountsStore', () => {
     currentPrivateKey.value = privateKey;
   }
 
-  async function getCurrentNonce() {
-    const transactionCount = await rpcClient.getTransactionCount({
-      address: currentUserAddress.value,
-    });
-
-    return transactionCount;
-  }
-
   const displayAddress = computed(() => {
     try {
       if (!currentPrivateKey.value) {
         return '';
       } else {
-        return wallet.shortenAddress(
-          accountFromPrivateKey(currentPrivateKey.value).address,
-        );
+        return shorten(createAccount(currentPrivateKey.value).address);
       }
     } catch (err) {
       console.error(err);
@@ -78,10 +64,8 @@ export const useAccountsStore = defineStore('accountsStore', () => {
     currentPrivateKey,
     privateKeys,
     generateNewAccount,
-    accountFromPrivateKey,
     removeAccount,
     setCurrentAccount,
-    getCurrentNonce,
     displayAddress,
   };
 });

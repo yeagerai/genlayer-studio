@@ -1,6 +1,6 @@
 import { watch, ref, computed } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import type { Address, TransactionItem } from '@/types';
+import type { TransactionItem } from '@/types';
 import {
   useContractsStore,
   useTransactionsStore,
@@ -9,19 +9,23 @@ import {
 import { useDebounceFn } from '@vueuse/core';
 import { notify } from '@kyvg/vue3-notification';
 import { useMockContractData } from './useMockContractData';
-import { useEventTracking, useRpcClient, useWallet } from '@/hooks';
+import { useEventTracking, useGenlayer } from '@/hooks';
 import * as calldata from '@/calldata';
+import type {
+  Address,
+  TransactionHash,
+  ContractSchema,
+} from 'genlayer-js/types';
 
 const schema = ref<any>();
 
 export function useContractQueries() {
-  const rpcClient = useRpcClient();
+  const genlayer = useGenlayer();
   const accountsStore = useAccountsStore();
   const transactionsStore = useTransactionsStore();
   const contractsStore = useContractsStore();
   const queryClient = useQueryClient();
   const { trackEvent } = useEventTracking();
-  const wallet = useWallet();
   const contract = computed(() => contractsStore.currentContract);
 
   const { mockContractId, mockContractSchema } = useMockContractData();
@@ -63,9 +67,9 @@ export function useContractQueries() {
       return mockContractSchema;
     }
 
-    const result = await rpcClient.getContractSchema({
-      code: contract.value?.content ?? '',
-    });
+    const result = await genlayer.client?.getContractSchemaForCode(
+      contract.value?.content ?? '',
+    );
 
     schema.value = result;
 
@@ -87,24 +91,17 @@ export function useContractQueries() {
       if (!contract.value || !accountsStore.currentPrivateKey) {
         throw new Error('Error Deploying the contract');
       }
-      const data = [
-        contract.value?.content ?? '',
-        calldata.encode(args),
+
+      const result = await genlayer.client?.deployContract({
+        code: contract.value?.content ?? '',
+        args: args.args,
         leaderOnly,
-      ];
-
-      const nonce = await accountsStore.getCurrentNonce();
-
-      const signed = await wallet.signTransaction({
-        privateKey: accountsStore.currentPrivateKey,
-        data,
-        nonce,
       });
-      const result = await rpcClient.sendTransaction(signed);
+
       const tx: TransactionItem = {
         contractAddress: '',
         localContractId: contract.value?.id ?? '',
-        hash: result,
+        hash: result as TransactionHash,
         type: 'deploy',
         status: 'PENDING',
         data: {},
@@ -154,9 +151,9 @@ export function useContractQueries() {
       return mockContractSchema;
     }
 
-    const result = await rpcClient.getDeployedContractSchema({
-      address: deployedContract.value?.address ?? '',
-    });
+    const result = await genlayer.client?.getContractSchema(
+      deployedContract.value?.address ?? '',
+    );
 
     return result;
   }
@@ -169,13 +166,10 @@ export function useContractQueries() {
     },
   ) {
     try {
-      const data = [calldata.encode({ method, ...args })];
-      const encodedData = wallet.encodeTransactionData(data);
-
-      const result = await rpcClient.getContractState({
-        to: address.value || '',
-        from: accountsStore.currentUserAddress,
-        data: encodedData,
+      const result = await genlayer.client?.readContract({
+        address: address.value as Address,
+        functionName: method,
+        args: args.args,
       });
 
       return result;
@@ -199,21 +193,17 @@ export function useContractQueries() {
   }) {
     try {
       if (!accountsStore.currentPrivateKey) {
-        throw new Error('Error Deploying the contract');
+        throw new Error('Error writing to contract');
       }
-      const data = [calldata.encode({ method, ...args }), leaderOnly];
-      const to = (address.value as Address) || null;
 
-      const nonce = await accountsStore.getCurrentNonce();
-
-      const signed = await wallet.signTransaction({
-        privateKey: accountsStore.currentPrivateKey,
-        data,
-        nonce,
-        to,
+      const result = await genlayer.client?.writeContract({
+        address: address.value as Address,
+        functionName: method,
+        args: args.args,
+        value: BigInt(0),
+        leaderOnly,
       });
 
-      const result = await rpcClient.sendTransaction(signed);
       transactionsStore.addTransaction({
         contractAddress: address.value || '',
         localContractId: contract.value?.id || '',
@@ -228,6 +218,7 @@ export function useContractQueries() {
       });
       return true;
     } catch (error) {
+      console.error(error);
       throw new Error('Error writing to contract');
     }
   }

@@ -1,31 +1,38 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useAccountsStore } from '@/stores';
-import { useWallet } from '@/hooks';
+import { useGenlayer } from '@/hooks';
+import { generatePrivateKey, createAccount } from 'genlayer-js';
 
 const testKey1 =
-  '0x4104e41989791c1e1f3a889710d8c5509b98ee62e5fabced8a3f538f5afd392b'; // ! NEVER USE THIS PRIVATE KEY
-const testAddress1 = '0x858744E989D688C5f02ec2388342cc34Edf88a97';
+  '0xb69426b0f5838a514b263868978faaa53057ac83c5ccad6b7fddbc051b052c6a'; // ! NEVER USE THIS PRIVATE KEY
+const testAddress1 = '0x0200E9994260fe8D40107E01101F807B2e7A29Da';
 const testKey2 =
-  '0x90efb1e7b1cedc8b4c9c6be652b93a1549e4cfa94d43f5918e60a9cd5f8cf479'; // ! NEVER USE THIS PRIVATE KEY
+  '0x483b7a9b979289a227095c22229028a5debe04d6d1c8434d8bd5b48f78544263'; // ! NEVER USE THIS PRIVATE KEY
 
 vi.mock('@/hooks', () => ({
-  useWallet: vi.fn(),
-  useShortAddress: vi.fn(),
-  useRpcClient: vi.fn(),
+  useGenlayer: vi.fn(),
+  useShortAddress: vi.fn(() => ({
+    shorten: vi.fn(),
+  })),
+}));
+
+vi.mock('genlayer-js', () => ({
+  createAccount: vi.fn(() => ({ address: testAddress1 })),
+  generatePrivateKey: vi.fn(() => testKey1),
 }));
 
 describe('useAccountsStore', () => {
   let accountsStore: ReturnType<typeof useAccountsStore>;
-  const mockWallet = {
-    privateKeyToAccount: vi.fn(),
-    generatePrivateKey: vi.fn(),
-    shortenAddress: vi.fn(),
+  const mockGenlayerClient = {
+    getTransaction: vi.fn(),
   };
 
   beforeEach(() => {
     setActivePinia(createPinia());
-    (useWallet as Mock).mockReturnValue(mockWallet);
+    (useGenlayer as Mock).mockReturnValue({
+      client: mockGenlayerClient,
+    });
 
     // Mock localStorage
     vi.stubGlobal('localStorage', {
@@ -36,17 +43,14 @@ describe('useAccountsStore', () => {
 
     accountsStore = useAccountsStore();
 
-    mockWallet.privateKeyToAccount.mockClear();
-    mockWallet.generatePrivateKey.mockClear();
-    mockWallet.shortenAddress.mockClear();
+    mockGenlayerClient.getTransaction.mockClear();
     (localStorage.getItem as Mock).mockClear();
     (localStorage.getItem as Mock).mockClear();
     (localStorage.removeItem as Mock).mockClear();
   });
 
   it('should generate a new account', () => {
-    const newPrivateKey = '0xnewkey';
-    mockWallet.generatePrivateKey.mockReturnValue(newPrivateKey);
+    const newPrivateKey = testKey1;
     const generatedKey = accountsStore.generateNewAccount();
 
     expect(generatedKey).toBe(newPrivateKey);
@@ -75,7 +79,7 @@ describe('useAccountsStore', () => {
   it('should handle errors in displayAddress computation', () => {
     accountsStore.currentPrivateKey = '0xinvalidkey';
 
-    mockWallet.privateKeyToAccount.mockImplementation(() => {
+    (createAccount as Mock).mockImplementation(() => {
       throw new Error('Invalid private key');
     });
 
@@ -85,6 +89,7 @@ describe('useAccountsStore', () => {
     expect(accountsStore.displayAddress).toBe('0x');
 
     consoleSpy.mockRestore();
+    (createAccount as Mock).mockRestore();
   });
 
   it('should set current account', () => {
@@ -98,10 +103,9 @@ describe('useAccountsStore', () => {
     const privateKey = testKey1;
     const account = { address: testAddress1 };
     accountsStore.currentPrivateKey = privateKey;
-    mockWallet.privateKeyToAccount.mockReturnValue(account);
 
     expect(accountsStore.currentUserAddress).toBe(testAddress1);
-    expect(mockWallet.privateKeyToAccount).toHaveBeenCalledWith(privateKey);
+    expect(createAccount).toHaveBeenCalledWith(privateKey);
   });
 
   it('should return an empty string for currentUserAddress when no private key is set', () => {

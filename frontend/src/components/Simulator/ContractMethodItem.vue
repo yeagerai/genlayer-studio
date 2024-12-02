@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ContractMethod } from '@/types';
+import type { ContractMethod } from 'genlayer-js/types';
 import { ref } from 'vue';
 import { Collapse } from 'vue-collapsed';
 import { notify } from '@kyvg/vue3-notification';

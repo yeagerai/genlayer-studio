@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { useInputMap } from '@/hooks';
-import type { ContractMethodBase, ContractParamsSchema } from '@/types';
+import type {
+  ContractMethodBase,
+  ContractParamsSchema,
+} from 'genlayer-js/types';
 import { onMounted, ref, watch } from 'vue';
 import { AnyFieldValue } from '../global/fields/AnyFieldValue';
 import EmptyListPlaceholder from '@/components/Simulator/EmptyListPlaceholder.vue';

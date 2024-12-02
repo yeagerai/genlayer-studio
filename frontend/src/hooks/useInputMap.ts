@@ -2,7 +2,7 @@ import AnyField from '@/components/global/fields/AnyField.vue';
 import StringField from '@/components/global/fields/StringField.vue';
 import IntegerField from '@/components/global/fields/IntegerField.vue';
 import BooleanField from '@/components/global/fields/BooleanField.vue';
-import type { ContractParamsSchema } from '@/types';
+import type { ContractParamsSchema } from 'genlayer-js/types';
 
 export const InputTypesMap: { [k: string]: any } = {
   string: StringField,
