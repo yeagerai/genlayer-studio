@@ -1,6 +1,8 @@
 from ...types import Address
-from typing import Any
+import typing
 import collections.abc
+import dataclasses
+import abc
 import json
 
 BITS_IN_TYPE = 3
@@ -19,7 +21,14 @@ SPECIAL_TRUE = (2 << BITS_IN_TYPE) | TYPE_SPECIAL
 SPECIAL_ADDR = (3 << BITS_IN_TYPE) | TYPE_SPECIAL
 
 
-def encode(x: Any) -> bytes:
+class CalldataEncodable(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def __to_calldata__(self) -> typing.Any: ...
+
+
+def encode(
+    x: typing.Any, *, default: typing.Callable[[typing.Any], typing.Any] = lambda x: x
+) -> bytes:
     mem = bytearray()
 
     def append_uleb128(i):
@@ -33,7 +42,24 @@ def encode(x: Any) -> bytes:
                 cur |= 0x80
             mem.append(cur)
 
-    def impl(b):
+    def impl_dict(b: collections.abc.Mapping):
+        keys = list(b.keys())
+        keys.sort()
+        le = len(keys)
+        le = (le << 3) | TYPE_MAP
+        append_uleb128(le)
+        for k in keys:
+            if not isinstance(k, str):
+                raise Exception(f"key is not string {type(k)}")
+            bts = k.encode("utf-8")
+            append_uleb128(len(bts))
+            mem.extend(bts)
+            impl(b[k])
+
+    def impl(b: typing.Any):
+        b = default(b)
+        if isinstance(b, CalldataEncodable):
+            b = b.__to_calldata__()
         if b is None:
             mem.append(SPECIAL_NULL)
         elif b is True:
@@ -62,25 +88,17 @@ def encode(x: Any) -> bytes:
             lb = (lb << 3) | TYPE_STR
             append_uleb128(lb)
             mem.extend(b)
-        elif isinstance(b, (list, tuple)):
+        elif isinstance(b, collections.abc.Sequence):
             lb = len(b)
             lb = (lb << 3) | TYPE_ARR
             append_uleb128(lb)
             for x in b:
                 impl(x)
-        elif isinstance(b, dict):
-            keys = list(b.keys())
-            keys.sort()
-            le = len(keys)
-            le = (le << 3) | TYPE_MAP
-            append_uleb128(le)
-            for k in keys:
-                if not isinstance(k, str):
-                    raise Exception(f"key is not string {type(k)}")
-                bts = k.encode("utf-8")
-                append_uleb128(len(bts))
-                mem.extend(bts)
-                impl(b[k])
+        elif isinstance(b, collections.abc.Mapping):
+            impl_dict(b)
+        elif dataclasses.is_dataclass(b):
+            assert not isinstance(b, type)
+            impl_dict(dataclasses.asdict(b))
         else:
             raise Exception(f"invalid type {type(b)}")
 
@@ -88,7 +106,7 @@ def encode(x: Any) -> bytes:
     return bytes(mem)
 
 
-def decode(mem0: collections.abc.Buffer) -> Any:  # type: ignore
+def decode(mem0: collections.abc.Buffer) -> typing.Any:
     mem: memoryview = memoryview(mem0)
 
     def read_uleb128() -> int:
@@ -104,7 +122,7 @@ def decode(mem0: collections.abc.Buffer) -> Any:  # type: ignore
                 break
         return ret
 
-    def impl() -> Any:
+    def impl() -> typing.Any:
         nonlocal mem
         code = read_uleb128()
         typ = code & 0x7
@@ -139,7 +157,7 @@ def decode(mem0: collections.abc.Buffer) -> Any:  # type: ignore
                 ret_arr.append(impl())
             return ret_arr
         elif typ == TYPE_MAP:
-            ret_dict: dict[str, Any] = {}
+            ret_dict: dict[str, typing.Any] = {}
             prev = None
             for _i in range(code):
                 le = read_uleb128()
@@ -159,10 +177,10 @@ def decode(mem0: collections.abc.Buffer) -> Any:  # type: ignore
     return res
 
 
-def to_str(d: Any) -> str:
+def to_str(d: typing.Any) -> str:
     buf: list[str] = []
 
-    def impl(d: Any) -> None:
+    def impl(d: typing.Any) -> None:
         if d is None:
             buf.append("null")
         elif d is True:
@@ -180,25 +198,23 @@ def to_str(d: Any) -> str:
             buf.append("addr#")
             buf.append(d.as_bytes.hex())
         elif isinstance(d, dict):
-            was_first = False
             buf.append("{")
+            comma = False
             for k, v in d.items():
-                if was_first:
+                if comma:
                     buf.append(",")
-                else:
-                    was_first = True
+                comma = True
                 buf.append(json.dumps(k))
                 buf.append(":")
                 impl(v)
             buf.append("}")
         elif isinstance(d, list):
-            was_first = False
             buf.append("[")
+            comma = False
             for v in d:
-                if was_first:
+                if comma:
                     buf.append(",")
-                else:
-                    was_first = True
+                comma = True
                 impl(v)
             buf.append("]")
         else:

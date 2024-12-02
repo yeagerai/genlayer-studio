@@ -1,6 +1,6 @@
 from contextlib import redirect_stdout
 from dataclasses import asdict
-import io
+import datetime
 import json
 import base64
 from typing import Callable, Optional
@@ -11,7 +11,7 @@ import os
 from backend.domain.types import Validator, Transaction, TransactionType
 from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
 import backend.node.genvm.base as genvmbase
-import backend.node.genvm.origin.host_fns as genvmconsts
+import backend.node.genvm.origin.calldata as calldata
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.node.types import Receipt, ExecutionMode, Vote, ExecutionResultStatus
 from backend.protocol_rpc.message_handler.base import MessageHandler
@@ -121,32 +121,12 @@ class Node:
         return receipt
 
     def _set_vote(self, receipt: Receipt) -> Receipt:
-
-        def try_decode_error(e: Exception) -> tuple[str, ...]:
-            # FIXME(kp2pml30): #622 I am not sure that we should compare args,
-            # because if traceback gets there,
-            # it will have different ones for validator and nodes
-            if len(e.args) != 2:
-                return ()
-            typ = e.args[0]
-            if typ == "rollback":
-                return ("rollback", e.args[1])
-            if typ == "error":
-                return ("error",)
-            return ()
-
         leader_receipt = self.leader_receipt
         if self.validator_mode == ExecutionMode.LEADER:
             receipt.vote = Vote.AGREE
         elif (
             leader_receipt.execution_result == receipt.execution_result
-            and (leader_receipt.error is None) == (receipt.error is None)
-            and (
-                leader_receipt.error is None
-                or try_decode_error(leader_receipt.error)
-                == try_decode_error(receipt.error)
-            )
-            and leader_receipt.returned == receipt.returned
+            and leader_receipt.result == receipt.result
             and leader_receipt.contract_state == receipt.contract_state
             and leader_receipt.pending_transactions == receipt.pending_transactions
         ):
@@ -193,9 +173,54 @@ class Node:
             from_address, calldata, readonly=True, is_init=False
         )
 
+    async def _execution_finished(
+        self, res: genvmbase.ExecutionResult, transaction_hash_str: str | None
+    ):
+        msg_handler = self.msg_handler
+        if msg_handler is None:
+            return
+        msg_handler.send_message(
+            LogEvent(
+                name="execution_finished",
+                type=(
+                    EventType.INFO
+                    if isinstance(res.result, genvmbase.ExecutionReturn)
+                    else EventType.ERROR
+                ),
+                scope=EventScope.GENVM,
+                message="execution finished",
+                data={
+                    "result": f"{res.result!r}",
+                    "stdout": res.stdout,
+                    "stderr": res.stderr,
+                    "genvm_log": res.genvm_log,
+                },
+                transaction_hash=transaction_hash_str,
+            )
+        )
+
     async def get_contract_schema(self, code: str) -> str:
         genvm = self._create_genvm()
-        return await genvm.get_contract_schema(code.encode("utf-8"))
+        res = await genvm.get_contract_schema(code.encode("utf-8"))
+        await self._execution_finished(res, None)
+        err_data = {
+            "stdout": res.stdout,
+            "stderr": res.stderr,
+            "genvm_log": res.genvm_log,
+            "result": f"{res.result!r}",
+        }
+        if not isinstance(res.result, genvmbase.ExecutionReturn):
+            raise Exception("execution failed", err_data)
+        ret_calldata = res.result.ret
+        try:
+            schema = calldata.decode(ret_calldata)
+        except Exception as e:
+            raise Exception(f"abi violation, can't parse calldata #{e}", err_data)
+        if not isinstance(schema, str):
+            raise Exception(
+                f"abi violation, invalid return type #{type(schema)}", err_data
+            )
+        return schema
 
     async def _run_genvm(
         self,
@@ -240,6 +265,13 @@ class Node:
         snapshot_view = _SnapshotView(
             self.contract_snapshot, self.contract_snapshot_factory, readonly
         )
+
+        # FIXME(core-team): please provide valid date
+        transaction_datetime = datetime.datetime.fromisoformat(
+            "2024-11-28T06:42:42.424242Z"
+        )
+
+        result_exec_code: ExecutionResultStatus
         res = await genvm.run_contract(
             snapshot_view,
             contract_address=Address(self.contract_snapshot.contract_address),
@@ -248,46 +280,19 @@ class Node:
             is_init=is_init,
             leader_results=leader_res,
             config=json.dumps(config),
+            date=transaction_datetime,
         )
-        base_receipt = {
-            "class_name": "",
-            "calldata": calldata,
-            "mode": self.validator_mode,
-            "node_config": self.validator.to_dict(),
-        }
-        if self.msg_handler is not None:
-            self.msg_handler.send_message(
-                LogEvent(
-                    name="execution_finished",
-                    type=EventType.INFO,
-                    scope=EventScope.GENVM,
-                    message="Execution finished",
-                    data={
-                        "result": f"{res.result!r}",
-                        "stdout": res.stdout,
-                        "stderr": res.stderr,
-                    },
-                    transaction_hash=transaction_hash,
-                )
-            )
+        await self._execution_finished(res, transaction_hash)
 
-        returned = None
-        error = None
-        exec_result_code = ExecutionResultStatus.ERROR
-
-        if isinstance(res.result, genvmbase.ExecutionFail):
-            error = Exception("error", repr(res.result))
-        elif isinstance(res.result, genvmbase.ExecutionRollback):
-            error = Exception("rollback", res.result.message)
-        else:
-            assert isinstance(res.result, genvmbase.ExecutionReturn)
-            returned = res.result.ret
-            exec_result_code = ExecutionResultStatus.SUCCESS
+        result_exec_code = (
+            ExecutionResultStatus.SUCCESS
+            if isinstance(res.result, genvmbase.ExecutionReturn)
+            else ExecutionResultStatus.ERROR
+        )
 
         return self._set_vote(
             Receipt(
-                returned=returned,
-                error=error,
+                result=genvmbase.encode_result_to_bytes(res.result),
                 gas_used=0,
                 eq_outputs={
                     k: base64.b64encode(v).decode("ascii")
@@ -295,8 +300,10 @@ class Node:
                 },
                 pending_transactions=res.pending_transactions,
                 vote=None,
-                execution_result=exec_result_code,
+                execution_result=result_exec_code,
                 contract_state=self.contract_snapshot.encoded_state,
-                **base_receipt,
+                calldata=calldata,
+                mode=self.validator_mode,
+                node_config=self.validator.to_dict(),
             )
         )

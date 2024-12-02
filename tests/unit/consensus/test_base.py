@@ -145,9 +145,8 @@ async def test_exec_transaction():
 
         mock.exec_transaction = AsyncMock(
             return_value=Receipt(
-                returned=DEFAULT_EXEC_RESULT,
+                result=DEFAULT_EXEC_RESULT,
                 vote=Vote.AGREE,
-                class_name="",
                 calldata=b"",
                 mode=mode,
                 gas_used=0,
@@ -155,7 +154,6 @@ async def test_exec_transaction():
                 node_config={},
                 eq_outputs={},
                 execution_result=ExecutionResultStatus.SUCCESS,
-                error=None,
             )
         )
 
@@ -257,16 +255,14 @@ async def test_exec_transaction_no_consensus():
         mock.exec_transaction = AsyncMock(
             return_value=Receipt(
                 vote=Vote.DISAGREE,
-                class_name="",
                 calldata=b"",
                 mode=mode,
                 gas_used=0,
                 contract_state={},
-                returned=DEFAULT_EXEC_RESULT,
+                result=DEFAULT_EXEC_RESULT,
                 node_config={},
                 eq_outputs={},
                 execution_result=ExecutionResultStatus.SUCCESS,
-                error=None,
             )
         )
 
@@ -373,8 +369,7 @@ async def test_exec_transaction_one_disagreement():
                     == 1  # only agree in the second round
                     else Vote.DISAGREE
                 ),
-                returned=DEFAULT_EXEC_RESULT,
-                class_name="",
+                result=DEFAULT_EXEC_RESULT,
                 calldata=b"",
                 mode=mode,
                 gas_used=0,
@@ -382,7 +377,6 @@ async def test_exec_transaction_one_disagreement():
                 node_config={},
                 eq_outputs={},
                 execution_result=ExecutionResultStatus.SUCCESS,
-                error=None,
             )
 
         mock.exec_transaction.side_effect = exec_transaction
