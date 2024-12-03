@@ -87,15 +87,36 @@ class Vote(Enum):
     AGREE = "agree"
     DISAGREE = "disagree"
 
+    @classmethod
+    def from_string(cls, value: str) -> "Vote":
+        try:
+            return cls(value.lower())
+        except ValueError:
+            raise ValueError(f"Invalid vote value: {value}")
+
 
 class ExecutionMode(Enum):
     LEADER = "leader"
     VALIDATOR = "validator"
 
+    @classmethod
+    def from_string(cls, value: str) -> "ExecutionMode":
+        try:
+            return cls(value.lower())
+        except ValueError:
+            raise ValueError(f"Invalid execution mode value: {value}")
+
 
 class ExecutionResultStatus(Enum):
     SUCCESS = "SUCCESS"
     ERROR = "ERROR"
+
+    @classmethod
+    def from_string(cls, value: str) -> "ExecutionResultStatus":
+        try:
+            return cls(value.upper())
+        except ValueError:
+            raise ValueError(f"Invalid execution result status value: {value}")
 
 
 @dataclass
@@ -108,6 +129,13 @@ class PendingTransaction:
             "address": self.address,
             "calldata": str(base64.b64encode(self.calldata), encoding="ascii"),
         }
+
+    @classmethod
+    def from_dict(cls, input: dict) -> "PendingTransaction":
+        return cls(
+            address=input.get("address"),
+            calldata=base64.b64decode(input.get("calldata")),
+        )
 
 
 @dataclass
@@ -145,3 +173,32 @@ class Receipt:
                 for pending_transaction in self.pending_transactions
             ],
         }
+
+    @classmethod
+    def from_dict(cls, input: dict) -> Optional["Receipt"]:
+        if input:
+            return cls(
+                vote=Vote.from_string(input.get("vote")),
+                execution_result=ExecutionResultStatus.from_string(
+                    input.get("execution_result")
+                ),
+                returned=(
+                    (base64.b64decode(input.get("returned")))
+                    if input.get("returned")
+                    else None
+                ),
+                class_name=input.get("class_name"),
+                calldata=base64.b64decode(input.get("calldata")),
+                gas_used=input.get("gas_used"),
+                mode=ExecutionMode.from_string(input.get("mode")),
+                contract_state=input.get("contract_state"),
+                node_config=input.get("node_config"),
+                eq_outputs=input.get("eq_outputs"),
+                error=Exception(input.get("error")) if input.get("error") else None,
+                pending_transactions=tuple(
+                    PendingTransaction.from_dict(pending_transaction)
+                    for pending_transaction in input.get("pending_transactions", [])
+                ),
+            )
+        else:
+            return None

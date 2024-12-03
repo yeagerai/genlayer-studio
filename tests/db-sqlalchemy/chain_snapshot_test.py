@@ -23,7 +23,7 @@ def test_chain_snapshot(session: Session):
         s=None,
         v=None,
         leader_only=False,
-        triggered_by_hash=None,
+        # triggered_by_hash=None,
     )
 
     pending_transaction_2 = Transactions(
@@ -42,7 +42,7 @@ def test_chain_snapshot(session: Session):
         s=None,
         v=None,
         leader_only=False,
-        triggered_by_hash="0xdef",
+        # triggered_by_hash="0xdef",
     )
 
     finalized_transaction = Transactions(
@@ -61,7 +61,7 @@ def test_chain_snapshot(session: Session):
         s=None,
         v=None,
         leader_only=False,
-        triggered_by_hash=None,
+        # triggered_by_hash=None,
     )
 
     session.add(pending_transaction_1)

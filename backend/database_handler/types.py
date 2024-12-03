@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from backend.node.types import Receipt
+from typing import Optional
 
 
 @dataclass
@@ -16,3 +17,17 @@ class ConsensusData:
             ),
             "validators": [receipt.to_dict() for receipt in self.validators],
         }
+
+    @classmethod
+    def from_dict(cls, input: dict) -> Optional["ConsensusData"]:
+        if input:
+            return cls(
+                votes=input.get("votes", {}),
+                leader_receipt=Receipt.from_dict(input.get("leader_receipt", None)),
+                validators=[
+                    Receipt.from_dict(validator)
+                    for validator in (input.get("validators", None) or [])
+                ],
+            )
+        else:
+            return None

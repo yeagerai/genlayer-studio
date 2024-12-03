@@ -7,6 +7,7 @@ import decimal
 from enum import Enum, IntEnum
 
 from backend.database_handler.models import TransactionStatus
+from backend.database_handler.types import ConsensusData
 
 
 @dataclass()
@@ -69,7 +70,7 @@ class Transaction:
     to_address: str | None
     input_data: dict | None = None
     data: dict | None = None
-    consensus_data: dict | None = None
+    consensus_data: ConsensusData | None = None
     nonce: int | None = None
     value: int | None = None
     gaslimit: int | None = None
@@ -103,24 +104,24 @@ class Transaction:
             "timestamp_accepted": self.timestamp_accepted,
         }
 
-
-def transaction_from_dict(input: dict) -> Transaction:
-    return Transaction(
-        hash=input["hash"],
-        status=TransactionStatus(input["status"]),
-        type=TransactionType(input["type"]),
-        from_address=input.get("from_address"),
-        to_address=input.get("to_address"),
-        input_data=input.get("input_data"),
-        data=input.get("data"),
-        consensus_data=input.get("consensus_data"),
-        nonce=input.get("nonce"),
-        value=input.get("value"),
-        gaslimit=input.get("gaslimit"),
-        r=input.get("r"),
-        s=input.get("s"),
-        v=input.get("v"),
-        leader_only=input.get("leader_only", False),
-        appealed=input.get("appealed"),
-        timestamp_accepted=input.get("timestamp_accepted"),
-    )
+    @classmethod
+    def from_dict(cls, input: dict) -> "Transaction":
+        return cls(
+            hash=input["hash"],
+            status=TransactionStatus(input["status"]),
+            type=TransactionType(input["type"]),
+            from_address=input.get("from_address"),
+            to_address=input.get("to_address"),
+            input_data=input.get("input_data"),
+            data=input.get("data"),
+            consensus_data=ConsensusData.from_dict(input.get("consensus_data")),
+            nonce=input.get("nonce"),
+            value=input.get("value"),
+            gaslimit=input.get("gaslimit"),
+            r=input.get("r"),
+            s=input.get("s"),
+            v=input.get("v"),
+            leader_only=input.get("leader_only", False),
+            appealed=input.get("appealed"),
+            timestamp_accepted=input.get("timestamp_accepted"),
+        )
