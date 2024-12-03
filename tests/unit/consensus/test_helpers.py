@@ -250,7 +250,7 @@ def node_factory(
             mode=mode,
             gas_used=0,
             contract_state={},
-            returned=DEFAULT_EXEC_RESULT,
+            result=DEFAULT_EXEC_RESULT,
             node_config={},
             eq_outputs={},
             execution_result=ExecutionResultStatus.SUCCESS,

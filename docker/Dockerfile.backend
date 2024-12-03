@@ -2,6 +2,8 @@ FROM python:3.12.6-slim AS base
 
 ARG TARGETPLATFORM
 
+ARG GENVM_TAG=v0.0.9
+
 ARG path=/app
 WORKDIR $path
 
@@ -28,10 +30,10 @@ ENV RUST_BACKTRACE=1
 RUN cd /genvm \
     && if [[ "$TARGETPLATFORM" == "linux/amd64" ]] ; \
        then \
-           URL="https://storage.googleapis.com/gh-af/genvm_executor_be2586c6a5bb77362f2fb6bc51aa7050dfca8fda_20241120_124155/genvm_executor.zip" ; \
+           EXECUTOR_URL="https://github.com/yeagerai/genvm/releases/download/$GENVM_TAG/genvm-linux-amd64.zip" ; \
        elif [[ "$TARGETPLATFORM" == "linux/arm64" ]] ; \
        then \
-           URL="https://storage.googleapis.com/gh-af/genvm_executor_be2586c6a5bb77362f2fb6bc51aa7050dfca8fda_20241120_124315/genvm_executor.zip" && \
+           EXECUTOR_URL="https://github.com/yeagerai/genvm/releases/download/$GENVM_TAG/genvm-linux-arm64.zip" && \
            DIR="$(pwd)" && \
            mkdir -p /openssl && cd /openssl && \
            curl -L --fail-with-body -H 'Accept: application/octet-stream' -o "openssl.tar.xz" "http://mirror.archlinuxarm.org/aarch64/core/openssl-1.0-1.0.2.u-1-aarch64.pkg.tar.xz" && \
@@ -40,8 +42,9 @@ RUN cd /genvm \
            cd "$DIR" || exit 1 ; \
        else echo "Sorry, $TARGETPLATFORM is not supported yet" ; exit 1 ; \
        fi \
-    && curl -L --fail-with-body -H 'Accept: application/octet-stream' -o executor.zip "$URL" \
-    && curl -L --fail-with-body -H 'Accept: application/octet-stream' -o runners.zip "https://storage.googleapis.com/gh-af/genvm_runners_be2586c6a5bb77362f2fb6bc51aa7050dfca8fda_20241120_125238/runners.zip" \
+    && curl -L --fail-with-body -H 'Accept: application/octet-stream' -o executor.zip "$EXECUTOR_URL" \
+    && RUNNERS_URL="https://github.com/yeagerai/genvm/releases/download/$GENVM_TAG/genvm-runners.zip" \
+    && curl -L --fail-with-body -H 'Accept: application/octet-stream' -o runners.zip "$RUNNERS_URL" \
     && unzip runners.zip && unzip executor.zip && rm runners.zip executor.zip \
     && ls -R . \
     && cd "$path" \

@@ -1,6 +1,10 @@
 # rpc/endpoint_generator.py
 
-import inspect
+import typing
+import collections.abc
+import base64
+import json
+import dataclasses
 from typing import Callable
 from flask_jsonrpc import JSONRPC
 import flask
@@ -28,6 +32,30 @@ def get_function_annotations(function: Callable) -> Callable:
     return {k: v for k, v in original_function_annotations.items()}
 
 
+def _decode_exception(x: Exception) -> typing.Any:
+    def unfold(x: typing.Any):
+        if isinstance(x, tuple):
+            return list(x)
+        if isinstance(x, Exception):
+            import traceback
+
+            return {
+                "kind": "exception",
+                "args": x.args,
+                "traceback": traceback.format_exception(x),
+            }
+        if isinstance(x, collections.abc.Buffer):
+            return base64.b64encode(x).decode("ascii")
+        if dataclasses.is_dataclass(x) and not isinstance(x, type):
+            return dataclasses.asdict(x)
+        return x
+
+    try:
+        return json.loads(json.dumps(x, default=unfold))
+    except Exception:
+        return repr(x)
+
+
 def generate_rpc_endpoint(
     jsonrpc: JSONRPC,
     msg_handler: MessageHandler,
@@ -49,7 +77,11 @@ def generate_rpc_endpoint(
         except JSONRPCError as e:
             raise e
         except Exception as e:
-            raise JSONRPCError(code=-32000, message=str(e))
+            raise JSONRPCError(
+                code=-32000,
+                message=str(e),
+                data={"error": _decode_exception(e)},
+            )
 
     endpoint = msg_handler.log_endpoint_info(endpoint)
     endpoint = jsonrpc.method(json_rpc_method_name)(endpoint)

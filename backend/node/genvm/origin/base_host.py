@@ -10,10 +10,12 @@ from pathlib import Path
 
 if typing.TYPE_CHECKING:
     from .host_fns import *
+    from .result_codes import *
 else:
     from pathlib import Path
 
     exec(Path(__file__).parent.joinpath("host_fns.py").read_text())
+    exec(Path(__file__).parent.joinpath("result_codes.py").read_text())
 
 ACCOUNT_ADDR_SIZE = 20
 GENERIC_ADDR_SIZE = 32
@@ -38,7 +40,9 @@ class IHost(typing.Protocol):
     async def consume_result(
         self, type: ResultCode, data: collections.abc.Buffer, /
     ) -> None: ...
-    async def get_leader_nondet_result(self, call_no: int, /) -> bytes | str | None: ...
+    async def get_leader_nondet_result(
+        self, call_no: int, /
+    ) -> tuple[ResultCode, collections.abc.Buffer] | None: ...
     async def post_nondet_result(
         self, call_no: int, type: ResultCode, data: collections.abc.Buffer, /
     ) -> None: ...
@@ -110,19 +114,16 @@ async def host_loop(handler: IHost):
                 await send_all(b"\x00")
                 return
             case Methods.GET_LEADER_NONDET_RESULT:
-                call_no = await recv_int()  # call no
+                call_no = await recv_int()
                 data = await handler.get_leader_nondet_result(call_no)
                 if data is None:
                     await send_all(bytes([ResultCode.NONE]))
-                elif isinstance(data, str):
-                    await send_all(bytes([ResultCode.ROLLBACK]))
-                    encoded = data.encode("utf-8")
-                    await send_int(len(encoded))
-                    await send_all(encoded)
-                else:
-                    await send_all(bytes([ResultCode.RETURN]))
-                    await send_int(len(data))
-                    await send_all(data)
+                    continue
+                code, as_bytes = data
+                as_bytes = memoryview(as_bytes)
+                await send_all(bytes([code]))
+                await send_int(len(as_bytes))
+                await send_all(as_bytes)
             case Methods.POST_NONDET_RESULT:
                 call_no = await recv_int()
                 await handler.post_nondet_result(call_no, *await read_result())
@@ -145,10 +146,7 @@ async def host_loop(handler: IHost):
 class RunHostAndProgramRes:
     stdout: str
     stderr: str
-    exceptions: list[Exception]
-
-
-from concurrent.futures import ProcessPoolExecutor
+    genvm_log: str
 
 
 async def run_host_and_program(
@@ -172,20 +170,26 @@ async def run_host_and_program(
 
     stdout_rfd, stdout_wfd = os.pipe()
     stderr_rfd, stderr_wfd = os.pipe()
+    genvm_log_rfd, genvm_log_wfd = os.pipe()
     stdout_reader, stdout_transport = await connect_reader(stdout_rfd)
     stderr_reader, stderr_transport = await connect_reader(stderr_rfd)
+    genvm_log_reader, genvm_log_transport = await connect_reader(genvm_log_rfd)
 
     process = await asyncio.create_subprocess_exec(
         program[0],
+        "--log-fd",
+        str(genvm_log_wfd),
         *program[1:],
         stdin=asyncio.subprocess.DEVNULL,
         stdout=stdout_wfd,
         stderr=stderr_wfd,
         cwd=cwd,
         env=env,
+        pass_fds=(genvm_log_wfd,),
     )
     os.close(stdout_wfd)
     os.close(stderr_wfd)
+    os.close(genvm_log_wfd)
     if process.stdin is not None:
         process.stdin.close()
 
@@ -203,20 +207,22 @@ async def run_host_and_program(
                 pass
             await asyncio.sleep(0)
 
-    async def wrap_host():
-        await host_loop(handler)
-
-    stdout, stderr = [], []
+    stdout, stderr, genvm_log = [], [], []
 
     async def wrap_proc():
         await asyncio.gather(
             read_whole(stdout_reader, stdout_transport, stdout),
             read_whole(stderr_reader, stderr_transport, stderr),
+            read_whole(genvm_log_reader, genvm_log_transport, genvm_log),
             process.wait(),
         )
 
-    coro_loop = asyncio.ensure_future(wrap_host())
     coro_proc = asyncio.ensure_future(wrap_proc())
+
+    async def wrap_host():
+        await host_loop(handler)
+
+    coro_loop = asyncio.ensure_future(wrap_host())
 
     all_proc = [coro_loop, coro_proc]
     if deadline is not None:
@@ -240,8 +246,6 @@ async def run_host_and_program(
         print("WARNING: genvm finished first")
         coro_loop.cancel()
 
-    exit_code_use = True
-
     if not coro_proc.done():
         # genvm is exiting, let it clean all the resources for a bit
         await asyncio.wait(
@@ -254,7 +258,6 @@ async def run_host_and_program(
                 process.terminate()
             except:
                 pass
-            exit_code_use = False
             await asyncio.wait(
                 [coro_proc, asyncio.ensure_future(asyncio.sleep(exit_timeout))],
                 return_when=asyncio.FIRST_COMPLETED,
@@ -272,9 +275,18 @@ async def run_host_and_program(
     if not coro_loop.done():
         coro_loop.cancel()
 
-    if exit_code_use and exit_code != 0:
-        errors.append(Exception(f"exit code {exit_code} != 0"))
+    if len(errors) > 0:
+        raise Exception(
+            *errors,
+            {
+                "stdout": b"".join(stdout).decode(),
+                "stderr": b"".join(stderr).decode(),
+                "genvm_log": b"".join(genvm_log).decode(),
+            },
+        ) from errors[0]
 
     return RunHostAndProgramRes(
-        b"".join(stdout).decode(), b"".join(stderr).decode(), errors
+        b"".join(stdout).decode(),
+        b"".join(stderr).decode(),
+        b"".join(genvm_log).decode(),
     )

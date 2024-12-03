@@ -14,7 +14,7 @@ import json
 import aiohttp
 import asyncio
 from typing import Optional
-from openai import OpenAI, Stream
+from openai import AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletionChunk
 from anthropic import AsyncAnthropic
 from urllib.parse import urljoin
@@ -87,24 +87,24 @@ async def call_openai(
     url = node_config[plugin_config_key]["api_url"]
     client = get_openai_client(os.environ[api_key_env_var], url)
     # TODO: OpenAI exceptions need to be caught here
-    stream = get_openai_stream(client, prompt, node_config)
+    stream = await get_openai_stream(client, prompt, node_config)
 
     return await get_openai_output(stream, regex, return_streaming_channel)
 
 
-def get_openai_client(api_key: str, url: str | None = None) -> OpenAI:
+def get_openai_client(api_key: str, url: str | None = None) -> AsyncOpenAI:
     openai_client = None
     if url:
-        openai_client = OpenAI(api_key=api_key, base_url=url)
+        openai_client = AsyncOpenAI(api_key=api_key, base_url=url)
     else:
-        openai_client = OpenAI(api_key=api_key)
+        openai_client = AsyncOpenAI(api_key=api_key)
     return openai_client
 
 
-def get_openai_stream(client: OpenAI, prompt, node_config):
+async def get_openai_stream(client: AsyncOpenAI, prompt, node_config):
     config: dict = node_config["config"]
     if "temperature" in config and "max_tokens" in config:
-        return client.chat.completions.create(
+        return await client.chat.completions.create(
             model=node_config["model"],
             messages=[{"role": "user", "content": prompt}],
             stream=True,
@@ -112,7 +112,7 @@ def get_openai_stream(client: OpenAI, prompt, node_config):
             max_tokens=config["max_tokens"],
         )
     else:
-        return client.chat.completions.create(
+        return await client.chat.completions.create(
             model=node_config["model"],
             messages=[{"role": "user", "content": prompt}],
             stream=True,
@@ -120,10 +120,10 @@ def get_openai_stream(client: OpenAI, prompt, node_config):
 
 
 async def get_openai_output(
-    stream: Stream[ChatCompletionChunk], regex, return_streaming_channel
+    stream: AsyncStream[ChatCompletionChunk], regex, return_streaming_channel
 ):
     buffer = ""
-    for chunk in stream:
+    async for chunk in stream:
         chunk_str = chunk.choices[0].delta.content
         if chunk_str is not None:
             if return_streaming_channel is not None:

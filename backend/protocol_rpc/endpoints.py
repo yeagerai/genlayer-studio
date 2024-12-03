@@ -4,6 +4,7 @@ import json
 from functools import partial
 from typing import Any
 from flask_jsonrpc import JSONRPC
+from flask_jsonrpc.exceptions import JSONRPCError
 from sqlalchemy import Table
 from sqlalchemy.orm import Session
 
@@ -346,7 +347,8 @@ async def get_contract_schema_for_code(
         msg_handler=msg_handler.with_client_session(get_client_session_id()),
         contract_snapshot_factory=None,
     )
-    return json.loads(await node.get_contract_schema(contract_code))
+    schema = await node.get_contract_schema(contract_code)
+    return json.loads(schema)
 
 
 ####### ETH ENDPOINTS #######
@@ -415,15 +417,11 @@ async def call(
         from_address="0x" + "00" * 20,
         calldata=decoded_data.calldata,
     )
-    # FIXME #621
-    # this place is defective because
-    # - write methods can return as well and it is not supported at all in the UI
-    # - no calldata decoding should happen here, the frontend (caller) should be responsible for that
     if receipt.execution_result != ExecutionResultStatus.SUCCESS:
         raise JSONRPCError(
             message="running contract failed", data={"receipt": receipt.to_dict()}
         )
-    return base64.b64encode(receipt.returned).decode("ascii")
+    return base64.b64encode(receipt.result[1:]).decode("ascii")
 
 
 def send_raw_transaction(

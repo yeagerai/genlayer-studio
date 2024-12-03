@@ -11,10 +11,3 @@ class Methods(IntEnum):
     POST_NONDET_RESULT = 6
     POST_MESSAGE = 7
     CONSUME_FUEL = 8
-
-
-class ResultCode(IntEnum):
-    RETURN = 0
-    ROLLBACK = 1
-    NONE = 2
-    ERROR = 3
