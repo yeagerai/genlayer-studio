@@ -22,3 +22,4 @@ Verify that the NGINX configuration matches the expected file names and location
 ssl_certificate /etc/nginx/ssl/genlayer.com.crt;
 ssl_certificate_key /etc/nginx/ssl/genlayer.com.key;
 ssl_client_certificate /etc/nginx/ssl/cloudflare.crt;
+```
