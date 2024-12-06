@@ -351,6 +351,7 @@ class ConsensusAlgorithm:
             transaction.hash,
             consensus_data.to_dict(),
         )
+        transaction.consensus_data = consensus_data.to_dict()
         transactions_processor.create_rollup_transaction(transaction.hash)
         msg_handler.send_message(
             LogEvent(
@@ -362,50 +363,15 @@ class ConsensusAlgorithm:
                 transaction_hash=transaction.hash,
             )
         )
+        self.update_contract_state(transaction, contract_snapshot_factory)
 
-    def commit_reveal_accept_transaction(
+    def update_contract_state(
         self,
         transaction: Transaction,
-        transactions_processor: TransactionsProcessor,
-    ):
-        # temporary, reuse existing code
-        # and add other possible states the transaction can go to
-        ConsensusAlgorithm.dispatch_transaction_status_update(
-            transactions_processor,
-            transaction.hash,
-            TransactionStatus.COMMITTING,
-            self.msg_handler,
-        )
-        transactions_processor.create_rollup_transaction(transaction.hash)
-
-        ConsensusAlgorithm.dispatch_transaction_status_update(
-            transactions_processor,
-            transaction.hash,
-            TransactionStatus.REVEALING,
-            self.msg_handler,
-        )
-        transactions_processor.create_rollup_transaction(transaction.hash)
-
-        time.sleep(2)  # remove this
-
-        transactions_processor.set_transaction_timestamp_accepted(transaction.hash)
-        ConsensusAlgorithm.dispatch_transaction_status_update(
-            transactions_processor,
-            transaction.hash,
-            TransactionStatus.ACCEPTED,
-            self.msg_handler,
-        )
-        transactions_processor.create_rollup_transaction(transaction.hash)
-
-    def finalize_transaction(
-        self,
-        transaction: Transaction,
-        transactions_processor: TransactionsProcessor,
         contract_snapshot_factory: Callable[[str], ContractSnapshot],
     ):
         consensus_data = transaction.consensus_data
         leader_receipt = consensus_data["leader_receipt"]
-
         contract_snapshot_supplier = lambda: contract_snapshot_factory(
             transaction.to_address
         )
@@ -441,6 +407,49 @@ class ConsensusAlgorithm:
                     leader_receipt["contract_state"]
                 )
 
+    def commit_reveal_accept_transaction(
+        self,
+        transaction: Transaction,
+        transactions_processor: TransactionsProcessor,
+        contract_snapshot_factory: Callable[[str], ContractSnapshot],
+    ):
+        # temporary, reuse existing code
+        # and add other possible states the transaction can go to
+        ConsensusAlgorithm.dispatch_transaction_status_update(
+            transactions_processor,
+            transaction.hash,
+            TransactionStatus.COMMITTING,
+            self.msg_handler,
+        )
+        transactions_processor.create_rollup_transaction(transaction.hash)
+
+        ConsensusAlgorithm.dispatch_transaction_status_update(
+            transactions_processor,
+            transaction.hash,
+            TransactionStatus.REVEALING,
+            self.msg_handler,
+        )
+        transactions_processor.create_rollup_transaction(transaction.hash)
+
+        time.sleep(2)  # remove this
+
+        transactions_processor.set_transaction_timestamp_accepted(transaction.hash)
+        ConsensusAlgorithm.dispatch_transaction_status_update(
+            transactions_processor,
+            transaction.hash,
+            TransactionStatus.ACCEPTED,
+            self.msg_handler,
+        )
+        transactions_processor.create_rollup_transaction(transaction.hash)
+        self.update_contract_state(transaction, contract_snapshot_factory)
+
+    def finalize_transaction(
+        self,
+        transaction: Transaction,
+        transactions_processor: TransactionsProcessor,
+    ):
+        consensus_data = transaction.consensus_data
+        leader_receipt = consensus_data["leader_receipt"]
         # Finalize transaction
         transactions_processor.set_transaction_result(
             transaction.hash,
@@ -555,11 +564,14 @@ class ConsensusAlgorithm:
     def run_appeal_window_loop(self):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        print(" ~ ~ ~ ~ ~ STARTING APPEAL WINDOW LOOP")
         loop.run_until_complete(self._appeal_window())
         loop.close()
+        print(" ~ ~ ~ ~ ~ ENDING APPEAL WINDOW LOOP")
 
     async def _appeal_window(self):
         FINALITY_WINDOW = int(os.getenv("FINALITY_WINDOW"))
+        print(" ~ ~ ~ ~ ~ FINALITY WINDOW: ", FINALITY_WINDOW)
         while True:
             with self.get_session() as session:
                 chain_snapshot = ChainSnapshot(session)
@@ -574,9 +586,6 @@ class ConsensusAlgorithm:
                             self.finalize_transaction(
                                 transaction,
                                 transactions_processor,
-                                lambda contract_address: contract_snapshot_factory(
-                                    contract_address, session, transaction
-                                ),
                             )
                             session.commit()
                     else:
@@ -584,7 +593,11 @@ class ConsensusAlgorithm:
                             transaction.hash, False
                         )
                         self.commit_reveal_accept_transaction(
-                            transaction, transactions_processor
+                            transaction,
+                            transactions_processor,
+                            lambda contract_address: contract_snapshot_factory(
+                                contract_address, session, transaction
+                            ),
                         )
                         session.commit()
 

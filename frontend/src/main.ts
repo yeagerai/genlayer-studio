@@ -15,8 +15,6 @@ import { createPlausible } from 'v-plausible/vue';
 const app = createApp(App);
 const pinia = createPinia();
 
-console.log('[GenLayer Studio] Version:', import.meta.env.VITE_APP_VERSION);
-
 pinia.use(persistStorePlugin);
 app.use(pinia);
 app.use(VueQueryPlugin);

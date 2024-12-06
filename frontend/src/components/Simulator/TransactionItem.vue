@@ -98,7 +98,6 @@ function prettifyTxData(x: any): any {
         },
       },
     };
-    console.log(ret);
     return ret;
   } catch (e) {
     console.log(e);
@@ -146,7 +145,7 @@ function prettifyTxData(x: any): any {
     <div class="flex items-center justify-between gap-2 p-1">
       <Loader :size="15" v-if="transaction.status !== 'FINALIZED'" />
 
-      <TransactionStatusBadge
+      <!-- <TransactionStatusBadge
         as="button"
         @click.stop="handleSetTransactionAppeal"
         :class="{ '!bg-green-500': isAppealed }"
@@ -157,7 +156,7 @@ function prettifyTxData(x: any): any {
           APPEAL
           <GavelIcon class="h-3 w-3" />
         </div>
-      </TransactionStatusBadge>
+      </TransactionStatusBadge> -->
 
       <TransactionStatusBadge class="px-[4px] py-[1px] text-[9px]">
         {{ transaction.status }}

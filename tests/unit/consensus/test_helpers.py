@@ -101,6 +101,8 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "s": transaction.s,
         "v": transaction.v,
         "leader_only": transaction.leader_only,
+        "created_at": transaction.created_at,
+        "ghost_contract_address": transaction.ghost_contract_address,
         "appealed": transaction.appealed,
         "timestamp_accepted": transaction.timestamp_accepted,
     }
@@ -123,6 +125,8 @@ def dict_to_transaction(input: dict) -> Transaction:
         s=input.get("s"),
         v=input.get("v"),
         leader_only=input.get("leader_only", False),
+        created_at=input.get("created_at"),
+        ghost_contract_address=input.get("ghost_contract_address"),
         appealed=input.get("appealed"),
         timestamp_accepted=input.get("timestamp_accepted"),
     )
@@ -178,12 +182,13 @@ async def _appeal_window(
                     consensus.finalize_transaction(
                         transaction,
                         transactions_processor,
-                        contract_snapshot_factory=contract_snapshot_factory,
                     )
             else:
                 transactions_processor.set_transaction_appeal(transaction.hash, False)
                 consensus.commit_reveal_accept_transaction(
-                    transaction, transactions_processor
+                    transaction,
+                    transactions_processor,
+                    contract_snapshot_factory=contract_snapshot_factory,
                 )
 
         await asyncio.sleep(1)
@@ -245,16 +250,14 @@ def node_factory(
     mock.exec_transaction = AsyncMock(
         return_value=Receipt(
             vote=vote,
-            class_name="",
             calldata=b"",
             mode=mode,
             gas_used=0,
             contract_state={},
-            returned=DEFAULT_EXEC_RESULT,
+            result=DEFAULT_EXEC_RESULT,
             node_config={},
             eq_outputs={},
             execution_result=ExecutionResultStatus.SUCCESS,
-            error=None,
         )
     )
 

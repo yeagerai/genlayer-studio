@@ -112,8 +112,7 @@ class PendingTransaction:
 
 @dataclass
 class Receipt:
-    returned: bytes | None
-    class_name: str
+    result: bytes
     calldata: bytes
     gas_used: int
     mode: ExecutionMode
@@ -121,7 +120,6 @@ class Receipt:
     node_config: dict
     eq_outputs: dict[int, str]
     execution_result: ExecutionResultStatus
-    error: Optional[Exception] = None
     vote: Optional[Vote] = None
     pending_transactions: Iterable[PendingTransaction] = ()
 
@@ -129,17 +127,13 @@ class Receipt:
         return {
             "vote": self.vote.value,
             "execution_result": self.execution_result.value,
-            "returned": base64.b64encode(
-                self.returned if self.returned is not None else b""
-            ).decode("ascii"),
-            "class_name": self.class_name,
+            "result": base64.b64encode(self.result).decode("ascii"),
             "calldata": str(base64.b64encode(self.calldata), encoding="ascii"),
             "gas_used": self.gas_used,
             "mode": self.mode.value,
             "contract_state": self.contract_state,
             "node_config": self.node_config,
             "eq_outputs": self.eq_outputs,
-            "error": str(self.error) if self.error else None,
             "pending_transactions": [
                 pending_transaction.to_dict()
                 for pending_transaction in self.pending_transactions
