@@ -1,11 +1,23 @@
-FROM python:3.12.6-slim AS base
+FROM ubuntu:24.04 AS base
 
 ARG TARGETPLATFORM
 
-ARG GENVM_TAG=v0.0.9
+ARG GENVM_TAG=v0.0.11
 
 ARG path=/app
 WORKDIR $path
+
+SHELL ["/bin/bash", "-x", "-c"]
+RUN apt-get update -y \
+    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y --no-install-recommends \
+        curl unzip xz-utils ca-certificates python3.12 \
+    && mkdir -p "$HOME/.config/pip/" \
+    && printf "[global]\nbreak-system-packages = true\n" >> "$HOME/.config/pip/pip.conf" \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 2 \
+    && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12 \
+    && python3.12 -m pip --version \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 ADD backend/protocol_rpc/requirements.txt backend/protocol_rpc/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
@@ -22,8 +34,6 @@ ENV PYTHONPATH "${PYTHONPATH}:/${path}"
 ENV FLASK_APP backend/protocol_rpc/server.py
 ENV HUGGINGFACE_HUB_CACHE /home/backend-user/.cache/huggingface
 
-SHELL ["/bin/bash", "-c"]
-RUN apt-get update -y && apt-get install -y --no-install-recommends curl unzip xz-utils && apt-get clean && rm -rf /var/lib/apt/lists/*
 ENV RUST_BACKTRACE=1
 
 # FIXME(kp2pml30): rewrite when genvm becomes public
@@ -55,14 +65,14 @@ RUN su - backend-user -c '/genvm/bin/genvm precompile'
 COPY ../.env .
 COPY backend $path/backend
 
-HEALTHCHECK --interval=1s --timeout=1s --retries=30 --start-period=3s CMD python backend/healthcheck.py --port ${FLASK_SERVER_PORT}
+HEALTHCHECK --interval=1s --timeout=1s --retries=30 --start-period=3s CMD python3 backend/healthcheck.py --port ${FLASK_SERVER_PORT}
 
 ###########START NEW IMAGE : DEBUGGER ###################
 FROM base AS debug
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --cache-dir=/root/.cache/pip debugpy watchdog
 USER backend-user
-CMD watchmedo auto-restart --no-restart-on-command-exit --recursive --pattern="*.py" --ignore-patterns="*.pyc;*__pycache__*" -- python -m debugpy --listen 0.0.0.0:${RPCDEBUGPORT} -m flask run -h 0.0.0.0 -p ${FLASK_SERVER_PORT}
+CMD watchmedo auto-restart --no-restart-on-command-exit --recursive --pattern="*.py" --ignore-patterns="*.pyc;*__pycache__*" -- python3 -m debugpy --listen 0.0.0.0:${RPCDEBUGPORT} -m flask run -h 0.0.0.0 -p ${FLASK_SERVER_PORT}
 
 ###########START NEW IMAGE: PRODUCTION ###################
 FROM base AS prod

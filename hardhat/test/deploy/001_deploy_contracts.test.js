@@ -6,7 +6,7 @@ const path = require("path");
 
 describe("Deploy Script", function () {
     let contracts = {};
-    let deployer;
+    let owner, validator1, validator2, validator3;
 
     const expectedContracts = [
         'GhostContract',
@@ -16,11 +16,13 @@ describe("Deploy Script", function () {
         'MockGenStaking',
         'Queues',
         'Transactions',
-        'ConsensusMain'
+        'Messages',
+        'ConsensusMain',
+        'ConsensusData'
     ];
 
     before(async function () {
-        [deployer] = await ethers.getSigners();
+        [owner, validator1, validator2, validator3] = await ethers.getSigners();
 
         // Execute the deployment using Ignition
         const DeployFixture = require("../../ignition/modules/DeployFixture");
@@ -81,7 +83,7 @@ describe("Deploy Script", function () {
                 .to.equal(await contracts.ConsensusManager.getAddress());
         });
 
-        it("should have initialized Transactions and Queues with the ConsensusMain address", async function() {
+        it("should have initialized Transactions, Queues and Messages with the ConsensusMain address", async function() {
             const consensusMainAddress = await contracts.ConsensusMain.getAddress();
 
             expect(
@@ -93,6 +95,32 @@ describe("Deploy Script", function () {
                 await contracts.Queues.genConsensus(),
                 "Queues should have been initialized with ConsensusMain address"
             ).to.equal(consensusMainAddress);
+
+            expect(
+                await contracts.Messages.genConsensus(),
+                "Messages should have been initialized with ConsensusMain address"
+            ).to.equal(consensusMainAddress);
+        });
+
+        it("should have initialized ConsensusData properly", async function() {
+            const consensusMainAddress = await contracts.ConsensusMain.getAddress();
+            const transactionsAddress = await contracts.Transactions.getAddress();
+            const queuesAddress = await contracts.Queues.getAddress();
+
+            expect(
+                await contracts.ConsensusData.consensusMain(),
+                "ConsensusData should have been initialized with ConsensusMain address"
+            ).to.equal(consensusMainAddress);
+
+            expect(
+                await contracts.ConsensusData.transactions(),
+                "ConsensusData should have been initialized with Transactions address"
+            ).to.equal(transactionsAddress);
+
+            expect(
+                await contracts.ConsensusData.queues(),
+                "ConsensusData should have been initialized with Queues address"
+            ).to.equal(queuesAddress);
         });
 
         it("should have set contract connections for ConsensusMain properly", async function() {
@@ -100,6 +128,7 @@ describe("Deploy Script", function () {
             const genStakingAddress = await contracts.MockGenStaking.getAddress();
             const genQueueAddress = await contracts.Queues.getAddress();
             const genTransactionsAddress = await contracts.Transactions.getAddress();
+            const genMessagesAddress = await contracts.Messages.getAddress();
 
             expect(
                 await contracts.ConsensusMain.ghostFactory(),
@@ -117,10 +146,15 @@ describe("Deploy Script", function () {
                 await contracts.ConsensusMain.genTransactions(),
                 "ConsensusMain should have set GenTransactions address"
             ).to.equal(genTransactionsAddress);
+            expect(
+                await contracts.ConsensusMain.genMessages(),
+                "ConsensusMain should have set GenMessages address"
+            ).to.equal(genMessagesAddress);
         });
 
-        it("should have configured GhostFactory and Transactions final settings properly", async function() {
+        it("should have configured GhostFactory, Transactions and Messages final settings properly", async function() {
             const consensusMainAddress = await contracts.ConsensusMain.getAddress();
+            const transactionsAddress = await contracts.Transactions.getAddress();
 
             expect(
                 await contracts.GhostFactory.genConsensus(),
@@ -134,6 +168,14 @@ describe("Deploy Script", function () {
                 await contracts.Transactions.genConsensus(),
                 "Transactions should have set GenConsensus address"
             ).to.equal(consensusMainAddress);
+            expect(
+                await contracts.Messages.genConsensus(),
+                "Messages should have set GenConsensus address"
+            ).to.equal(consensusMainAddress);
+            expect(
+                await contracts.Messages.genTransactions(),
+                "Messages should have set GenTransactions address"
+            ).to.equal(transactionsAddress);
         });
 
         it("should have set Acceptance Timeout in ConsensusMain properly", async function() {
@@ -144,7 +186,6 @@ describe("Deploy Script", function () {
         });
 
         it("should have set up validators in MockGenStaking properly", async function() {
-            const [owner, validator1, validator2, validator3] = await ethers.getSigners();
             const validatorCount = await contracts.MockGenStaking.getValidatorCount();
             const validators = [];
 

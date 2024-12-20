@@ -132,7 +132,7 @@ def decode_deployment_data(data: str) -> DecodedDeploymentData:
 
 class DeploymentContractTransactionPayload(rlp.Serializable):
     fields = [
-        ("contract_code", text),
+        ("contract_code", binary),
         ("calldata", binary),
         ("leader_only", boolean),
     ]
@@ -140,7 +140,7 @@ class DeploymentContractTransactionPayload(rlp.Serializable):
 
 class DeploymentContractTransactionPayloadDefault(rlp.Serializable):
     fields = [
-        ("contract_code", text),
+        ("contract_code", binary),
         ("calldata", binary),
     ]
 
