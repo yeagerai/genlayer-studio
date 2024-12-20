@@ -324,7 +324,9 @@ async def get_contract_schema(
         msg_handler=msg_handler.with_client_session(get_client_session_id()),
         contract_snapshot_factory=None,
     )
-    schema = await node.get_contract_schema(contract_account["data"]["code"])
+    schema = await node.get_contract_schema(
+        base64.b64decode(contract_account["data"]["code"])
+    )
     return json.loads(schema)
 
 
@@ -349,7 +351,7 @@ async def get_contract_schema_for_code(
         msg_handler=msg_handler.with_client_session(get_client_session_id()),
         contract_snapshot_factory=None,
     )
-    schema = await node.get_contract_schema(contract_code)
+    schema = await node.get_contract_schema(contract_code.encode("utf-8"))
     return json.loads(schema)
 
 

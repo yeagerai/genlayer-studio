@@ -90,7 +90,7 @@ services:
     expose:
       - "${RPCPORT}"
     healthcheck:
-      test: ["CMD", "python", "backend/healthcheck.py", "--port", "${RPCPORT}"]
+      test: ["CMD", "python3", "backend/healthcheck.py", "--port", "${RPCPORT}"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -213,8 +213,8 @@ services:
     restart: always
     healthcheck:
       test: ["CMD", "curl", "-X", "POST", "-H", "Content-Type: application/json", "--fail", "http://localhost:8545", "-d", '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}']
-      interval: 20s
-      timeout: 10s
+      interval: 40s
+      timeout: 15s
       retries: 20
       start_period: 40s
 
