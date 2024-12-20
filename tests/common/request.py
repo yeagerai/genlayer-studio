@@ -74,7 +74,9 @@ def call_contract_method(
         )
     ).json()
     enc_result = method_response["result"]
-    return calldata.decode(base64.b64decode(enc_result))
+    result = calldata.decode(base64.b64decode(enc_result))
+    print(f"Result of {method_name}: {result}")
+    return result
 
 
 def send_transaction(
@@ -93,7 +95,9 @@ def send_transaction(
     signed_transaction = sign_transaction(
         account, call_data, contract_address, value, nonce
     )
-    return send_raw_transaction(signed_transaction)
+    result = send_raw_transaction(signed_transaction)
+    print("Send transaction: ", json.dumps(decode_nested_data(result), indent=3))
+    return result
 
 
 def deploy_intelligent_contract(
@@ -110,6 +114,10 @@ def deploy_intelligent_contract(
     ]
     signed_transaction = sign_transaction(account, deploy_data, nonce=nonce)
     result = send_raw_transaction(signed_transaction)
+    print(
+        "Deployed intelligent contract: ",
+        json.dumps(decode_nested_data(result), indent=3),
+    )
     contract_address = result["data"]["contract_address"]
     return contract_address, result
 
@@ -137,3 +145,39 @@ def wait_for_transaction(transaction_hash: str, interval: int = 10, retries: int
     raise TimeoutError(
         f"Transaction {transaction_hash} not finalized after {retries} retries"
     )
+
+
+def decode_base64(encoded_str):
+    try:
+        return base64.b64decode(encoded_str).decode("utf-8")
+    except UnicodeDecodeError:
+        return encoded_str
+
+
+def decode_contract_state(contract_state):
+    decoded_state = {}
+    for key, value in contract_state.items():
+        decoded_state[decode_base64(key)] = {
+            decode_base64(k): decode_base64(v) for k, v in value.items()
+        }
+    return decoded_state
+
+
+def decode_nested_data(data):
+    """
+    Helper function to decode data from the transaction response to have more readable output
+    """
+    if isinstance(data, dict):
+        decoded_data = {}
+        for key, value in data.items():
+            if key == "calldata" and isinstance(value, str):
+                decoded_data[key] = calldata.decode(base64.b64decode(value))
+            elif key == "contract_state" and isinstance(value, dict):
+                decoded_data[key] = decode_contract_state(value)
+            else:
+                decoded_data[key] = decode_nested_data(value)
+        return decoded_data
+    elif isinstance(data, list):
+        return [decode_nested_data(item) for item in data]
+    else:
+        return data
