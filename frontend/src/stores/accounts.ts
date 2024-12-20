@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { Address } from '@/types';
 import { createAccount, generatePrivateKey } from 'genlayer-js';
 import type { Account } from 'genlayer-js/types';
@@ -9,19 +9,44 @@ export const useAccountsStore = defineStore('accountsStore', () => {
   const key = localStorage.getItem('accountsStore.currentPrivateKey');
   const currentPrivateKey = ref<Address | null>(key ? (key as Address) : null);
   const currentUserAddress = computed(() =>
-    currentPrivateKey.value
-      ? createAccount(currentPrivateKey.value).address
-      : '',
+      currentPrivateKey.value
+          ? createAccount(currentPrivateKey.value).address
+          : '',
   );
   const { shorten } = useShortAddress();
 
   const privateKeys = ref<Address[]>(
-    localStorage.getItem('accountsStore.privateKeys')
-      ? ((localStorage.getItem('accountsStore.privateKeys') || '').split(
-          ',',
-        ) as Address[])
-      : [],
+      localStorage.getItem('accountsStore.privateKeys')
+          ? ((localStorage.getItem('accountsStore.privateKeys') || '').split(
+              ',',
+          ) as Address[])
+          : [],
   );
+
+  const walletAddress = ref<Address | undefined>(undefined);
+  const isWalletSelected = ref<boolean>(false);
+
+  async function fetchMetaMaskAccount() {
+    if (window.ethereum) {
+      //@ts-ignore
+      const accounts = await window.ethereum.request({
+        method: 'eth_requestAccounts',
+      });
+
+      //@ts-ignore
+      walletAddress.value = accounts[0] || null;
+      //@ts-ignore
+      setCurrentAccount()
+    }
+  }
+
+  if (window.ethereum) {
+    //@ts-ignore
+    window.ethereum.on('accountsChanged', (accounts: string[]) => {
+      //@ts-ignore
+      walletAddress.value = accounts[0] || null;
+    });
+  }
 
   function generateNewAccount(): Address {
     const privateKey = generatePrivateKey();
@@ -42,12 +67,18 @@ export const useAccountsStore = defineStore('accountsStore', () => {
     }
   }
 
-  function setCurrentAccount(privateKey: Address) {
-    currentPrivateKey.value = privateKey;
+  function setCurrentAccount(privateKey: Address | undefined) {
+    if( privateKey ) {
+      currentPrivateKey.value = privateKey
+    }
+    isWalletSelected.value = !privateKey;
   }
 
   const displayAddress = computed(() => {
     try {
+      if (walletAddress.value) {
+        return shorten(walletAddress.value);
+      }
       if (!currentPrivateKey.value) {
         return '';
       } else {
@@ -63,6 +94,9 @@ export const useAccountsStore = defineStore('accountsStore', () => {
     currentUserAddress,
     currentPrivateKey,
     privateKeys,
+    walletAddress,
+    isWalletSelected,
+    fetchMetaMaskAccount,
     generateNewAccount,
     removeAccount,
     setCurrentAccount,

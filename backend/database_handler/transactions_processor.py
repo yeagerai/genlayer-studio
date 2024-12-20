@@ -368,10 +368,10 @@ class TransactionsProcessor:
         transaction.appeal_failed = appeal_failed
 
 
-    def get_highest_nonce(self) -> int:
+    def get_highest_timestamp(self) -> int:
         transaction = (
             self.session.query(Transactions)
-            .order_by(desc(Transactions.nonce))
+            .order_by(desc(Transactions.timestamp_accepted))
             .first()
         )
         if transaction is None:

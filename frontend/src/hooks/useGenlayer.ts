@@ -14,17 +14,21 @@ export function useGenlayer() {
   }
 
   watch(
-    () => accountsStore.currentUserAddress,
-    () => {
-      initClient();
-    },
+      [
+        () => accountsStore.currentUserAddress,
+        () => accountsStore.isWalletSelected,
+        () => accountsStore.walletAddress,
+      ],
+      () => {
+        initClient();
+      },
   );
 
   function initClient() {
     client = createClient({
       chain: simulator,
       endpoint: import.meta.env.VITE_JSON_RPC_SERVER_URL,
-      account: createAccount(accountsStore.currentPrivateKey || undefined),
+      accountOrAddress: accountsStore.isWalletSelected ? accountsStore.walletAddress : createAccount(accountsStore.currentPrivateKey || undefined),
     });
   }
 

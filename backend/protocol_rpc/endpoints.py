@@ -389,6 +389,9 @@ async def call(
     from_address = params["from"] if "from" in params else None
     data = params["data"]
 
+    if from_address is None:
+        return base64.b64encode(b'\x00' * 31 + b'\x01').decode("ascii")  # Example: Return '1' as a uint256
+
     if from_address and not accounts_manager.is_valid_address(from_address):
         raise InvalidAddressError(from_address)
 
@@ -536,7 +539,7 @@ def get_net_version() -> str:
     return "61999"
 
 def get_block_number(transactions_processor: TransactionsProcessor) -> str:
-    transaction_count = transactions_processor.get_highest_nonce()
+    transaction_count = transactions_processor.get_highest_timestamp()
     return hex(transaction_count)
 
 def get_block_by_number(
