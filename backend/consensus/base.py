@@ -262,7 +262,7 @@ class ConsensusAlgorithm:
         )
 
         # Begin state transitions starting from PendingState
-        state = PendingState()
+        state = PendingState(called_from_pending_queue=True)
         while True:
             next_state = await state.handle(context)
             if next_state is None:
@@ -439,8 +439,9 @@ class ConsensusAlgorithm:
                                 transactions_processor.set_transaction_appeal(
                                     transaction.hash, False
                                 )
+                                transaction.appeal_undetermined = True
+                                transaction.appealed = False
 
-                                # Set the status to PENDING, transaction will be picked up by _crawl_snapshot
                                 ConsensusAlgorithm.dispatch_transaction_status_update(
                                     transactions_processor,
                                     transaction.hash,
@@ -448,6 +449,26 @@ class ConsensusAlgorithm:
                                     self.msg_handler,
                                 )
 
+                                # Create a transaction context for the appeal process
+                                context = TransactionContext(
+                                    transaction=transaction,
+                                    transactions_processor=transactions_processor,
+                                    snapshot=chain_snapshot,
+                                    accounts_manager=AccountsManager(session),
+                                    contract_snapshot_factory=lambda contract_address: contract_snapshot_factory(
+                                        contract_address, session, transaction
+                                    ),
+                                    node_factory=node_factory,
+                                    msg_handler=self.msg_handler,
+                                )
+
+                                # Begin state transitions starting from PendingState
+                                state = PendingState(called_from_pending_queue=False)
+                                while True:
+                                    next_state = await state.handle(context)
+                                    if next_state is None:
+                                        break
+                                    state = next_state
                                 session.commit()
 
                             else:
@@ -725,6 +746,15 @@ class PendingState(TransactionState):
     Class representing the pending state of a transaction.
     """
 
+    def __init__(self, called_from_pending_queue: bool):
+        """
+        Initialize the PendingState.
+
+        Args:
+            called_from_pending_queue (bool): Indicates if the PendingState was called from the pending queue.
+        """
+        self.called_from_pending_queue = called_from_pending_queue
+
     async def handle(self, context):
         """
         Handle the pending state transition.
@@ -741,6 +771,11 @@ class PendingState(TransactionState):
                 context.transaction.hash
             )
         )
+
+        # Transaction should not be processed from the pending queue if it is a leader appeal
+        # This is to filter out the transaction picked up by _crawl_snapshot
+        if self.called_from_pending_queue and context.transaction.appeal_undetermined:
+            return None
 
         if context.transaction.status != TransactionStatus.PENDING:
             # This is a patch for a TOCTOU problem we have https://github.com/yeagerai/genlayer-simulator/issues/387
@@ -1084,6 +1119,12 @@ class AcceptedState(TransactionState):
             context.transaction.hash, False
         )
         context.transaction.appealed = False
+
+        # Set the transaction appeal undetermined status to false
+        context.transactions_processor.set_transaction_appeal_undetermined(
+            context.transaction.hash, False
+        )
+        context.transaction.appeal_undetermined = False
 
         # Set the transaction result
         context.transactions_processor.set_transaction_result(

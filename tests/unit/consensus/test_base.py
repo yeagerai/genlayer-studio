@@ -1592,7 +1592,7 @@ async def test_exec_undetermined_appeal(managed_thread):
     assert len(created_nodes) == nb_created_nodes
 
     appeal(transaction, transactions_processor)
-    time.sleep(1)
+    time.sleep(3)
 
     transaction = Transaction.from_dict(
         transactions_processor.get_transaction_by_hash(transaction.hash)

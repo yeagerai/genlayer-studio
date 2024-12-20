@@ -7,6 +7,7 @@ import asyncio
 import pytest
 from backend.consensus.base import (
     ConsensusAlgorithm,
+    PendingState,
     CommittingState,
     FinalizingState,
     TransactionContext,
@@ -206,6 +207,7 @@ async def _appeal_window(
             else:
                 # Handle transactions that are appealed
                 if transaction.status == TransactionStatus.UNDETERMINED:
+                    print("bla: leader appeal")
                     # Leader appeal
                     # Appeal data member is used in the frontend for both types of appeals
                     # Here the type is refined based on the status
@@ -215,18 +217,40 @@ async def _appeal_window(
                     transactions_processor.set_transaction_appeal(
                         transaction.hash, False
                     )
+                    transaction.appeal_undetermined = True
+                    transaction.appealed = False
 
-                    # Set the status to PENDING, transaction will be picked up by _crawl_snapshot
                     ConsensusAlgorithm.dispatch_transaction_status_update(
                         transactions_processor,
                         transaction.hash,
                         TransactionStatus.PENDING,
                         msg_handler,
                     )
+
+                    # Create a transaction context for the appeal process
+                    context = TransactionContext(
+                        transaction=transaction,
+                        transactions_processor=transactions_processor,
+                        snapshot=SnapshotMock(nodes),
+                        accounts_manager=AccountsManagerMock(),
+                        contract_snapshot_factory=contract_snapshot_factory,
+                        node_factory=node_factory,
+                        msg_handler=msg_handler,
+                    )
+
+                    # Begin state transitions starting from PendingState
+                    state = PendingState(called_from_pending_queue=False)
+                    while True:
+                        next_state = await state.handle(context)
+                        if next_state is None:
+                            break
+                        state = next_state
+
                     # Create a rollup transaction
                     transactions_processor.create_rollup_transaction(transaction.hash)
 
                 else:
+                    print("bla: validator appeal")
                     chain_snapshot = SnapshotMock(nodes)
                     context = TransactionContext(
                         transaction=transaction,
