@@ -106,8 +106,11 @@ export function useContractQueries() {
         throw new Error('Error Deploying the contract');
       }
 
+      const code = contract.value?.content ?? '';
+      const code_bytes = new TextEncoder().encode(code);
+
       const result = await genlayer.client?.deployContract({
-        code: contract.value?.content ?? '',
+        code: code_bytes as any as string, // FIXME: code should accept both bytes and string in genlayer-js
         args: args.args,
         leaderOnly,
       });

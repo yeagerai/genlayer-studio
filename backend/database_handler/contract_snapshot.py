@@ -14,7 +14,7 @@ class ContractSnapshot:
 
     contract_address: str
     contract_code: str
-    encoded_state: dict[str, dict[str, str]]
+    encoded_state: dict[str, str]
 
     def __init__(self, contract_address: str | None, session: Session):
         self.session = session

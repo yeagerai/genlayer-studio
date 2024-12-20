@@ -42,6 +42,6 @@ class DecodedMethodCallData:
 
 @dataclass
 class DecodedDeploymentData:
-    contract_code: str
+    contract_code: bytes
     calldata: bytes
     leader_only: bool = False
