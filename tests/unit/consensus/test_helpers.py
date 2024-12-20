@@ -68,9 +68,6 @@ class TransactionsProcessorMock:
         else:
             transaction["timestamp_accepted"] = int(time.time())
 
-    def add_transaction(self, new_transaction: dict):
-        self.transactions.append(new_transaction)
-
     def get_accepted_transactions(self):
         result = []
         for transaction in self.transactions:
@@ -80,6 +77,12 @@ class TransactionsProcessorMock:
 
     def create_rollup_transaction(self, transaction_hash: str):
         pass
+
+    def set_transaction_appeal_failed(self, transaction_hash: str, appeal_failed: int):
+        if appeal_failed < 0:
+            raise ValueError("appeal_failed must be a non-negative integer")
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        transaction["appeal_failed"] = appeal_failed
 
 
 class SnapshotMock:
@@ -111,31 +114,8 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "ghost_contract_address": transaction.ghost_contract_address,
         "appealed": transaction.appealed,
         "timestamp_accepted": transaction.timestamp_accepted,
+        "appeal_failed": transaction.appeal_failed,
     }
-
-
-def dict_to_transaction(input: dict) -> Transaction:
-    return Transaction(
-        hash=input["hash"],
-        status=TransactionStatus(input["status"]),
-        type=TransactionType(input["type"]),
-        from_address=input.get("from_address"),
-        to_address=input.get("to_address"),
-        input_data=input.get("input_data"),
-        data=input.get("data"),
-        consensus_data=input.get("consensus_data"),
-        nonce=input.get("nonce"),
-        value=input.get("value"),
-        gaslimit=input.get("gaslimit"),
-        r=input.get("r"),
-        s=input.get("s"),
-        v=input.get("v"),
-        leader_only=input.get("leader_only", False),
-        created_at=input.get("created_at"),
-        ghost_contract_address=input.get("ghost_contract_address"),
-        appealed=input.get("appealed"),
-        timestamp_accepted=input.get("timestamp_accepted"),
-    )
 
 
 def contract_snapshot_factory(address: str):
@@ -222,7 +202,7 @@ async def _appeal_window(
                 context.consensus_data.leader_receipt = (
                     transaction.consensus_data.leader_receipt
                 )
-                n = len(transaction.consensus_data.validators) + 1
+                nb_current_validators = len(transaction.consensus_data.validators) + 1
                 current_validators_addresses = {
                     validator.node_config["address"]
                     for validator in transaction.consensus_data.validators
@@ -233,7 +213,9 @@ async def _appeal_window(
                 try:
                     context.remaining_validators = (
                         ConsensusAlgorithm.get_extra_validators(
-                            chain_snapshot, transaction.consensus_data
+                            chain_snapshot,
+                            transaction.consensus_data,
+                            transaction.appeal_failed,
                         )
                     )
                 except ValueError as e:
@@ -243,8 +225,20 @@ async def _appeal_window(
                     )
                     context.transaction.appealed = False
                 else:
+                    if transaction.appeal_failed == 0:
+                        n = nb_current_validators
+                        nb_validators_processing_appeal = n + 2
+                    elif transaction.appeal_failed == 1:
+                        n = (nb_current_validators - 2) // 2
+                        nb_validators_processing_appeal = 2 * n + 3
+                    else:
+                        n = (nb_current_validators - 3) // (
+                            2 * transaction.appeal_failed - 1
+                        )
+                        nb_validators_processing_appeal = 4 * n + 3
+
                     context.num_validators = len(context.remaining_validators)
-                    assert context.num_validators == n + 2
+                    assert context.num_validators == nb_validators_processing_appeal
 
                     context.votes = {}
                     context.contract_snapshot_supplier = (
@@ -265,7 +259,10 @@ async def _appeal_window(
                         next_state = await state.handle(context)
                         if next_state is None:
                             break
-                        assert len(context.validator_nodes) == n + 2
+                        assert (
+                            len(context.validator_nodes)
+                            == nb_validators_processing_appeal
+                        )
                         state = next_state
 
         await asyncio.sleep(1)

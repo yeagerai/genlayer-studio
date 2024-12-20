@@ -84,6 +84,7 @@ class Transaction:
     ghost_contract_address: str | None = None
     appealed: bool = False
     timestamp_accepted: int | None = None
+    appeal_failed: int = 0
 
     def to_dict(self):
         return {
@@ -106,6 +107,7 @@ class Transaction:
             "ghost_contract_address": self.ghost_contract_address,
             "appealed": self.appealed,
             "timestamp_accepted": self.timestamp_accepted,
+            "appeal_failed": self.appeal_failed,
         }
 
     @classmethod
@@ -130,4 +132,5 @@ class Transaction:
             ghost_contract_address=input.get("ghost_contract_address"),
             appealed=input.get("appealed"),
             timestamp_accepted=input.get("timestamp_accepted"),
+            appeal_failed=input.get("appeal_failed", 0),
         )

@@ -123,19 +123,41 @@ class ExecutionResultStatus(Enum):
 class PendingTransaction:
     address: str  # Address of the contract to call
     calldata: bytes
+    code: bytes | None
+    salt_nonce: int
+
+    def is_deploy(self) -> bool:
+        return self.code is not None
 
     def to_dict(self):
-        return {
-            "address": self.address,
-            "calldata": str(base64.b64encode(self.calldata), encoding="ascii"),
-        }
+        if self.code is None:
+            return {
+                "address": self.address,
+                "calldata": str(base64.b64encode(self.calldata), encoding="ascii"),
+            }
+        else:
+            return {
+                "code": str(base64.b64encode(self.code), encoding="ascii"),
+                "calldata": str(base64.b64encode(self.calldata), encoding="ascii"),
+                "salt_nonce": self.salt_nonce,
+            }
 
     @classmethod
     def from_dict(cls, input: dict) -> "PendingTransaction":
-        return cls(
-            address=input.get("address"),
-            calldata=base64.b64decode(input.get("calldata")),
-        )
+        if "code" in input:
+            return cls(
+                address="0x",
+                calldata=base64.b64decode(input["calldata"]),
+                code=base64.b64decode(input["code"]),
+                salt_nonce=input.get("salt_nonce", 0),
+            )
+        else:
+            return cls(
+                address=input["address"],
+                calldata=base64.b64decode(input["calldata"]),
+                code=None,
+                salt_nonce=0,
+            )
 
 
 @dataclass
@@ -182,11 +204,11 @@ class Receipt:
                 mode=ExecutionMode.from_string(input.get("mode")),
                 contract_state=input.get("contract_state"),
                 node_config=input.get("node_config"),
-                eq_outputs=input.get("eq_outputs"),
-                pending_transactions=tuple(
+                eq_outputs={int(k): v for k, v in input.get("eq_outputs", {}).items()},
+                pending_transactions=[
                     PendingTransaction.from_dict(pending_transaction)
                     for pending_transaction in input.get("pending_transactions", [])
-                ),
+                ],
             )
         else:
             return None
