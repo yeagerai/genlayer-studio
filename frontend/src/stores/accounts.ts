@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { computed, ref, watch } from 'vue';
 import type { Address } from '@/types';
 import { createAccount, generatePrivateKey } from 'genlayer-js';
-import type { Account } from 'genlayer-js/types';
 import { useShortAddress } from '@/hooks';
 
 export const useAccountsStore = defineStore('accountsStore', () => {
@@ -28,23 +27,18 @@ export const useAccountsStore = defineStore('accountsStore', () => {
 
   async function fetchMetaMaskAccount() {
     if (window.ethereum) {
-      //@ts-ignore
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts',
       });
 
-      //@ts-ignore
-      walletAddress.value = accounts[0] || null;
-      //@ts-ignore
+      walletAddress.value = accounts[0];
       setCurrentAccount()
     }
   }
 
   if (window.ethereum) {
-    //@ts-ignore
     window.ethereum.on('accountsChanged', (accounts: string[]) => {
-      //@ts-ignore
-      walletAddress.value = accounts[0] || null;
+      walletAddress.value = accounts[0] as Address;
     });
   }
 
@@ -63,11 +57,11 @@ export const useAccountsStore = defineStore('accountsStore', () => {
     privateKeys.value = privateKeys.value.filter((k) => k !== privateKey);
 
     if (currentPrivateKey.value === privateKey) {
-      setCurrentAccount(privateKeys.value[0] || null);
+      setCurrentAccount(privateKeys.value[0]);
     }
   }
 
-  function setCurrentAccount(privateKey: Address | undefined) {
+  function setCurrentAccount(privateKey?: Address) {
     if( privateKey ) {
       currentPrivateKey.value = privateKey
     }
