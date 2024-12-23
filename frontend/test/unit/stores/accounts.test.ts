@@ -113,3 +113,41 @@ describe('useAccountsStore', () => {
     expect(accountsStore.currentUserAddress).toBe('');
   });
 });
+
+describe('fetchMetaMaskAccount', () => {
+  let accountsStore: ReturnType<typeof useAccountsStore>;
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    accountsStore = useAccountsStore();
+
+    // Mock `window.ethereum`
+    vi.stubGlobal('window', {
+      ethereum: {
+        request: vi.fn(),
+        on: vi.fn(),
+      },
+    });
+  });
+
+  it('should fetch the MetaMask account and set walletAddress', async () => {
+    const testAccount = '0x1234567890abcdef1234567890abcdef12345678';
+    (window?.ethereum?.request as Mock).mockResolvedValueOnce([testAccount]);
+
+    await accountsStore.fetchMetaMaskAccount();
+
+    expect(window?.ethereum?.request).toHaveBeenCalledWith({
+      method: 'eth_requestAccounts',
+    });
+    expect(accountsStore.walletAddress).toBe(testAccount);
+    expect(accountsStore.isWalletSelected).toBe(true);
+  });
+
+  it('should not set walletAddress if window.ethereum is undefined', async () => {
+    vi.stubGlobal('window', {}); // Remove ethereum from window object
+
+    await accountsStore.fetchMetaMaskAccount();
+
+    expect(accountsStore.walletAddress).toBe(undefined);
+  });
+});
