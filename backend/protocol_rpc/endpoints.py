@@ -532,7 +532,7 @@ def set_transaction_appeal(
 
 def set_finality_window_time(consensus: ConsensusAlgorithm, time: int) -> None:
     consensus.set_finality_window_time(time)
-    
+
 
 def get_chain_id() -> str:
     return hex(61_999)
