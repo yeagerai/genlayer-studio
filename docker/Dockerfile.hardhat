@@ -1,13 +1,9 @@
 FROM node:22.12-alpine3.19
 
-# Create non-root user
-RUN addgroup -S hardhat-group && adduser -S hardhat-user -G hardhat-group
 WORKDIR /app
 
 # Install necessary packages and set up the environment
-RUN apk add --no-cache curl g++ make netcat-openbsd python3 && \
-    mkdir -p /app && \
-    chown -R hardhat-user:hardhat-group /app
+RUN apk add --no-cache curl g++ make netcat-openbsd python3
 
 COPY ./hardhat/package*.json ./
 RUN npm install --ignore-scripts
@@ -21,12 +17,9 @@ RUN mkdir -p /app/deployments/localhost && \
     mkdir -p /app/artifacts/contracts && \
     mkdir -p /app/cache && \
     mkdir -p /app/ignition/deployments && \
-    chown -R hardhat-user:hardhat-group /app && \
-    chmod -R 755 /app && \
-    chmod -R 775 /app/deployments && \
-    chmod -R 775 /app/artifacts && \
-    chmod -R 775 /app/cache && \
-    chmod -R 775 /app/ignition/deployments
+    mkdir -p /app/scripts && \
+    mkdir -p /app/test && \
+    chmod -R 777 /app
 
 ENV PATH="/app/node_modules/.bin:${PATH}"
 
@@ -43,7 +36,5 @@ RUN echo '#!/bin/sh' > /app/start.sh && \
     chmod +x /app/start.sh
 
 EXPOSE 8545
-
-USER hardhat-user
 
 CMD ["/app/start.sh"]

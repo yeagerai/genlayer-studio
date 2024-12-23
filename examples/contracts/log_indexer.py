@@ -9,6 +9,7 @@ from genlayer import *
 import genlayermodelwrappers
 import numpy as np
 from dataclasses import dataclass
+import typing
 
 
 @dataclass

@@ -5,6 +5,7 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "./interfaces/ITransactions.sol";
+import "./interfaces/IMessages.sol";
 
 contract Transactions is
 	Initializable,
@@ -19,6 +20,7 @@ contract Transactions is
 	error VoteAlreadyCommitted();
 	mapping(bytes32 => ITransactions.Transaction) public transactions;
 	mapping(bytes32 => mapping(address => uint)) public validatorIndexInTx;
+	mapping(bytes32 => uint) public alreadyEmittedMessages;
 
 	address public genConsensus;
 
@@ -34,6 +36,27 @@ contract Transactions is
 		genConsensus = _genConsensus;
 	}
 
+	function hasOnAcceptanceMessages(
+		bytes32 _tx_id
+	) external view returns (bool itHasMessagesOnAcceptance) {
+		itHasMessagesOnAcceptance = transactions[_tx_id].onAcceptanceMessages;
+	}
+
+	function hasMessagesOnFinalization(
+		bytes32 _tx_id
+	) external view returns (bool itHasMessagesOnFinalization) {
+		itHasMessagesOnFinalization =
+			transactions[_tx_id].messages.length -
+				alreadyEmittedMessages[_tx_id] >
+			0;
+	}
+
+	function getMinAppealBond(
+		bytes32 _tx_id
+	) external view returns (uint256 minAppealBond) {
+		minAppealBond = _calculateMinAppealBond(_tx_id);
+	}
+
 	function addNewTransaction(
 		bytes32 txId,
 		ITransactions.Transaction memory newTx
@@ -45,10 +68,16 @@ contract Transactions is
 	function proposeTransactionReceipt(
 		bytes32 _tx_id,
 		bytes calldata _txReceipt,
-		bytes[] calldata _messages
+		IMessages.SubmittedMessage[] calldata _messages
 	) external onlyGenConsensus {
 		transactions[_tx_id].txReceipt = _txReceipt;
 		transactions[_tx_id].messages = _messages;
+		for (uint i = 0; i < _messages.length; i++) {
+			if (_messages[i].onAcceptance) {
+				transactions[_tx_id].onAcceptanceMessages = true;
+				break;
+			}
+		}
 	}
 
 	function commitVote(
@@ -141,18 +170,10 @@ contract Transactions is
 		}
 	}
 
-	function emitMessagesOnFinalization(bytes32 txId) external {
-		// TODO: Emit the messages
-	}
-
 	function getTransaction(
 		bytes32 txId
 	) external view returns (ITransactions.Transaction memory) {
 		return transactions[txId];
-	}
-
-	function getTransactionSeed(bytes32 txId) external view returns (bytes32) {
-		return transactions[txId].randomSeed;
 	}
 
 	function getTransactionLastVoteTimestamp(
@@ -161,9 +182,30 @@ contract Transactions is
 		return transactions[txId].lastVoteTimestamp;
 	}
 
+	function _calculateMinAppealBond(
+		bytes32 _tx_id
+	) internal view returns (uint256 minAppealBond) {
+		// TODO: Implement the logic to calculate the minimum appeal bond
+		minAppealBond = 0;
+	}
+
 	function setGenConsensus(address _genConsensus) external onlyOwner {
 		genConsensus = _genConsensus;
 		emit GenConsensusSet(_genConsensus);
+	}
+
+	function setRandomSeed(
+		bytes32 txId,
+		bytes32 randomSeed
+	) external onlyGenConsensus {
+		transactions[txId].randomSeed = randomSeed;
+	}
+
+	function setActivationTimestamp(
+		bytes32 txId,
+		uint256 timestamp
+	) external onlyGenConsensus {
+		transactions[txId].activationTimestamp = timestamp;
 	}
 
 	modifier onlyGenConsensus() {
