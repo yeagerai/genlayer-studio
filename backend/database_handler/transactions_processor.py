@@ -4,7 +4,7 @@ import rlp
 
 from .models import Transactions
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, desc
 
 from .models import TransactionStatus
 from eth_utils import to_bytes, keccak, is_address
@@ -366,3 +366,51 @@ class TransactionsProcessor:
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.appeal_failed = appeal_failed
+
+    def get_highest_timestamp(self) -> int:
+        transaction = (
+            self.session.query(Transactions)
+            .order_by(desc(Transactions.timestamp_accepted))
+            .first()
+        )
+        if transaction is None:
+            return 0
+        return transaction.nonce
+
+    def get_transactions_for_block(
+        self, block_number: int, include_full_tx: bool
+    ) -> dict:
+        transactions = (
+            self.session.query(Transactions)
+            .filter(Transactions.nonce == block_number)
+            .all()
+        )
+
+        if not transactions:
+            return None
+
+        block_hash = transactions[0].hash
+        parent_hash = "0x" + "0" * 64  # Placeholder for parent block hash
+        timestamp = transactions[0].timestamp_accepted or int(time.time())
+
+        if include_full_tx:
+            transaction_data = [self._parse_transaction_data(tx) for tx in transactions]
+        else:
+            transaction_data = [tx.hash for tx in transactions]
+
+        block_details = {
+            "number": hex(block_number),
+            "hash": block_hash,
+            "parentHash": parent_hash,
+            "nonce": "0x" + "0" * 16,
+            "transactions": transaction_data,
+            "timestamp": hex(int(timestamp)),
+            "miner": "0x" + "0" * 40,
+            "difficulty": "0x1",
+            "gasUsed": "0x0",
+            "gasLimit": "0x0",
+            "size": "0x0",
+            "extraData": "0x",
+        }
+
+        return block_details

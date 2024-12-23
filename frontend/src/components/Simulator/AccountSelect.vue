@@ -27,6 +27,10 @@ const handleCreateNewAccount = async () => {
     });
   }
 };
+
+const connectMetaMask = async () => {
+  await store.fetchMetaMaskAccount();
+};
 </script>
 
 <template>
@@ -39,11 +43,20 @@ const handleCreateNewAccount = async () => {
     <template #popper>
       <div class="divide-y divide-gray-200 dark:divide-gray-800">
         <AccountItem
+          v-if="store.walletAddress"
+          :account="{ address: store.walletAddress }"
+          :active="store.isWalletSelected"
+          :canDelete="false"
+          v-close-popper
+        />
+        <AccountItem
           v-for="privateKey in store.privateKeys"
           :key="privateKey"
           :privateKey="privateKey"
           :account="createAccount(privateKey)"
-          :active="privateKey === store.currentPrivateKey"
+          :active="
+            privateKey === store.currentPrivateKey && !store.isWalletSelected
+          "
           :canDelete="true"
           v-close-popper
         />
@@ -57,8 +70,12 @@ const handleCreateNewAccount = async () => {
           secondary
           class="w-full"
           :icon="PlusIcon"
-          >New account</Btn
         >
+          New account
+        </Btn>
+        <Btn @click="connectMetaMask" secondary class="w-full">
+          Connect MetaMask
+        </Btn>
       </div>
     </template>
   </Dropdown>

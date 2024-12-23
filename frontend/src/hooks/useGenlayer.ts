@@ -14,7 +14,11 @@ export function useGenlayer() {
   }
 
   watch(
-    () => accountsStore.currentUserAddress,
+    [
+      () => accountsStore.currentUserAddress,
+      () => accountsStore.isWalletSelected,
+      () => accountsStore.walletAddress,
+    ],
     () => {
       initClient();
     },
@@ -24,7 +28,9 @@ export function useGenlayer() {
     client = createClient({
       chain: simulator,
       endpoint: import.meta.env.VITE_JSON_RPC_SERVER_URL,
-      account: createAccount(accountsStore.currentPrivateKey || undefined),
+      account: accountsStore.isWalletSelected
+        ? accountsStore.walletAddress
+        : createAccount(accountsStore.currentPrivateKey || undefined),
     });
   }
 

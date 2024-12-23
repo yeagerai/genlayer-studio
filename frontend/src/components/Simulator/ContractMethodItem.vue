@@ -21,30 +21,21 @@ const props = defineProps<{
 
 const isExpanded = ref(false);
 const isCalling = ref(false);
-const responseMessage = ref('');
+const responseMessage = ref();
 
 const calldataArguments = ref<ArgData>({ args: [], kwargs: {} });
 
 const handleCallReadMethod = async () => {
-  responseMessage.value = '';
   isCalling.value = true;
 
   try {
-    const result = await callReadMethod(
+    responseMessage.value = await callReadMethod(
       props.name,
       unfoldArgsData({
         args: calldataArguments.value.args,
         kwargs: calldataArguments.value.kwargs,
       }),
     );
-
-    let repr: string;
-    if (typeof result === 'string') {
-      const val = Uint8Array.from(atob(result), (c) => c.charCodeAt(0));
-      responseMessage.value = calldata.toString(calldata.decode(val));
-    } else {
-      responseMessage.value = '<unknown>';
-    }
 
     trackEvent('called_read_method', {
       contract_name: contract.value?.name || '',
