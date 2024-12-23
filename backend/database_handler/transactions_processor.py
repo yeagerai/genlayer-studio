@@ -380,7 +380,7 @@ class TransactionsProcessor:
 
 
     def get_transactions_for_block(
-            self, block_number: int, include_full_tx: bool
+        self, block_number: int, include_full_tx: bool
     ) -> dict:
         transactions = (
             self.session.query(Transactions)

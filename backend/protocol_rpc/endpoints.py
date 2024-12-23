@@ -390,7 +390,9 @@ async def call(
     data = params["data"]
 
     if from_address is None:
-        return base64.b64encode(b'\x00' * 31 + b'\x01').decode("ascii")  # Example: Return '1' as a uint256
+        return base64.b64encode(b'\x00' * 31 + b'\x01').decode(
+            "ascii"
+        )  # Return '1' as a uint256
 
     if from_address and not accounts_manager.is_valid_address(from_address):
         raise InvalidAddressError(from_address)
@@ -543,7 +545,7 @@ def get_block_number(transactions_processor: TransactionsProcessor) -> str:
     return hex(transaction_count)
 
 def get_block_by_number(
-        transactions_processor: TransactionsProcessor, block_number: str, full_tx: bool
+    transactions_processor: TransactionsProcessor, block_number: str, full_tx: bool
 ) -> dict | None:
     try:
         block_number_int = int(block_number, 16)
@@ -565,8 +567,8 @@ def get_gas_price() -> str:
     return hex(gas_price_in_wei)
 
 def get_transaction_receipt(
-        transactions_processor: TransactionsProcessor,
-        transaction_hash: str,
+    transactions_processor: TransactionsProcessor,
+    transaction_hash: str,
 ) -> dict | None:
 
     transaction = transactions_processor.get_transaction_by_hash(transaction_hash)
@@ -583,7 +585,11 @@ def get_transaction_receipt(
         "to": transaction.get("to_address") if transaction.get("to_address") else None,
         "cumulativeGasUsed": hex(transaction.get("gas_used", 21000)),
         "gasUsed": hex(transaction.get("gas_used", 21000)),
-        "contractAddress": transaction.get("contract_address") if transaction.get("contract_address") else None,
+        "contractAddress": (
+            transaction.get("contract_address")
+            if transaction.get("contract_address")
+            else None
+        ),
         "logs": transaction.get("logs", []),
         "logsBloom": "0x" + "00" * 256,
         "status": hex(1 if transaction.get("status", True) else 0),
@@ -592,9 +598,9 @@ def get_transaction_receipt(
     return receipt
 
 def get_block_by_hash(
-        transactions_processor: TransactionsProcessor,
-        transaction_hash: str,
-        full_tx: bool = False,
+    transactions_processor: TransactionsProcessor,
+    transaction_hash: str,
+    full_tx: bool = False,
 ) -> dict | None:
 
     transaction = transactions_processor.get_transaction_by_hash(transaction_hash)
