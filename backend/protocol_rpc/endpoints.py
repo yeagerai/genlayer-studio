@@ -53,7 +53,6 @@ from flask_jsonrpc.exceptions import JSONRPCError
 import base64
 
 
-
 ####### HELPER ENDPOINTS #######
 def ping() -> str:
     return "OK"
@@ -537,12 +536,15 @@ def set_finality_window_time(consensus: ConsensusAlgorithm, time: int) -> None:
 def get_chain_id() -> str:
     return hex(61_999)
 
+
 def get_net_version() -> str:
     return "61999"
+
 
 def get_block_number(transactions_processor: TransactionsProcessor) -> str:
     transaction_count = transactions_processor.get_highest_timestamp()
     return hex(transaction_count)
+
 
 def get_block_by_number(
     transactions_processor: TransactionsProcessor, block_number: str, full_tx: bool
@@ -565,6 +567,7 @@ def get_block_by_number(
 def get_gas_price() -> str:
     gas_price_in_wei = 20 * 10**9
     return hex(gas_price_in_wei)
+
 
 def get_transaction_receipt(
     transactions_processor: TransactionsProcessor,
@@ -596,6 +599,7 @@ def get_transaction_receipt(
     }
 
     return receipt
+
 
 def get_block_by_hash(
     transactions_processor: TransactionsProcessor,
@@ -812,4 +816,3 @@ def register_all_rpc_endpoints(
         partial(get_block_by_hash, transactions_processor),
         method_name="eth_getBlockByHash",
     )
-

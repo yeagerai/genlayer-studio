@@ -54,7 +54,9 @@ const connectMetaMask = async () => {
           :key="privateKey"
           :privateKey="privateKey"
           :account="createAccount(privateKey)"
-          :active="privateKey === store.currentPrivateKey && !store.isWalletSelected"
+          :active="
+            privateKey === store.currentPrivateKey && !store.isWalletSelected
+          "
           :canDelete="true"
           v-close-popper
         />

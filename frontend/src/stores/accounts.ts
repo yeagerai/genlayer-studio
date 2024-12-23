@@ -16,10 +16,10 @@ export const useAccountsStore = defineStore('accountsStore', () => {
 
   const privateKeys = ref<Address[]>(
     localStorage.getItem('accountsStore.privateKeys')
-       ? ((localStorage.getItem('accountsStore.privateKeys') || '').split(
-           ',',
-         ) as Address[])
-       : [],
+      ? ((localStorage.getItem('accountsStore.privateKeys') || '').split(
+          ',',
+        ) as Address[])
+      : [],
   );
 
   const walletAddress = ref<Address | undefined>(undefined);

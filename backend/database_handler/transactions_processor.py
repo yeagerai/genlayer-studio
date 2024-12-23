@@ -367,7 +367,6 @@ class TransactionsProcessor:
         )
         transaction.appeal_failed = appeal_failed
 
-
     def get_highest_timestamp(self) -> int:
         transaction = (
             self.session.query(Transactions)
@@ -377,7 +376,6 @@ class TransactionsProcessor:
         if transaction is None:
             return 0
         return transaction.nonce
-
 
     def get_transactions_for_block(
         self, block_number: int, include_full_tx: bool
