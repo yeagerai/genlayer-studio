@@ -43,11 +43,11 @@ const connectMetaMask = async () => {
     <template #popper>
       <div class="divide-y divide-gray-200 dark:divide-gray-800">
         <AccountItem
-            v-if="store.walletAddress"
-            :account="{ address: store.walletAddress }"
-            :active="store.isWalletSelected"
-            :canDelete="false"
-            v-close-popper
+          v-if="store.walletAddress"
+          :account="{ address: store.walletAddress }"
+          :active="store.isWalletSelected"
+          :canDelete="false"
+          v-close-popper
         />
         <AccountItem
           v-for="privateKey in store.privateKeys"
@@ -61,9 +61,14 @@ const connectMetaMask = async () => {
       </div>
 
       <div
-          class="flex w-full border-t border-gray-300 bg-gray-200 p-1 dark:border-gray-600 dark:bg-gray-800"
+        class="flex w-full border-t border-gray-300 bg-gray-200 p-1 dark:border-gray-600 dark:bg-gray-800"
       >
-        <Btn @click="handleCreateNewAccount" secondary class="w-full" :icon="PlusIcon">
+        <Btn
+          @click="handleCreateNewAccount"
+          secondary
+          class="w-full"
+          :icon="PlusIcon"
+        >
           New account
         </Btn>
         <Btn @click="connectMetaMask" secondary class="w-full">

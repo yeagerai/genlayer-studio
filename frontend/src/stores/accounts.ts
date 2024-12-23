@@ -8,18 +8,18 @@ export const useAccountsStore = defineStore('accountsStore', () => {
   const key = localStorage.getItem('accountsStore.currentPrivateKey');
   const currentPrivateKey = ref<Address | null>(key ? (key as Address) : null);
   const currentUserAddress = computed(() =>
-      currentPrivateKey.value
-          ? createAccount(currentPrivateKey.value).address
-          : '',
+    currentPrivateKey.value
+      ? createAccount(currentPrivateKey.value).address
+      : '',
   );
   const { shorten } = useShortAddress();
 
   const privateKeys = ref<Address[]>(
-      localStorage.getItem('accountsStore.privateKeys')
-          ? ((localStorage.getItem('accountsStore.privateKeys') || '').split(
-              ',',
-          ) as Address[])
-          : [],
+    localStorage.getItem('accountsStore.privateKeys')
+       ? ((localStorage.getItem('accountsStore.privateKeys') || '').split(
+           ',',
+         ) as Address[])
+       : [],
   );
 
   const walletAddress = ref<Address | undefined>(undefined);
@@ -32,7 +32,7 @@ export const useAccountsStore = defineStore('accountsStore', () => {
       });
 
       walletAddress.value = accounts[0];
-      setCurrentAccount()
+      setCurrentAccount();
     }
   }
 
@@ -62,8 +62,8 @@ export const useAccountsStore = defineStore('accountsStore', () => {
   }
 
   function setCurrentAccount(privateKey?: Address) {
-    if( privateKey ) {
-      currentPrivateKey.value = privateKey
+    if (privateKey) {
+      currentPrivateKey.value = privateKey;
     }
     isWalletSelected.value = !privateKey;
   }

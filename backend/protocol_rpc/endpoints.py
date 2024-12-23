@@ -390,7 +390,7 @@ async def call(
     data = params["data"]
 
     if from_address is None:
-        return base64.b64encode(b'\x00' * 31 + b'\x01').decode(
+        return base64.b64encode(b"\x00' * 31 + b'\x01").decode(
             "ascii"
         )  # Return '1' as a uint256
 
