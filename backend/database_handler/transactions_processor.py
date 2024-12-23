@@ -379,7 +379,9 @@ class TransactionsProcessor:
         return transaction.nonce
 
 
-    def get_transactions_for_block(self, block_number: int, include_full_tx: bool) -> dict:
+    def get_transactions_for_block(
+            self, block_number: int, include_full_tx: bool
+    ) -> dict:
         transactions = (
             self.session.query(Transactions)
             .filter(Transactions.nonce == block_number)
@@ -394,9 +396,7 @@ class TransactionsProcessor:
         timestamp = transactions[0].timestamp_accepted or int(time.time())
 
         if include_full_tx:
-            transaction_data = [
-                self._parse_transaction_data(tx) for tx in transactions
-            ]
+            transaction_data = [self._parse_transaction_data(tx) for tx in transactions]
         else:
             transaction_data = [tx.hash for tx in transactions]
 
