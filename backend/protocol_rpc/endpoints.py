@@ -532,6 +532,7 @@ def set_transaction_appeal(
 
 def set_finality_window_time(consensus: ConsensusAlgorithm, time: int) -> None:
     consensus.set_finality_window_time(time)
+    
 
 def get_chain_id() -> str:
     return hex(61_999)
@@ -638,6 +639,7 @@ def get_block_by_hash(
         block_details["transactions"].append(transaction_hash)
 
     return block_details
+
 
 def get_contract(consensus_service: ConsensusService, contract_name: str) -> dict:
     """
