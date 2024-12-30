@@ -1114,9 +1114,14 @@ class CommittingState(TransactionState):
         ]
 
         # Execute the transaction on each validator node and gather the results
+        sem = asyncio.Semaphore(8)
+
+        async def run_single_validator(validator: Node) -> Receipt:
+            async with sem:
+                return await validator.exec_transaction(context.transaction)
+
         validation_tasks = [
-            validator.exec_transaction(context.transaction)
-            for validator in context.validator_nodes
+            run_single_validator(validator) for validator in context.validator_nodes
         ]
         context.validation_results = await asyncio.gather(*validation_tasks)
 
