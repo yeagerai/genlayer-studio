@@ -15,6 +15,7 @@ from backend.domain.types import TransactionType
 from web3 import Web3
 from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
+from sqlalchemy.orm.attributes import flag_modified
 
 
 class TransactionAddressFilter(Enum):
@@ -64,6 +65,7 @@ class TransactionsProcessor:
             "timestamp_awaiting_finalization": transaction_data.timestamp_awaiting_finalization,
             "appeal_failed": transaction_data.appeal_failed,
             "appeal_undetermined": transaction_data.appeal_undetermined,
+            "consensus_history": transaction_data.consensus_history,
         }
 
     @staticmethod
@@ -229,6 +231,7 @@ class TransactionsProcessor:
             timestamp_awaiting_finalization=None,
             appeal_failed=0,
             appeal_undetermined=False,
+            consensus_history=None,
         )
 
         self.session.add(new_transaction)
@@ -399,3 +402,25 @@ class TransactionsProcessor:
         return [
             self._parse_transaction_data(transaction) for transaction in transactions
         ]
+
+    def update_consensus_history(
+        self,
+        transaction_hash: str,
+        consensus_round: str,
+        leader_result: dict | None,
+        validator_results: list,
+    ):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        current_consensus_results = {
+            "consensus_round": consensus_round,
+            "leader_result": leader_result.to_dict() if leader_result else None,
+            "validator_results": [receipt.to_dict() for receipt in validator_results],
+        }
+        if transaction.consensus_history:
+            transaction.consensus_history.append(current_consensus_results)
+        else:
+            transaction.consensus_history = [current_consensus_results]
+        flag_modified(transaction, "consensus_history")
+        self.session.commit()
