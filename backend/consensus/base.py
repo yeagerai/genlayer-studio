@@ -183,7 +183,6 @@ class TransactionContext:
         self.votes: dict = {}
         self.validator_nodes: list = []
         self.validation_results: list = []
-        self.counter: int = 0
 
 
 class ConsensusAlgorithm:
@@ -1150,24 +1149,10 @@ class RevealingState(TransactionState):
 
         # Process each validation result and update the context
         for i, validation_result in enumerate(context.validation_results):
-            # Overwrite to test, remove this. Also remove context.counter
-            if len(context.validation_results) == 5 - 1:
-                context.votes[context.validator_nodes[i].address] = "disagree"
-                context.validation_results[i].vote = Vote.DISAGREE
-            elif (context.counter == 0) and (context.transaction.appeal_undetermined):
-                context.votes[context.validator_nodes[i].address] = "disagree"
-                context.validation_results[i].vote = Vote.DISAGREE
-            elif context.transaction.appeal_failed == 1:
-                context.votes[context.validator_nodes[i].address] = "disagree"
-                context.validation_results[i].vote = Vote.DISAGREE
-            else:
-                context.votes[context.validator_nodes[i].address] = "agree"
-                context.validation_results[i].vote = Vote.AGREE
-
-            # # Store the vote from each validator node
-            # context.votes[context.validator_nodes[i].address] = (
-            #     validation_result.vote.value
-            # )
+            # Store the vote from each validator node
+            context.votes[context.validator_nodes[i].address] = (
+                validation_result.vote.value
+            )
 
             # Create a dictionary of votes for the current reveal so the rollup transaction contains leader vote and one validator vote (done for each validator)
             # create_rollup_transaction() is removed but we keep this code for future use
@@ -1263,7 +1248,6 @@ class RevealingState(TransactionState):
                         context.transaction.hash
                     ),
                 )
-                context.counter += 1
                 return ProposingState(leader_rotation=True)
 
 
