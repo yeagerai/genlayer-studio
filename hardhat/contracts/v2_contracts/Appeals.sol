@@ -5,7 +5,7 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
-contract ConsensusManager is
+contract Appeals is
 	Initializable,
 	Ownable2StepUpgradeable,
 	ReentrancyGuardUpgradeable,
