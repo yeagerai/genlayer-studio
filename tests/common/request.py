@@ -85,6 +85,7 @@ def send_transaction(
     method_name: str | None,
     method_args: list | None,
     value: int = 0,
+    assert_success: bool = True,
 ):
     call_data = (
         None
@@ -96,12 +97,21 @@ def send_transaction(
         account, call_data, contract_address, value, nonce
     )
     result = send_raw_transaction(signed_transaction)
-    print("Send transaction: ", json.dumps(decode_nested_data(result), indent=3))
+    if assert_success and result["consensus_data"]:
+        assert (
+            result["consensus_data"]["leader_receipt"]["execution_result"] == "SUCCESS"
+        ), print(
+            "Send transaction: ",
+            json.dumps(decode_nested_data(result), indent=3),
+        )
     return result
 
 
 def deploy_intelligent_contract(
-    account: Account, contract_code: str | bytes, method_args: list
+    account: Account,
+    contract_code: str | bytes,
+    method_args: list,
+    assert_success: bool = True,
 ) -> tuple[str, dict]:
     nonce = get_transaction_count(account.address)
     deploy_data = [
@@ -114,10 +124,13 @@ def deploy_intelligent_contract(
     ]
     signed_transaction = sign_transaction(account, deploy_data, nonce=nonce)
     result = send_raw_transaction(signed_transaction)
-    print(
-        "Deployed intelligent contract: ",
-        json.dumps(decode_nested_data(result), indent=3),
-    )
+    if assert_success:
+        assert (
+            result["consensus_data"]["leader_receipt"]["execution_result"] == "SUCCESS"
+        ), print(
+            "Deployed intelligent contract: ",
+            json.dumps(decode_nested_data(result), indent=3),
+        )
     contract_address = result["data"]["contract_address"]
     return contract_address, result
 
