@@ -150,7 +150,7 @@ function prettifyTxData(x: any): any {
         "
       />
 
-      <TransactionStatusBadge
+      <!-- <TransactionStatusBadge
         as="button"
         @click.stop="handleSetTransactionAppeal"
         :class="{ '!bg-green-500': appealed }"
@@ -168,7 +168,7 @@ function prettifyTxData(x: any): any {
           APPEAL
           <GavelIcon class="h-3 w-3" />
         </div>
-      </TransactionStatusBadge>
+      </TransactionStatusBadge> -->
 
       <TransactionStatusBadge
         :class="[
@@ -231,7 +231,7 @@ function prettifyTxData(x: any): any {
             >
               {{ transaction.status }}
             </TransactionStatusBadge>
-            <TransactionStatusBadge
+            <!-- <TransactionStatusBadge
               as="button"
               @click.stop="handleSetTransactionAppeal"
               :class="{ '!bg-green-500': appealed }"
@@ -249,7 +249,7 @@ function prettifyTxData(x: any): any {
                 APPEAL
                 <GavelIcon class="h-3 w-3" />
               </div>
-            </TransactionStatusBadge>
+            </TransactionStatusBadge> -->
           </p>
         </div>
 
