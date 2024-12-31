@@ -47,32 +47,32 @@ def test_decode_method_call_data(data, expected_result):
     [
         (
             [
-                "class Test(name: str)",
+                b"class Test(name: str)",
                 {"method": "__init__", "args": ["John Doe"]},
                 False,
             ],
             DecodedDeploymentData(
-                contract_code="class Test(name: str)",
+                contract_code=b"class Test(name: str)",
                 calldata=b"\x16\x04args\rDJohn Doe\x06methodD__init__",
                 leader_only=False,
             ),
         ),
         (
             [
-                "class Test(name: str)",
+                b"class Test(name: str)",
                 {"method": "__init__", "args": ["John Doe"]},
                 True,
             ],
             DecodedDeploymentData(
-                contract_code="class Test(name: str)",
+                contract_code=b"class Test(name: str)",
                 calldata=b"\x16\x04args\rDJohn Doe\x06methodD__init__",
                 leader_only=True,
             ),
         ),
         (
-            ["class Test(name: str)", {"method": "__init__", "args": ["John Doe"]}],
+            [b"class Test(name: str)", {"method": "__init__", "args": ["John Doe"]}],
             DecodedDeploymentData(
-                contract_code="class Test(name: str)",
+                contract_code=b"class Test(name: str)",
                 calldata=b"\x16\x04args\rDJohn Doe\x06methodD__init__",
                 leader_only=False,
             ),

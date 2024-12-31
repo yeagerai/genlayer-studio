@@ -18,6 +18,8 @@ from backend.protocol_rpc.message_handler.base import MessageHandler
 
 from .types import Address
 
+SIMULATOR_CHAIN_ID: typing.Final[int] = 61999
+
 
 class _SnapshotView(genvmbase.StateProxy):
     def __init__(
@@ -43,14 +45,14 @@ class _SnapshotView(genvmbase.StateProxy):
         return res
 
     def get_code(self, addr: Address) -> bytes:
-        return self._get_snapshot(addr).contract_code.encode("utf-8")
+        return base64.b64decode(self._get_snapshot(addr).contract_code)
 
     def storage_read(
         self, account: Address, slot: bytes, index: int, le: int, /
-    ) -> tuple[bytes, int]:
+    ) -> bytes:
         snap = self._get_snapshot(account)
-        for_acc = snap.encoded_state.setdefault(account.as_b64, {})
-        for_slot = for_acc.setdefault(base64.b64encode(slot).decode("ascii"), "")
+        slot_id = base64.b64encode(slot).decode("ascii")
+        for_slot = snap.encoded_state.setdefault(slot_id, "")
         data = bytearray(base64.b64decode(for_slot))
         data.extend(b"\x00" * (index + le - len(data)))
         return data[index : index + le]
@@ -66,14 +68,13 @@ class _SnapshotView(genvmbase.StateProxy):
         assert account == self.contract_address
         assert not self.readonly
         snap = self._get_snapshot(account)
-        for_acc = snap.encoded_state.setdefault(account.as_b64, {})
         slot_id = base64.b64encode(slot).decode("ascii")
-        for_slot = for_acc.setdefault(slot_id, "")
+        for_slot = snap.encoded_state.setdefault(slot_id, "")
         data = bytearray(base64.b64decode(for_slot))
         mem = memoryview(got)
         data.extend(b"\x00" * (index + len(mem) - len(data)))
         data[index : index + len(mem)] = mem
-        for_acc[slot_id] = base64.b64encode(data).decode("utf-8")
+        snap.encoded_state[slot_id] = base64.b64encode(data).decode("utf-8")
 
 
 class Node:
@@ -102,10 +103,11 @@ class Node:
         transaction_data = transaction.data
         assert transaction.from_address is not None
         if transaction.type == TransactionType.DEPLOY_CONTRACT:
+            code = base64.b64decode(transaction_data["contract_code"])
             calldata = base64.b64decode(transaction_data["calldata"])
             receipt = await self.deploy_contract(
                 transaction.from_address,
-                transaction_data["contract_code"],
+                code,
                 calldata,
                 transaction.hash,
                 transaction.created_at,
@@ -149,13 +151,15 @@ class Node:
     async def deploy_contract(
         self,
         from_address: str,
-        code_to_deploy: str,
+        code_to_deploy: bytes,
         calldata: bytes,
         transaction_hash: str,
         transaction_created_at: str | None = None,
     ) -> Receipt:
         assert self.contract_snapshot is not None
-        self.contract_snapshot.contract_code = code_to_deploy
+        self.contract_snapshot.contract_code = base64.b64encode(code_to_deploy).decode(
+            "ascii"
+        )
         return await self._run_genvm(
             from_address,
             calldata,
@@ -220,9 +224,9 @@ class Node:
             )
         )
 
-    async def get_contract_schema(self, code: str) -> str:
+    async def get_contract_schema(self, code: bytes) -> str:
         genvm = self._create_genvm()
-        res = await genvm.get_contract_schema(code.encode("utf-8"))
+        res = await genvm.get_contract_schema(code)
         await self._execution_finished(res, None)
         err_data = {
             "stdout": res.stdout,
@@ -298,6 +302,7 @@ class Node:
             leader_results=leader_res,
             config=json.dumps(config),
             date=transaction_datetime,
+            chain_id=SIMULATOR_CHAIN_ID,
         )
         await self._execution_finished(res, transaction_hash)
 
