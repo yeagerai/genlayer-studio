@@ -2,4 +2,4 @@ eth-account==0.13.4
 psycopg2==2.9.10
 pytest==8.3.4
 pytest-xdist==3.6.1
-pytest-asyncio==0.25.0
+pytest-asyncio==0.25.1
