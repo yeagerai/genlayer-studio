@@ -123,7 +123,14 @@ def contract_snapshot_factory(address: str):
         def __init__(self):
             self.address = address
 
-        def update_contract_state(self, state: dict[str, str]):
+        def register_contract(self, contract: dict):
+            pass
+
+        def update_contract_state(
+            self,
+            accepted_state: dict[str, str] | None = None,
+            finalized_state: dict[str, str] | None = None,
+        ):
             pass
 
     return ContractSnapshotMock()

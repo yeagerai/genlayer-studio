@@ -1066,7 +1066,10 @@ class AcceptedState(TransactionState):
                 new_contract = {
                     "id": context.transaction.data["contract_address"],
                     "data": {
-                        "state": leader_receipt.contract_state,
+                        "state": {
+                            "accepted": leader_receipt.contract_state,
+                            "finalized": {},
+                        },
                         "code": context.transaction.data["contract_code"],
                         "ghost_contract_address": context.transaction.ghost_contract_address,
                     },
@@ -1087,7 +1090,7 @@ class AcceptedState(TransactionState):
             # Update contract state if it is an existing contract
             else:
                 leaders_contract_snapshot.update_contract_state(
-                    leader_receipt.contract_state
+                    accepted_state=leader_receipt.contract_state
                 )
 
         return None
@@ -1153,6 +1156,20 @@ class FinalizingState(TransactionState):
         Returns:
             None: The transaction is finalized.
         """
+        # Retrieve the leader's receipt from the consensus data
+        leader_receipt = context.consensus_data.leader_receipt
+
+        # Get the contract snapshot for the transaction's target address
+        leaders_contract_snapshot = context.contract_snapshot_supplier()
+
+        # Update contract state
+        if (context.transaction.status == TransactionStatus.ACCEPTED) and (
+            leader_receipt.execution_result == ExecutionResultStatus.SUCCESS
+        ):
+            leaders_contract_snapshot.update_contract_state(
+                finalized_state=leader_receipt.contract_state
+            )
+
         # Update the transaction status to FINALIZED
         ConsensusAlgorithm.dispatch_transaction_status_update(
             context.transactions_processor,
