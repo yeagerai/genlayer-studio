@@ -16,4 +16,18 @@ library Errors {
 	error TransactionNotAcceptedOrUndetermined();
 	error CanNotAppeal();
 	error AppealBondTooLow();
+	error VoteAlreadyCommittedForAppeal();
+	error NotGenConsensus();
+	error AppealNotActive();
+	error AppealAlreadyInProgress();
+	error InvalidAppealPhase();
+	error InsufficientAppealBond();
+	error TransactionNotAppealCommitting();
+	error TransactionNotAppealRevealing();
+	error ValidatorNotInAppeal();
+	error TransactionNotAtPendingQueueHead();
+	error FinalizationNotAllowed();
+	error NotConsensus();
+	error InvalidQueueOperation();
+	error TransactionNotPending();
 }
