@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, defineProps } from 'vue';
 import { useContractsStore, useTransactionsStore } from '@/stores';
 import { TrashIcon } from '@heroicons/vue/24/solid';
 import TransactionItem from './TransactionItem.vue';
@@ -8,6 +8,10 @@ import EmptyListPlaceholder from '@/components/Simulator/EmptyListPlaceholder.vu
 
 const contractsStore = useContractsStore();
 const transactionsStore = useTransactionsStore();
+
+const props = defineProps({
+  finalityWindow: Number,
+});
 
 const transactions = computed(() => {
   const contractTransactions = transactionsStore.transactions.filter(
@@ -54,6 +58,7 @@ const handleClearTransactions = () => {
         v-for="transaction in transactions"
         :key="transaction.hash"
         :transaction="transaction"
+        :finalityWindow="props.finalityWindow ?? 0"
       />
     </div>
 

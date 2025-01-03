@@ -7,6 +7,7 @@ import asyncio
 import pytest
 from backend.consensus.base import (
     ConsensusAlgorithm,
+    PendingState,
     CommittingState,
     FinalizingState,
     TransactionContext,
@@ -59,21 +60,25 @@ class TransactionsProcessorMock:
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["appealed"] = appeal
 
-    def set_transaction_timestamp_accepted(
-        self, transaction_hash: str, timestamp_accepted: int = None
+    def set_transaction_timestamp_awaiting_finalization(
+        self, transaction_hash: str, timestamp_awaiting_finalization: int = None
     ):
         transaction = self.get_transaction_by_hash(transaction_hash)
-        if timestamp_accepted:
-            transaction["timestamp_accepted"] = timestamp_accepted
+        if timestamp_awaiting_finalization:
+            transaction["timestamp_awaiting_finalization"] = (
+                timestamp_awaiting_finalization
+            )
         else:
-            transaction["timestamp_accepted"] = int(time.time())
+            transaction["timestamp_awaiting_finalization"] = int(time.time())
 
-    def get_accepted_transactions(self):
+    def get_accepted_undetermined_transactions(self):
         result = []
         for transaction in self.transactions:
-            if transaction["status"] == TransactionStatus.ACCEPTED.value:
+            if (transaction["status"] == TransactionStatus.ACCEPTED.value) or (
+                transaction["status"] == TransactionStatus.UNDETERMINED.value
+            ):
                 result.append(transaction)
-        return result
+        return sorted(result, key=lambda x: x["timestamp_awaiting_finalization"])
 
     def create_rollup_transaction(self, transaction_hash: str):
         pass
@@ -83,6 +88,15 @@ class TransactionsProcessorMock:
             raise ValueError("appeal_failed must be a non-negative integer")
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["appeal_failed"] = appeal_failed
+
+    def set_transaction_appeal_undetermined(
+        self, transaction_hash: str, appeal_undetermined: bool
+    ):
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        transaction["appeal_undetermined"] = appeal_undetermined
+
+    def get_newer_transactions(self, transaction_hash: str):
+        return []
 
 
 class SnapshotMock:
@@ -113,8 +127,9 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "created_at": transaction.created_at,
         "ghost_contract_address": transaction.ghost_contract_address,
         "appealed": transaction.appealed,
-        "timestamp_accepted": transaction.timestamp_accepted,
+        "timestamp_awaiting_finalization": transaction.timestamp_awaiting_finalization,
         "appeal_failed": transaction.appeal_failed,
+        "appeal_undetermined": transaction.appeal_undetermined,
     }
 
 
@@ -177,13 +192,68 @@ async def _appeal_window(
     ],
 ):
     while not stop_event.is_set():
-        accepted_transactions = transactions_processor.get_accepted_transactions()
-        for transaction in accepted_transactions:
+        accepted_undetermined_transactions = (
+            transactions_processor.get_accepted_undetermined_transactions()
+        )
+        for i, transaction in enumerate(accepted_undetermined_transactions):
             transaction = Transaction.from_dict(transaction)
             if not transaction.appealed:
-                if (
-                    int(time.time()) - transaction.timestamp_accepted
-                ) > DEFAULT_FINALITY_WINDOW:
+                if (transaction.leader_only) or (
+                    (int(time.time()) - transaction.timestamp_awaiting_finalization)
+                    > DEFAULT_FINALITY_WINDOW
+                ):
+                    if i == 0:
+                        finalize_current_transaction = True
+                    else:
+                        previous_transaction_hash = accepted_undetermined_transactions[
+                            i - 1
+                        ]["hash"]
+                        previous_transaction = Transaction.from_dict(
+                            transactions_processor.get_transaction_by_hash(
+                                previous_transaction_hash
+                            )
+                        )
+                        if previous_transaction.status == TransactionStatus.FINALIZED:
+                            finalize_current_transaction = True
+                        else:
+                            finalize_current_transaction = False
+
+                    if finalize_current_transaction:
+                        context = TransactionContext(
+                            transaction=transaction,
+                            transactions_processor=transactions_processor,
+                            snapshot=SnapshotMock(nodes),
+                            accounts_manager=AccountsManagerMock(),
+                            contract_snapshot_factory=contract_snapshot_factory,
+                            node_factory=node_factory,
+                            msg_handler=msg_handler,
+                        )
+                        state = FinalizingState()
+                        await state.handle(context)
+
+            else:
+                # Handle transactions that are appealed
+                if transaction.status == TransactionStatus.UNDETERMINED:
+                    # Leader appeal
+                    # Appeal data member is used in the frontend for both types of appeals
+                    # Here the type is refined based on the status
+                    transactions_processor.set_transaction_appeal_undetermined(
+                        transaction.hash, True
+                    )
+                    transactions_processor.set_transaction_appeal(
+                        transaction.hash, False
+                    )
+                    transaction.appeal_undetermined = True
+                    transaction.appealed = False
+
+                    ConsensusAlgorithm.dispatch_transaction_status_update(
+                        transactions_processor,
+                        transaction.hash,
+                        TransactionStatus.PENDING,
+                        msg_handler,
+                    )
+
+                    # Create a transaction context for the appeal process
                     context = TransactionContext(
                         transaction=transaction,
                         transactions_processor=transactions_processor,
@@ -193,86 +263,126 @@ async def _appeal_window(
                         node_factory=node_factory,
                         msg_handler=msg_handler,
                     )
-                    state = FinalizingState()
-                    await state.handle(context)
-            else:
-                chain_snapshot = SnapshotMock(nodes)
-                context = TransactionContext(
-                    transaction=transaction,
-                    transactions_processor=transactions_processor,
-                    snapshot=chain_snapshot,
-                    accounts_manager=AccountsManagerMock(),
-                    contract_snapshot_factory=contract_snapshot_factory,
-                    node_factory=node_factory,
-                    msg_handler=msg_handler,
-                )
-                context.consensus_data.leader_receipt = (
-                    transaction.consensus_data.leader_receipt
-                )
-                nb_current_validators = len(transaction.consensus_data.validators) + 1
-                current_validators_addresses = {
-                    validator.node_config["address"]
-                    for validator in transaction.consensus_data.validators
-                }
-                current_validators_addresses.add(
-                    transaction.consensus_data.leader_receipt.node_config["address"]
-                )
-                try:
-                    context.remaining_validators = (
-                        ConsensusAlgorithm.get_extra_validators(
-                            chain_snapshot,
-                            transaction.consensus_data,
-                            transaction.appeal_failed,
-                        )
-                    )
-                except ValueError as e:
-                    print(e, transaction)
-                    context.transactions_processor.set_transaction_appeal(
-                        context.transaction.hash, False
-                    )
-                    context.transaction.appealed = False
-                else:
-                    if transaction.appeal_failed == 0:
-                        n = nb_current_validators
-                        nb_validators_processing_appeal = n + 2
-                    elif transaction.appeal_failed == 1:
-                        n = (nb_current_validators - 2) // 2
-                        nb_validators_processing_appeal = 2 * n + 3
-                    else:
-                        n = (nb_current_validators - 3) // (
-                            2 * transaction.appeal_failed - 1
-                        )
-                        nb_validators_processing_appeal = 4 * n + 3
 
-                    context.num_validators = len(context.remaining_validators)
-                    assert context.num_validators == nb_validators_processing_appeal
-
-                    context.votes = {}
-                    context.contract_snapshot_supplier = (
-                        lambda: context.contract_snapshot_factory(
-                            context.transaction.to_address
-                        )
-                    )
-
-                    new_validators_addresses = {
-                        validator["address"]
-                        for validator in context.remaining_validators
-                    }
-                    assert new_validators_addresses != current_validators_addresses
-
-                    # State transitions
-                    state = CommittingState()
+                    # Begin state transitions starting from PendingState
+                    state = PendingState(called_from_pending_queue=False)
                     while True:
                         next_state = await state.handle(context)
                         if next_state is None:
                             break
-                        assert (
-                            len(context.validator_nodes)
-                            == nb_validators_processing_appeal
-                        )
+                        elif next_state == "leader_appeal_success":
+                            rollback_transactions(context)
+                            break
                         state = next_state
 
+                else:
+                    chain_snapshot = SnapshotMock(nodes)
+                    context = TransactionContext(
+                        transaction=transaction,
+                        transactions_processor=transactions_processor,
+                        snapshot=chain_snapshot,
+                        accounts_manager=AccountsManagerMock(),
+                        contract_snapshot_factory=contract_snapshot_factory,
+                        node_factory=node_factory,
+                        msg_handler=msg_handler,
+                    )
+                    context.consensus_data.leader_receipt = (
+                        transaction.consensus_data.leader_receipt
+                    )
+                    nb_current_validators = (
+                        len(transaction.consensus_data.validators) + 1
+                    )
+                    current_validators_addresses = {
+                        validator.node_config["address"]
+                        for validator in transaction.consensus_data.validators
+                    }
+                    current_validators_addresses.add(
+                        transaction.consensus_data.leader_receipt.node_config["address"]
+                    )
+                    try:
+                        context.remaining_validators = (
+                            ConsensusAlgorithm.get_extra_validators(
+                                chain_snapshot,
+                                transaction.consensus_data,
+                                transaction.appeal_failed,
+                            )
+                        )
+                    except ValueError as e:
+                        print(e, transaction)
+                        context.transactions_processor.set_transaction_appeal(
+                            context.transaction.hash, False
+                        )
+                        context.transaction.appealed = False
+                    else:
+                        if transaction.appeal_failed == 0:
+                            n = nb_current_validators
+                            nb_validators_processing_appeal = n + 2
+                        elif transaction.appeal_failed == 1:
+                            n = (nb_current_validators - 2) // 2
+                            nb_validators_processing_appeal = 2 * n + 3
+                        else:
+                            n = (nb_current_validators - 3) // (
+                                2 * transaction.appeal_failed - 1
+                            )
+                            nb_validators_processing_appeal = 4 * n + 3
+
+                        context.num_validators = len(context.remaining_validators)
+                        assert context.num_validators == nb_validators_processing_appeal
+
+                        context.votes = {}
+                        context.contract_snapshot_supplier = (
+                            lambda: context.contract_snapshot_factory(
+                                context.transaction.to_address
+                            )
+                        )
+
+                        new_validators_addresses = {
+                            validator["address"]
+                            for validator in context.remaining_validators
+                        }
+                        assert new_validators_addresses != current_validators_addresses
+
+                        # State transitions
+                        state = CommittingState()
+                        while True:
+                            next_state = await state.handle(context)
+                            if next_state is None:
+                                break
+                            elif next_state == "validator_appeal_success":
+                                rollback_transactions(context)
+                                ConsensusAlgorithm.dispatch_transaction_status_update(
+                                    context.transactions_processor,
+                                    context.transaction.hash,
+                                    TransactionStatus.PENDING,
+                                    context.msg_handler,
+                                )
+
+                                # Transaction will be picked up by _crawl_snapshot
+                                break
+                            assert (
+                                len(context.validator_nodes)
+                                == nb_validators_processing_appeal
+                            )
+                            state = next_state
+
         await asyncio.sleep(1)
+
+
+def rollback_transactions(context: TransactionContext):
+    """
+    Rollback newer transactions.
+    """
+    # Set all transactions with higher created_at to PENDING
+    future_transactions = context.transactions_processor.get_newer_transactions(
+        context.transaction.hash
+    )
+    for future_transaction in future_transactions:
+        ConsensusAlgorithm.dispatch_transaction_status_update(
+            context.transactions_processor,
+            future_transaction["hash"],
+            TransactionStatus.PENDING,
+            context.msg_handler,
+        )
 
 
 def run_async_task_in_thread(
