@@ -86,6 +86,7 @@ class Transaction:
     timestamp_awaiting_finalization: int | None = None
     appeal_failed: int = 0
     appeal_undetermined: bool = False
+    was_accepted: bool | None = None
 
     def to_dict(self):
         return {
@@ -110,6 +111,7 @@ class Transaction:
             "timestamp_awaiting_finalization": self.timestamp_awaiting_finalization,
             "appeal_failed": self.appeal_failed,
             "appeal_undetermined": self.appeal_undetermined,
+            "was_accepted": self.was_accepted,
         }
 
     @classmethod
@@ -138,4 +140,5 @@ class Transaction:
             ),
             appeal_failed=input.get("appeal_failed", 0),
             appeal_undetermined=input.get("appeal_undetermined", False),
+            was_accepted=input.get("was_accepted", None),
         )

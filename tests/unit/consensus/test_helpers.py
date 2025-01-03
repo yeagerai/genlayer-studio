@@ -98,6 +98,13 @@ class TransactionsProcessorMock:
     def get_newer_transactions(self, transaction_hash: str):
         return []
 
+    def set_transaction_was_accepted(self, transaction_hash: str, was_accepted: bool):
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        transaction["was_accepted"] = was_accepted
+
+    def get_previous_contact_state(self, transaction_hash: str):
+        return None
+
 
 class SnapshotMock:
     def __init__(self, nodes):
@@ -130,6 +137,7 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "timestamp_awaiting_finalization": transaction.timestamp_awaiting_finalization,
         "appeal_failed": transaction.appeal_failed,
         "appeal_undetermined": transaction.appeal_undetermined,
+        "was_accepted": transaction.was_accepted,
     }
 
 

@@ -64,6 +64,7 @@ class TransactionsProcessor:
             "timestamp_awaiting_finalization": transaction_data.timestamp_awaiting_finalization,
             "appeal_failed": transaction_data.appeal_failed,
             "appeal_undetermined": transaction_data.appeal_undetermined,
+            "was_accepted": transaction_data.was_accepted,
         }
 
     @staticmethod
@@ -229,6 +230,7 @@ class TransactionsProcessor:
             timestamp_awaiting_finalization=None,
             appeal_failed=0,
             appeal_undetermined=False,
+            was_accepted=None,
         )
 
         self.session.add(new_transaction)
@@ -399,3 +401,62 @@ class TransactionsProcessor:
         return [
             self._parse_transaction_data(transaction) for transaction in transactions
         ]
+
+    def set_transaction_was_accepted(self, transaction_hash: str, was_accepted: bool):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.was_accepted = was_accepted
+        self.session.commit()
+
+    def get_previous_contact_state(self, transaction_hash: str):
+        def get_previous_transaction(
+            transaction: Transactions, transaction_status: TransactionStatus
+        ) -> Transactions | None:
+            # Get the contract address
+            contract_address = transaction.to_address or transaction.from_address
+
+            # We do not want to get the previous state of an undetermined transaction
+            status_filter = Transactions.status == transaction_status
+            if transaction_status == TransactionStatus.FINALIZED:
+                status_filter = and_(status_filter, Transactions.was_accepted == True)
+
+            # Get the previous transaction
+            return (
+                self.session.query(Transactions)
+                .filter(
+                    status_filter,
+                    Transactions.timestamp_awaiting_finalization
+                    < transaction.timestamp_awaiting_finalization,
+                    or_(
+                        Transactions.to_address == contract_address,
+                        Transactions.from_address == contract_address,
+                    ),
+                )
+                .order_by(Transactions.created_at)
+                .one_or_none()
+            )
+
+        # Get the given transaction
+        given_transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+
+        # Get the previous accepted transaction
+        previous_transaction = get_previous_transaction(
+            given_transaction, TransactionStatus.ACCEPTED
+        )
+
+        # Get the previous finalized transaction if no accepted transaction
+        if previous_transaction is None:
+            previous_transaction = get_previous_transaction(
+                given_transaction, TransactionStatus.FINALIZED
+            )
+
+        # Return the previous state. If previous transaction is None, return None
+        if previous_transaction is None:
+            return None
+        else:
+            return previous_transaction.consensus_data["leader_receipt"][
+                "contract_state"
+            ]

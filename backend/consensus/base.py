@@ -685,6 +685,24 @@ class ConsensusAlgorithm:
                                                 TransactionStatus.PENDING,
                                                 context.msg_handler,
                                             )
+                                            # Get the previous state of the contract
+                                            previous_contact_state = context.transactions_processor.get_previous_contact_state(
+                                                context.transaction.hash
+                                            )
+
+                                            # Restore the contract state
+                                            if previous_contact_state is not None:
+                                                # Get the contract snapshot for the transaction's target address
+                                                leaders_contract_snapshot = (
+                                                    context.contract_snapshot_factory(
+                                                        context.transaction.to_address
+                                                    )
+                                                )
+
+                                                # Update the contract state with the previous state
+                                                leaders_contract_snapshot.update_contract_state(
+                                                    accepted_state=previous_contact_state
+                                                )
 
                                             # Transaction will be picked up by _crawl_snapshot
                                             break
@@ -1419,6 +1437,16 @@ class FinalizingState(TransactionState):
         ):
             leaders_contract_snapshot.update_contract_state(
                 finalized_state=leader_receipt.contract_state
+            )
+
+        # Set the was_accepted flag
+        if context.transaction.status == TransactionStatus.ACCEPTED:
+            context.transactions_processor.set_transaction_was_accepted(
+                context.transaction.hash, True
+            )
+        elif context.transaction.status == TransactionStatus.UNDETERMINED:
+            context.transactions_processor.set_transaction_was_accepted(
+                context.transaction.hash, False
             )
 
         # Update the transaction status to FINALIZED
