@@ -10,6 +10,9 @@ RUN npm install --ignore-scripts
 
 COPY ./hardhat .
 
+# Download compiler
+RUN npx hardhat compile || true
+
 # Create directories and set permissions
 RUN mkdir -p /app/deployments/localhost && \
     mkdir -p /app/deployments/hardhat && \
