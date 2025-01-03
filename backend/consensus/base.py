@@ -963,7 +963,7 @@ class PendingState(TransactionState):
                         all_validators, context.transaction.consensus_data, True
                     )
                 )
-                involved_validators = context.transaction.consensus_data.validators
+
             else:
                 # Transaction was never executed, get the default number of validators for the transaction
                 involved_validators = get_validators_for_transaction(
