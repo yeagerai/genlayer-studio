@@ -192,6 +192,7 @@ services:
         condition: service_healthy
 
   hardhat:
+    user: "root"
     build:
       context: .
       dockerfile: docker/Dockerfile.hardhat
