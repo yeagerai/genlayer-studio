@@ -8,6 +8,7 @@ from enum import Enum, IntEnum
 
 from backend.database_handler.models import TransactionStatus
 from backend.database_handler.types import ConsensusData
+from backend.database_handler.contract_snapshot import ContractSnapshot
 
 
 @dataclass()
@@ -86,7 +87,7 @@ class Transaction:
     timestamp_awaiting_finalization: int | None = None
     appeal_failed: int = 0
     appeal_undetermined: bool = False
-    was_accepted: bool | None = None
+    contract_snapshot: ContractSnapshot | None = None
 
     def to_dict(self):
         return {
@@ -97,7 +98,7 @@ class Transaction:
             "to_address": self.to_address,
             "input_data": self.input_data,
             "data": self.data,
-            "consensus_data": self.consensus_data,
+            "consensus_data": self.consensus_data.to_dict(),
             "nonce": self.nonce,
             "value": self.value,
             "gaslimit": self.gaslimit,
@@ -111,7 +112,7 @@ class Transaction:
             "timestamp_awaiting_finalization": self.timestamp_awaiting_finalization,
             "appeal_failed": self.appeal_failed,
             "appeal_undetermined": self.appeal_undetermined,
-            "was_accepted": self.was_accepted,
+            "contract_snapshot": self.contract_snapshot.to_dict(),
         }
 
     @classmethod
@@ -140,5 +141,7 @@ class Transaction:
             ),
             appeal_failed=input.get("appeal_failed", 0),
             appeal_undetermined=input.get("appeal_undetermined", False),
-            was_accepted=input.get("was_accepted", None),
+            contract_snapshot=ContractSnapshot.from_dict(
+                input.get("contract_snapshot")
+            ),
         )
