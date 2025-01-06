@@ -102,7 +102,9 @@ class TransactionsProcessorMock:
         self, transaction_hash: str, contract_snapshot: ContractSnapshot
     ):
         transaction = self.get_transaction_by_hash(transaction_hash)
-        transaction["contract_snapshot"] = contract_snapshot.to_dict()
+        transaction["contract_snapshot"] = (
+            contract_snapshot.to_dict() if contract_snapshot else None
+        )
 
 
 class SnapshotMock:
