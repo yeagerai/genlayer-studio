@@ -207,7 +207,6 @@ async def _appeal_window(
             else:
                 # Handle transactions that are appealed
                 if transaction.status == TransactionStatus.UNDETERMINED:
-                    print("bla: leader appeal")
                     # Leader appeal
                     # Appeal data member is used in the frontend for both types of appeals
                     # Here the type is refined based on the status
@@ -250,7 +249,6 @@ async def _appeal_window(
                     transactions_processor.create_rollup_transaction(transaction.hash)
 
                 else:
-                    print("bla: validator appeal")
                     chain_snapshot = SnapshotMock(nodes)
                     context = TransactionContext(
                         transaction=transaction,
