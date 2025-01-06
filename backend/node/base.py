@@ -72,7 +72,6 @@ class _SnapshotView(genvmbase.StateProxy):
         for_slot = snap.encoded_state.setdefault(slot_id, "")
         data = bytearray(base64.b64decode(for_slot))
         mem = memoryview(got)
-        print("bla1 - old: ", data, " new: ", got)
         data.extend(b"\x00" * (index + len(mem) - len(data)))
         data[index : index + len(mem)] = mem
         snap.encoded_state[slot_id] = base64.b64encode(data).decode("utf-8")
