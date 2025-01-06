@@ -997,10 +997,11 @@ class PendingState(TransactionState):
         context.iterator_rotation = rotate(involved_validators)
 
         # Reset the contract snapshot for the transaction
-        context.transactions_processor.set_transaction_contract_snapshot(
-            context.transaction.hash, None
-        )
-        context.transaction.contract_snapshot = None
+        if not context.transaction.appeal_undetermined:
+            context.transactions_processor.set_transaction_contract_snapshot(
+                context.transaction.hash, None
+            )
+            context.transaction.contract_snapshot = None
 
         # Transition to the ProposingState
         return ProposingState()
