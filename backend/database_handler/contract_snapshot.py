@@ -56,7 +56,7 @@ class ContractSnapshot:
         }
 
     @classmethod
-    def from_dict(cls, input: dict) -> Optional["ContractSnapshot"]:
+    def from_dict(cls, input: dict | None) -> Optional["ContractSnapshot"]:
         if input:
             instance = cls.__new__(cls)
             instance.session = None

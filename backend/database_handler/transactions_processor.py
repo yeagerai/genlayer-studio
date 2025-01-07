@@ -403,19 +403,17 @@ class TransactionsProcessor:
         ]
 
     def set_transaction_contract_snapshot(
-        self, transaction_hash: str, contract_snapshot: ContractSnapshot | None
+        self, transaction_hash: str, contract_snapshot: dict | None
     ):
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
-        transaction.contract_snapshot = (
-            contract_snapshot.to_dict() if contract_snapshot else None
-        )
+        transaction.contract_snapshot = contract_snapshot
         self.session.commit()
 
     def get_transaction_contract_snapshot(
         self, transaction_hash: str
-    ) -> ContractSnapshot:
+    ) -> ContractSnapshot | None:
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )

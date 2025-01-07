@@ -1052,7 +1052,7 @@ class ProposingState(TransactionState):
         # Set the contract snapshot for the transaction
         if context.transaction.contract_snapshot is None:
             context.transactions_processor.set_transaction_contract_snapshot(
-                context.transaction.hash, contract_snapshot_supplier()
+                context.transaction.hash, contract_snapshot_supplier().to_dict()
             )
 
         # Get the contract snapshot for the transaction, to not use the overwritten one
