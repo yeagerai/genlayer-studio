@@ -2,7 +2,7 @@ Flask-JSONRPC==3.0.1
 Flask[async]==3.1.0
 python-dotenv==1.0.1
 aiohttp==3.11.11
-openai==1.59.3
+openai==1.59.5
 anthropic==0.42.0
 httpx==0.28.1
 
