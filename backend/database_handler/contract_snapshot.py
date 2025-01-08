@@ -10,12 +10,11 @@ class ContractSnapshot:
     """
     Warning: if you initialize this class with a contract_address:
     - The contract_address must exist in the database.
-    - `self.contract_data`, `self.contract_code` and `self.encoded_state` will be loaded from the database **only once** at initialization.
+    - `self.contract_data`, `self.contract_code` and `self.states` will be loaded from the database **only once** at initialization.
     """
 
     contract_address: str
     contract_code: str
-    encoded_state: dict[str, str]
     states: dict[str, dict[str, str]]
     ghost_contract_address: str | None
 
@@ -35,7 +34,6 @@ class ContractSnapshot:
             else:
                 # Convert old state format
                 self.states = {"accepted": self.contract_data["state"], "finalized": {}}
-            self.encoded_state = self.states["accepted"]
             self.ghost_contract_address = (
                 self.contract_data["ghost_contract_address"]
                 if "ghost_contract_address" in self.contract_data
@@ -48,7 +46,6 @@ class ContractSnapshot:
                 self.contract_address if self.contract_address else None
             ),
             "contract_code": self.contract_code if self.contract_code else None,
-            "encoded_state": self.encoded_state if self.encoded_state else {},
             "states": self.states if self.states else {"accepted": {}, "finalized": {}},
             "ghost_contract_address": (
                 self.ghost_contract_address if self.ghost_contract_address else None
@@ -62,7 +59,6 @@ class ContractSnapshot:
             instance.session = None
             instance.contract_address = input.get("contract_address", None)
             instance.contract_code = input.get("contract_code", None)
-            instance.encoded_state = input.get("encoded_state", {})
             instance.states = input.get("states", {"accepted": {}, "finalized": {}})
             instance.ghost_contract_address = input.get("ghost_contract_address", None)
             return instance

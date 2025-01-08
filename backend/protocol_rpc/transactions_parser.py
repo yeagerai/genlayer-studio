@@ -99,14 +99,22 @@ def decode_method_call_data(data: str) -> DecodedMethodCallData:
     try:
         data_decoded = rlp.decode(data_bytes, MethodCallTransactionPayload)
     except rlp.exceptions.DeserializationError as e:
-        print("WARN | falling back to default decode method call data:", e)
-        data_decoded = rlp.decode(data_bytes, MethodCallTransactionPayloadDefault)
+        print("WARN | falling back to MethodCallTransactionPayloadWithStateStatus:", e)
+        try:
+            data_decoded = rlp.decode(
+                data_bytes, MethodCallTransactionPayloadWithStateStatus
+            )
+        except rlp.exceptions.DeserializationError as e:
+            print("WARN | falling back to default decode method call data:", e)
+            data_decoded = rlp.decode(data_bytes, MethodCallTransactionPayloadDefault)
 
     leader_only = getattr(data_decoded, "leader_only", False)
+    state_status = getattr(data_decoded, "state_status", "accepted")
 
     return DecodedMethodCallData(
         calldata=data_decoded["calldata"],
         leader_only=leader_only,
+        state_status=state_status,
     )
 
 
@@ -149,6 +157,13 @@ class MethodCallTransactionPayload(rlp.Serializable):
     fields = [
         ("calldata", binary),
         ("leader_only", boolean),
+    ]
+
+
+class MethodCallTransactionPayloadWithStateStatus(rlp.Serializable):
+    fields = [
+        ("calldata", binary),
+        ("state_status", text),
     ]
 
 

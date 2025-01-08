@@ -21,29 +21,38 @@ const props = defineProps<{
 
 const isExpanded = ref(false);
 const isCalling = ref(false);
-const responseMessage = ref('');
+const responseMessageAccepted = ref('');
+const responseMessageFinalized = ref('');
 
 const calldataArguments = ref<ArgData>({ args: [], kwargs: {} });
 
 const handleCallReadMethod = async () => {
-  responseMessage.value = '';
+  responseMessageAccepted.value = '';
+  responseMessageFinalized.value = '';
   isCalling.value = true;
 
   try {
-    const result = await callReadMethod(
-      props.name,
-      unfoldArgsData({
-        args: calldataArguments.value.args,
-        kwargs: calldataArguments.value.kwargs,
-      }),
-    );
+    const responseMessages = [
+      responseMessageAccepted,
+      responseMessageFinalized,
+    ];
 
-    let repr: string;
-    if (typeof result === 'string') {
-      const val = Uint8Array.from(atob(result), (c) => c.charCodeAt(0));
-      responseMessage.value = calldata.toString(calldata.decode(val));
-    } else {
-      responseMessage.value = '<unknown>';
+    for (let i = 0; i < 2; i++) {
+      const result = await callReadMethod(
+        props.name,
+        unfoldArgsData({
+          args: calldataArguments.value.args,
+          kwargs: calldataArguments.value.kwargs,
+        }),
+        i === 0 ? 'accepted' : 'finalized',
+      );
+
+      if (typeof result === 'string') {
+        const val = Uint8Array.from(atob(result), (c) => c.charCodeAt(0));
+        responseMessages[i].value = calldata.toString(calldata.decode(val));
+      } else {
+        responseMessages[i].value = '<unknown>';
+      }
     }
 
     trackEvent('called_read_method', {
@@ -147,13 +156,21 @@ const handleCallWriteMethod = async () => {
           >
         </div>
 
-        <div v-if="responseMessage" class="w-full break-all text-sm">
+        <div
+          v-if="responseMessageAccepted || responseMessageFinalized"
+          class="w-full break-all text-sm"
+        >
           <div class="mb-1 text-xs font-medium">Response:</div>
           <div
             :data-testid="`method-response-${name}`"
             class="w-full rounded bg-white p-1 font-mono text-xs dark:bg-slate-600"
           >
-            {{ responseMessage }}
+            <div v-if="responseMessageAccepted">
+              •Accepted = {{ responseMessageAccepted }}
+            </div>
+            <div v-if="responseMessageFinalized">
+              •Finalized = {{ responseMessageFinalized }}
+            </div>
           </div>
         </div>
       </div>

@@ -27,12 +27,14 @@ class _SnapshotView(genvmbase.StateProxy):
         snapshot: ContractSnapshot,
         snapshot_factory: typing.Callable[[str], ContractSnapshot],
         readonly: bool,
+        state_status: str | None = None,
     ):
         self.contract_address = Address(snapshot.contract_address)
         self.snapshot = snapshot
         self.snapshot_factory = snapshot_factory
         self.cached = {}
         self.readonly = readonly
+        self.state_status = state_status if state_status else "accepted"
 
     def _get_snapshot(self, addr: Address) -> ContractSnapshot:
         if addr == self.contract_address:
@@ -52,7 +54,7 @@ class _SnapshotView(genvmbase.StateProxy):
     ) -> bytes:
         snap = self._get_snapshot(account)
         slot_id = base64.b64encode(slot).decode("ascii")
-        for_slot = snap.encoded_state.setdefault(slot_id, "")
+        for_slot = snap.states[self.state_status].setdefault(slot_id, "")
         data = bytearray(base64.b64decode(for_slot))
         data.extend(b"\x00" * (index + le - len(data)))
         return data[index : index + le]
@@ -65,16 +67,17 @@ class _SnapshotView(genvmbase.StateProxy):
         got: collections.abc.Buffer,
         /,
     ) -> None:
+        print("bla ", "self.state_status", self.state_status)
         assert account == self.contract_address
         assert not self.readonly
         snap = self._get_snapshot(account)
         slot_id = base64.b64encode(slot).decode("ascii")
-        for_slot = snap.encoded_state.setdefault(slot_id, "")
+        for_slot = snap.states[self.state_status].setdefault(slot_id, "")
         data = bytearray(base64.b64decode(for_slot))
         mem = memoryview(got)
         data.extend(b"\x00" * (index + len(mem) - len(data)))
         data[index : index + len(mem)] = mem
-        snap.encoded_state[slot_id] = base64.b64encode(data).decode("utf-8")
+        snap.states[self.state_status][slot_id] = base64.b64encode(data).decode("utf-8")
 
 
 class Node:
@@ -189,6 +192,7 @@ class Node:
         self,
         from_address: str,
         calldata: bytes,
+        state_status: str,
     ) -> Receipt:
         return await self._run_genvm(
             from_address,
@@ -196,6 +200,7 @@ class Node:
             readonly=True,
             is_init=False,
             transaction_datetime=datetime.datetime.now().astimezone(datetime.UTC),
+            state_status=state_status,
         )
 
     async def _execution_finished(
@@ -256,6 +261,7 @@ class Node:
         is_init: bool,
         transaction_hash: str | None = None,
         transaction_datetime: datetime.datetime | None,
+        state_status: str | None = None,
     ) -> Receipt:
         genvm = self._create_genvm()
         leader_res: None | dict[int, bytes]
@@ -289,7 +295,10 @@ class Node:
             ]
         }
         snapshot_view = _SnapshotView(
-            self.contract_snapshot, self.contract_snapshot_factory, readonly
+            self.contract_snapshot,
+            self.contract_snapshot_factory,
+            readonly,
+            state_status,
         )
 
         result_exec_code: ExecutionResultStatus
@@ -323,7 +332,7 @@ class Node:
                 pending_transactions=res.pending_transactions,
                 vote=None,
                 execution_result=result_exec_code,
-                contract_state=self.contract_snapshot.encoded_state,
+                contract_state=self.contract_snapshot.states["accepted"],
                 calldata=calldata,
                 mode=self.validator_mode,
                 node_config=self.validator.to_dict(),
