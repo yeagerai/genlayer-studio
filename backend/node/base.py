@@ -67,7 +67,6 @@ class _SnapshotView(genvmbase.StateProxy):
         got: collections.abc.Buffer,
         /,
     ) -> None:
-        print("bla ", "self.state_status", self.state_status)
         assert account == self.contract_address
         assert not self.readonly
         snap = self._get_snapshot(account)

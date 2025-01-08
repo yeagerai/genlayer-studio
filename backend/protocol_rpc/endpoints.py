@@ -396,9 +396,7 @@ async def call(
     if not accounts_manager.is_valid_address(to_address):
         raise InvalidAddressError(to_address)
 
-    print("eth_call data", data)
     decoded_data = decode_method_call_data(data)
-    print("eth_call decoded_data", decoded_data)
 
     node = Node(  # Mock node just to get the data from the GenVM
         contract_snapshot=ContractSnapshot(to_address, session),
