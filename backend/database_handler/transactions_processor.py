@@ -375,14 +375,14 @@ class TransactionsProcessor:
         )
         if transaction is None:
             return 0
-        return transaction.nonce
+        return transaction.timestamp_accepted
 
     def get_transactions_for_block(
         self, block_number: int, include_full_tx: bool
     ) -> dict:
         transactions = (
             self.session.query(Transactions)
-            .filter(Transactions.nonce == block_number)
+            .filter(Transactions.timestamp_accepted == block_number)
             .all()
         )
 
