@@ -44,7 +44,7 @@ from backend.database_handler.transactions_processor import (
     TransactionAddressFilter,
     TransactionsProcessor,
 )
-from backend.node.base import Node
+from backend.node.base import Node, SIMULATOR_CHAIN_ID
 from backend.node.types import ExecutionMode, ExecutionResultStatus
 from backend.consensus.base import ConsensusAlgorithm
 
@@ -537,11 +537,11 @@ def set_finality_window_time(consensus: ConsensusAlgorithm, time: int) -> None:
 
 
 def get_chain_id() -> str:
-    return hex(61_999)
+    return hex(SIMULATOR_CHAIN_ID)
 
 
 def get_net_version() -> str:
-    return "61999"
+    return str(SIMULATOR_CHAIN_ID)
 
 
 def get_block_number(transactions_processor: TransactionsProcessor) -> str:
