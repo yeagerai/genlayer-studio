@@ -7,7 +7,6 @@ import {
 } from '@/stores';
 import { useDb, useGenlayer, useTransactionListener } from '@/hooks';
 import { v4 as uuidv4 } from 'uuid';
-import type { Address } from '@/types';
 
 export const useSetupStores = () => {
   const setupStores = async () => {
@@ -60,14 +59,6 @@ export const useSetupStores = () => {
 
     if (accountsStore.privateKeys.length < 1) {
       accountsStore.generateNewAccount();
-    } else {
-      accountsStore.privateKeys = localStorage.getItem(
-        'accountsStore.privateKeys',
-      )
-        ? ((localStorage.getItem('accountsStore.privateKeys') || '').split(
-            ',',
-          ) as Address[])
-        : [];
     }
 
     genlayer.initClient();

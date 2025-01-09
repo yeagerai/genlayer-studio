@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useAccountsStore } from '@/stores';
 import AccountItem from '@/components/Simulator/AccountItem.vue';
 import { Dropdown } from 'floating-vue';
@@ -6,9 +6,14 @@ import { Wallet } from 'lucide-vue-next';
 import { PlusIcon } from '@heroicons/vue/16/solid';
 import { notify } from '@kyvg/vue3-notification';
 import { useEventTracking } from '@/hooks';
-import { createAccount } from 'genlayer-js';
+import { computed } from 'vue';
+
 const store = useAccountsStore();
 const { trackEvent } = useEventTracking();
+
+const hasMetaMaskAccount = computed(() =>
+  store.accounts.some((account) => account.type === 'metamask'),
+);
 
 const handleCreateNewAccount = async () => {
   const privateKey = store.generateNewAccount();
@@ -43,21 +48,11 @@ const connectMetaMask = async () => {
     <template #popper>
       <div class="divide-y divide-gray-200 dark:divide-gray-800">
         <AccountItem
-          v-if="store.walletAddress"
-          :account="{ address: store.walletAddress }"
-          :active="store.isWalletSelected"
-          :canDelete="false"
-          v-close-popper
-        />
-        <AccountItem
-          v-for="privateKey in store.privateKeys"
-          :key="privateKey"
-          :privateKey="privateKey"
-          :account="createAccount(privateKey)"
-          :active="
-            privateKey === store.currentPrivateKey && !store.isWalletSelected
-          "
-          :canDelete="true"
+          v-for="account in store.accounts"
+          :key="account.privateKey"
+          :account="account"
+          :active="account.address === store.currentUserAccount?.address"
+          :canDelete="account.type === 'local'"
           v-close-popper
         />
       </div>
@@ -73,7 +68,12 @@ const connectMetaMask = async () => {
         >
           New account
         </Btn>
-        <Btn @click="connectMetaMask" secondary class="w-full">
+        <Btn
+          v-if="!hasMetaMaskAccount"
+          @click="connectMetaMask"
+          secondary
+          class="w-full"
+        >
           Connect MetaMask
         </Btn>
       </div>

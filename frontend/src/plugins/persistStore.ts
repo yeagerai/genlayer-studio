@@ -113,23 +113,23 @@ export function persistStorePlugin(context: PiniaPluginContext): void {
           default:
             break;
         }
-      } else if (store.$id === 'accountsStore') {
-        switch (name) {
-          case 'generateNewAccount':
-          case 'removeAccount':
-          case 'setCurrentAccount':
-            localStorage.setItem(
-              'accountsStore.privateKeys',
-              store.privateKeys.join(','),
-            );
-            localStorage.setItem(
-              'accountsStore.currentPrivateKey',
-              store.currentPrivateKey,
-            );
-            break;
-          default:
-            break;
-        }
+        // } else if (store.$id === 'accountsStore') {
+        //   switch (name) {
+        //     case 'generateNewAccount':
+        //     case 'removeAccount':
+        //     case 'setCurrentAccount':
+        //       localStorage.setItem(
+        //         'accountsStore.privateKeys',
+        //         store.privateKeys.join(','),
+        //       );
+        //       localStorage.setItem(
+        //         'accountsStore.currentPrivateKey',
+        //         store.currentPrivateKey,
+        //       );
+        //       break;
+        //     default:
+        //       break;
+        //   }
       } else if (store.$id === 'transactionsStore') {
         switch (name) {
           case 'addTransaction':

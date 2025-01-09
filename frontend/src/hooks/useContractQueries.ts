@@ -11,11 +11,7 @@ import { notify } from '@kyvg/vue3-notification';
 import { useMockContractData } from './useMockContractData';
 import { useEventTracking, useGenlayer } from '@/hooks';
 import * as calldata from '@/calldata';
-import type {
-  Address,
-  TransactionHash,
-  ContractSchema,
-} from 'genlayer-js/types';
+import type { Account, Address, TransactionHash } from 'genlayer-js/types';
 
 const schema = ref<any>();
 
@@ -102,7 +98,7 @@ export function useContractQueries() {
     isDeploying.value = true;
 
     try {
-      if (!contract.value || !accountsStore.currentPrivateKey) {
+      if (!contract.value || !accountsStore.currentUserAccount) {
         throw new Error('Error Deploying the contract');
       }
 
@@ -110,6 +106,7 @@ export function useContractQueries() {
       const code_bytes = new TextEncoder().encode(code);
 
       const result = await genlayer.client?.deployContract({
+        account: accountsStore.currentUserAccount as Account,
         code: code_bytes as any as string, // FIXME: code should accept both bytes and string in genlayer-js
         args: args.args,
         leaderOnly,
@@ -143,6 +140,7 @@ export function useContractQueries() {
         type: 'error',
         title: 'Error deploying contract',
       });
+      console.error('Error Deploying the contract', error);
       throw new Error('Error Deploying the contract');
     }
   }
@@ -209,11 +207,16 @@ export function useContractQueries() {
     leaderOnly: boolean;
   }) {
     try {
-      if (!accountsStore.currentPrivateKey) {
+      if (!accountsStore.currentUserAccount) {
         throw new Error('Error writing to contract');
       }
+      console.log(
+        '🚀 ~ useContractQueries ~ accountsStore.currentUserAccount:',
+        accountsStore.currentUserAccount,
+      );
 
       const result = await genlayer.client?.writeContract({
+        account: accountsStore.currentUserAccount as Account,
         address: address.value as Address,
         functionName: method,
         args: args.args,
