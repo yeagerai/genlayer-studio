@@ -1,5 +1,6 @@
 # tests/e2e/test_storage.py
-import json
+import eth_utils
+
 from backend.node.types import Address
 from tests.common.request import (
     deploy_intelligent_contract,
@@ -35,7 +36,10 @@ def test_llm_erc20(setup_validators):
     # Get contract schema
     contract_code = open("examples/contracts/llm_erc20.py", "r").read()
     result_schema = post_request_localhost(
-        payload("gen_getContractSchemaForCode", contract_code)
+        payload(
+            "gen_getContractSchemaForCode",
+            eth_utils.hexadecimal.encode_hex(contract_code),
+        )
     ).json()
     assert has_success_status(result_schema)
     assert_dict_exact(result_schema, llm_erc20_contract_schema)

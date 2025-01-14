@@ -21,6 +21,9 @@ from tests.unit.consensus.test_helpers import (
 
 @pytest.mark.asyncio
 async def test_exec_transaction(consensus_algorithm):
+    """
+    Minor smoke checks for the happy path of a transaction execution
+    """
     # Initialize transaction, nodes, and get_vote function
     transaction = init_dummy_transaction()
     nodes = get_nodes_specs(3)

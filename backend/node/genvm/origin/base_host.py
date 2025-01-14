@@ -328,7 +328,11 @@ async def run_host_and_program(
 
     if not coro_loop.done():
         coro_loop.cancel()
-    await coro_loop
+
+    try:
+        await coro_loop
+    except Exception as e:
+        errors.append(e)
 
     if not handler.has_result():
         if (

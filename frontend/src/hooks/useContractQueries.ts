@@ -10,11 +10,10 @@ import { useDebounceFn } from '@vueuse/core';
 import { notify } from '@kyvg/vue3-notification';
 import { useMockContractData } from './useMockContractData';
 import { useEventTracking, useGenlayer } from '@/hooks';
-import * as calldata from '@/calldata';
 import type {
   Address,
   TransactionHash,
-  ContractSchema,
+  CalldataEncodable,
 } from 'genlayer-js/types';
 
 const schema = ref<any>();
@@ -94,8 +93,8 @@ export function useContractQueries() {
 
   async function deployContract(
     args: {
-      args: calldata.CalldataEncodable[];
-      kwargs: { [key: string]: calldata.CalldataEncodable };
+      args: CalldataEncodable[];
+      kwargs: { [key: string]: CalldataEncodable };
     },
     leaderOnly: boolean,
   ) {
@@ -178,8 +177,8 @@ export function useContractQueries() {
   async function callReadMethod(
     method: string,
     args: {
-      args: calldata.CalldataEncodable[];
-      kwargs: { [key: string]: calldata.CalldataEncodable };
+      args: CalldataEncodable[];
+      kwargs: { [key: string]: CalldataEncodable };
     },
   ) {
     try {
@@ -203,8 +202,8 @@ export function useContractQueries() {
   }: {
     method: string;
     args: {
-      args: calldata.CalldataEncodable[];
-      kwargs: { [key: string]: calldata.CalldataEncodable };
+      args: CalldataEncodable[];
+      kwargs: { [key: string]: CalldataEncodable };
     };
     leaderOnly: boolean;
   }) {
