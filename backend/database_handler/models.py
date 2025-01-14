@@ -96,6 +96,7 @@ class Transactions(Base):
     v: Mapped[Optional[int]] = mapped_column(Integer)
     ghost_contract_address: Mapped[Optional[str]] = mapped_column(String(255))
     appeal_failed: Mapped[Optional[int]] = mapped_column(Integer)
+    queued: Mapped[Optional[bool]] = mapped_column(Boolean)
 
     # Relationship for triggered transactions
     triggered_by_hash: Mapped[Optional[str]] = mapped_column(

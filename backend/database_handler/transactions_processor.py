@@ -64,6 +64,7 @@ class TransactionsProcessor:
             "timestamp_awaiting_finalization": transaction_data.timestamp_awaiting_finalization,
             "appeal_failed": transaction_data.appeal_failed,
             "appeal_undetermined": transaction_data.appeal_undetermined,
+            "queued": transaction_data.queued,
         }
 
     @staticmethod
@@ -229,6 +230,7 @@ class TransactionsProcessor:
             timestamp_awaiting_finalization=None,
             appeal_failed=0,
             appeal_undetermined=False,
+            queued=False,
         )
 
         self.session.add(new_transaction)
@@ -349,6 +351,7 @@ class TransactionsProcessor:
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.appealed = appeal
+        self.session.commit()
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
@@ -378,3 +381,10 @@ class TransactionsProcessor:
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.appeal_undetermined = appeal_undetermined
+
+    def set_transaction_queued(self, transaction_hash: str, queued: bool):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.queued = queued
+        self.session.commit()
