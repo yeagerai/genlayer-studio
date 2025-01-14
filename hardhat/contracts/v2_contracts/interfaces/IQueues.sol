@@ -103,4 +103,9 @@ interface IQueues {
 		address recipient,
 		bytes32 txId
 	) external returns (uint slot);
+
+	function removeTransactionFromPendingQueue(
+		address recipient,
+		bytes32 txId
+	) external;
 }

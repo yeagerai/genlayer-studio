@@ -140,6 +140,7 @@ contract Queues is
 
 		queues.txIdToQueueType[txId] = IQueues.QueueType.Accepted;
 		queues.pending.head++;
+		_checkAndMovePendingHead(recipient);
 
 		slot = acceptedQueue.tail;
 		acceptedQueue.slotToTxId[slot] = txId;
@@ -168,6 +169,7 @@ contract Queues is
 			.QueueType
 			.Undetermined;
 		recipientQueues[recipient].pending.head++;
+		_checkAndMovePendingHead(recipient);
 		slot = recipientQueues[recipient].undetermined.tail;
 		recipientQueues[recipient].undetermined.slotToTxId[slot] = txId;
 		recipientQueues[recipient].undetermined.txIdToSlot[txId] = slot;
@@ -212,5 +214,69 @@ contract Queues is
 	) external view returns (bool) {
 		RecipientQueues storage queues = recipientQueues[recipient];
 		return queues.pending.txIdToSlot[txId] == queues.pending.head;
+	}
+
+	/**
+	 * @notice Removes a transaction from the pending queue
+	 * @param recipient The address of the recipient
+	 * @param txId The transaction ID to remove
+	 * @dev Only callable by consensus contract
+	 * @dev Transaction must be at the head of the pending queue
+	 */
+	function removeTransactionFromPendingQueue(
+		address recipient,
+		bytes32 txId
+	) external onlyConsensus {
+		RecipientQueues storage queues = recipientQueues[recipient];
+		QueueInfo storage pendingQueue = queues.pending;
+
+		// Verify transaction is at the head of pending queue
+		if (pendingQueue.txIdToSlot[txId] != pendingQueue.head) {
+			revert Errors.TransactionNotAtPendingQueueHead();
+		}
+
+		// Remove transaction from queue mappings
+		delete pendingQueue.slotToTxId[pendingQueue.head];
+		delete pendingQueue.txIdToSlot[txId];
+		delete queues.txIdToQueueType[txId];
+
+		// Increment head to move to next transaction
+		pendingQueue.head++;
+		_checkAndMovePendingHead(recipient);
+		// Update last queue modification
+		lastQueueModification[txId] = IQueues.LastQueueModification({
+			lastQueueType: IQueues.QueueType.None,
+			lastQueueTimestamp: block.timestamp
+		});
+
+		if (
+			recipientQueues[recipient].finalizedCount <
+			recipientQueues[recipient].issuedTxCount
+		) {
+			++recipientQueues[recipient].finalizedCount;
+		}
+
+		emit QueueOperationPerformed(
+			recipient,
+			txId,
+			IQueues.QueueType.None,
+			type(uint).max
+		);
+	}
+
+	function _checkAndMovePendingHead(address recipient) internal {
+		bytes32 nextTxId = recipientQueues[recipient].pending.slotToTxId[
+			recipientQueues[recipient].pending.head
+		];
+		while (
+			nextTxId != bytes32(0) &&
+			recipientQueues[recipient].txIdToQueueType[nextTxId] ==
+			IQueues.QueueType.None
+		) {
+			recipientQueues[recipient].pending.head++;
+			nextTxId = recipientQueues[recipient].pending.slotToTxId[
+				recipientQueues[recipient].pending.head
+			];
+		}
 	}
 }

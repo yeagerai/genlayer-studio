@@ -13,7 +13,6 @@ import "./interfaces/IMessages.sol";
 import "./interfaces/IAppeals.sol";
 import "../RandomnessUtils.sol";
 import "./utils/Errors.sol";
-
 /**
  * @title ConsensusMain
  * @notice Main contract for managing transaction consensus and validation in the Genlayer protocol
@@ -82,35 +81,13 @@ contract ConsensusMain is
 		uint256 _maxRotations,
 		bytes memory _txData
 	) external {
-		if (_sender == address(0)) {
-			_sender = msg.sender;
-		}
-		bytes32 randomSeed = _recipient == address(0)
-			? keccak256(abi.encodePacked(_sender))
-			: recipientRandomSeed[_recipient];
-		if (_recipient == address(0)) {
-			// Contract deployment transaction
-			ghostFactory.createGhost();
-			address ghost = ghostFactory.latestGhost();
-			_storeGhost(ghost);
-			_recipient = ghost;
-			// Initial random seed for the recipient account
-			recipientRandomSeed[_recipient] = randomSeed;
-		} else if (!ghostContracts[_recipient]) {
-			revert Errors.NonGenVMContract();
-		}
-		// bytes32 randomSeed = recipientRandomSeed[_recipient]; // recipient randomSeed is used for activation
-		(bytes32 tx_id, address activator) = _generateTx(
+		_addTransaction(
 			_sender,
 			_recipient,
 			_numOfInitialValidators,
 			_maxRotations,
-			randomSeed,
 			_txData
 		);
-		txActivator[tx_id] = activator;
-		txStatus[tx_id] = ITransactions.TransactionStatus.Pending;
-		emit NewTransaction(tx_id, _recipient, activator);
 		// TODO: Fee verification handling
 	}
 
@@ -327,10 +304,21 @@ contract ConsensusMain is
 				.revealVote(_tx_id, _voteHash, _voteType, msg.sender);
 			if (isLastVote) {
 				if (
-					result == ITransactions.ResultType.MajorityDisagree ||
-					result == ITransactions.ResultType.DeterministicViolation ||
-					result == ITransactions.ResultType.NoMajority
+					result == ITransactions.ResultType.MajorityAgree ||
+					result == ITransactions.ResultType.Agree
 				) {
+					txStatus[_tx_id] = ITransactions.TransactionStatus.Accepted;
+					genQueue.addTransactionToAcceptedQueue(
+						_activationInfo.recepientAddress,
+						_tx_id
+					);
+					emit TransactionAccepted(_tx_id);
+
+					// Process on-acceptance messages
+					if (genTransactions.hasOnAcceptanceMessages(_tx_id)) {
+						_processMessages(_tx_id, true); // true for acceptance phase
+					}
+				} else {
 					if (_activationInfo.rotationsLeft > 0) {
 						// (more rounds of rotations) Rotate
 						// TODO: check also gas limit
@@ -343,16 +331,6 @@ contract ConsensusMain is
 							_activationInfo.recepientAddress,
 							_tx_id
 						);
-					}
-				} else {
-					txStatus[_tx_id] = ITransactions.TransactionStatus.Accepted;
-					genQueue.addTransactionToAcceptedQueue(
-						_activationInfo.recepientAddress,
-						_tx_id
-					);
-					emit TransactionAccepted(_tx_id);
-					if (genTransactions.hasOnAcceptanceMessages(_tx_id)) {
-						genMessages.emitMessagesOnAcceptance(_tx_id);
 					}
 				}
 			}
@@ -400,7 +378,7 @@ contract ConsensusMain is
 		if (block.timestamp - lastVoteTimestamp > ACCEPTANCE_TIMEOUT) {
 			txStatus[_tx_id] = ITransactions.TransactionStatus.Finalized;
 			if (genTransactions.hasMessagesOnFinalization(_tx_id)) {
-				genMessages.emitMessagesOnFinalization(_tx_id);
+				_processMessages(_tx_id, false); // false for finalization phase
 			}
 			emit TransactionFinalized(_tx_id);
 		}
@@ -472,6 +450,52 @@ contract ConsensusMain is
 		(success, ) = _recipient.call{ value: _value }(_data);
 	}
 
+	/**
+	 * @notice Cancels a pending transaction
+	 * @param _tx_id The unique identifier of the transaction to cancel
+	 * @dev Only the original sender can cancel a pending transaction
+	 * @custom:throws TransactionNotPending if transaction is not in pending state
+	 * @custom:throws TransactionNotAtPendingQueueHead if transaction is not at the head of pending queue
+	 * @custom:throws CallerNotSender if caller is not the original transaction sender
+	 * @custom:emits TransactionCancelled when transaction is successfully cancelled
+	 */
+	function cancelTransaction(bytes32 _tx_id) external {
+		// Check transaction status
+		if (txStatus[_tx_id] != ITransactions.TransactionStatus.Pending) {
+			revert Errors.TransactionNotPending();
+		}
+
+		// Get transaction info
+		ITransactions.ActivationInfo memory _activationInfo = genTransactions
+			.getTransactionActivationInfo(_tx_id);
+
+		// Check if transaction is at the head of pending queue
+		if (
+			!genQueue.isAtPendingQueueHead(
+				_activationInfo.recepientAddress,
+				_tx_id
+			)
+		) {
+			revert Errors.TransactionNotAtPendingQueueHead();
+		}
+
+		// Check if caller is the original sender
+		if (msg.sender != _activationInfo.sender) {
+			revert Errors.CallerNotSender();
+		}
+
+		// Remove transaction from pending queue
+		genQueue.removeTransactionFromPendingQueue(
+			_activationInfo.recepientAddress,
+			_tx_id
+		);
+
+		// Update transaction status
+		txStatus[_tx_id] = ITransactions.TransactionStatus.Canceled;
+
+		emit TransactionCancelled(_tx_id, msg.sender);
+	}
+
 	// VIEW FUNCTIONS
 
 	/**
@@ -495,6 +519,43 @@ contract ConsensusMain is
 	}
 
 	// INTERNAL FUNCTIONS
+	function _addTransaction(
+		address _sender,
+		address _recipient,
+		uint256 _numOfInitialValidators,
+		uint256 _maxRotations,
+		bytes memory _txData
+	) internal returns (bytes32 tx_id, address activator) {
+		if (_sender == address(0)) {
+			_sender = msg.sender;
+		}
+		bytes32 randomSeed = _recipient == address(0)
+			? keccak256(abi.encodePacked(_sender))
+			: recipientRandomSeed[_recipient];
+		if (_recipient == address(0)) {
+			// Contract deployment transaction
+			ghostFactory.createGhost();
+			address ghost = ghostFactory.latestGhost();
+			_storeGhost(ghost);
+			_recipient = ghost;
+			// Initial random seed for the recipient account
+			recipientRandomSeed[_recipient] = randomSeed;
+		} else if (!ghostContracts[_recipient]) {
+			revert Errors.NonGenVMContract();
+		}
+		// bytes32 randomSeed = recipientRandomSeed[_recipient]; // recipient randomSeed is used for activation
+		(tx_id, activator) = _generateTx(
+			_sender,
+			_recipient,
+			_numOfInitialValidators,
+			_maxRotations,
+			randomSeed,
+			_txData
+		);
+		txActivator[tx_id] = activator;
+		txStatus[tx_id] = ITransactions.TransactionStatus.Pending;
+		emit NewTransaction(tx_id, _recipient, activator);
+	}
 
 	/**
 	 * @notice Rotates the leader for a transaction
@@ -737,6 +798,51 @@ contract ConsensusMain is
 		return result;
 	}
 
+	/**
+	 * @notice Processes messages for a transaction
+	 * @param _tx_id The unique identifier of the transaction
+	 * @param isAcceptance Whether the messages are for acceptance or finalization
+	 */
+	function _processMessages(bytes32 _tx_id, bool isAcceptance) internal {
+		IMessages.SubmittedMessage[] memory messages = genTransactions
+			.getMessagesForTransaction(_tx_id);
+
+		for (uint i = 0; i < messages.length; i++) {
+			IMessages.SubmittedMessage memory message = messages[i];
+
+			// Only process messages for the current phase (acceptance or finalization)
+			if (message.onAcceptance != isAcceptance) {
+				continue;
+			}
+			if (message.messageType == IMessages.MessageType.External) {
+				// Existing external message handling
+				genMessages.executeMessage(message);
+			} else if (message.messageType == IMessages.MessageType.Internal) {
+				// Get transaction sender (the ghost contract that issued the original transaction)
+				ITransactions.ActivationInfo
+					memory activationInfo = genTransactions
+						.getTransactionActivationInfo(_tx_id);
+
+				// Create new transaction from current ghost to target ghost
+				(
+					bytes32 generated_tx_id,
+					address newActivator
+				) = _addTransaction(
+						activationInfo.recepientAddress, // sender (current ghost)
+						message.recipient, // recipient (target ghost)
+						5, // or pass as part of message.data
+						0, // or pass as part of message.data
+						message.data // transaction data
+					);
+				emit InternalMessageProcessed(
+					generated_tx_id,
+					message.recipient,
+					newActivator
+				);
+			}
+		}
+	}
+
 	// SETTERS
 
 	/**
@@ -859,4 +965,10 @@ contract ConsensusMain is
 		uint256 appealBond,
 		uint256 appealIndex
 	);
+	event InternalMessageProcessed(
+		bytes32 indexed tx_id,
+		address indexed recipient,
+		address indexed activator
+	);
+	event TransactionCancelled(bytes32 indexed tx_id, address indexed sender);
 }

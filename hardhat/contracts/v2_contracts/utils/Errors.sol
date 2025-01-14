@@ -30,4 +30,5 @@ library Errors {
 	error NotConsensus();
 	error InvalidQueueOperation();
 	error TransactionNotPending();
+	error CallerNotSender();
 }

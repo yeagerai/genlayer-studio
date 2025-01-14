@@ -27,6 +27,7 @@ interface ITransactions {
 	}
 
 	struct ActivationInfo {
+		address sender;
 		address recepientAddress;
 		uint256 numOfInitialValidators;
 		bool initialActivation;
@@ -128,6 +129,9 @@ interface ITransactions {
 	) external returns (uint256 appealIndex);
 
 	function emitMessagesOnFinalization(bytes32 _tx_id) external;
+	function getMessagesForTransaction(
+		bytes32 _tx_id
+	) external view returns (IMessages.SubmittedMessage[] memory);
 
 	function getTransactionLastVoteTimestamp(
 		bytes32 _tx_id
