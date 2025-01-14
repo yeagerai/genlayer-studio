@@ -34,8 +34,7 @@ import {
   opt,
 } from 'typescript-parsec';
 
-import type { CalldataEncodable } from './types';
-import { Address } from './types';
+import { CalldataAddress, type CalldataEncodable } from 'genlayer-js/types';
 
 enum TokenKind {
   Atom,
@@ -172,7 +171,7 @@ TERM.setPattern(
     apply(tok(TokenKind.Bytes), (v) => parseHex(v.text.substring(2))),
     apply(
       tok(TokenKind.Addr),
-      (v) => new Address(parseHex(v.text.substring(5))),
+      (v) => new CalldataAddress(parseHex(v.text.substring(5))),
     ),
   ),
 );
