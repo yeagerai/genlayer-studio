@@ -1,5 +1,7 @@
 # tests/e2e/test_wizard_of_coin.py
 
+import eth_utils
+
 from tests.common.request import (
     deploy_intelligent_contract,
     send_transaction,
@@ -24,7 +26,10 @@ def test_wizard_of_coin(setup_validators, from_account):
     # Get contract schema
     contract_code = open("examples/contracts/wizard_of_coin.py", "r").read()
     result_schema = post_request_localhost(
-        payload("gen_getContractSchemaForCode", contract_code)
+        payload(
+            "gen_getContractSchemaForCode",
+            eth_utils.hexadecimal.encode_hex(contract_code),
+        )
     ).json()
     assert has_success_status(result_schema)
     assert_dict_exact(result_schema, wizard_contract_schema)
