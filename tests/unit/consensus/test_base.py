@@ -1,6 +1,6 @@
 from unittest.mock import Mock
-import time
 import pytest
+import asyncio
 
 from backend.consensus.base import (
     ConsensusAlgorithm,
@@ -25,8 +25,15 @@ from tests.unit.consensus.test_helpers import (
     check_validator_count,
     get_leader_address,
     get_validator_addresses,
+    DEFAULT_FINALITY_WINDOW_SLEEP,
     DEFAULT_FINALITY_WINDOW,
 )
+
+
+def createConsensusAlgorithm(*args) -> ConsensusAlgorithm:
+    ret = ConsensusAlgorithm(*args)
+    ret.set_finality_window_time(DEFAULT_FINALITY_WINDOW)
+    return ret
 
 
 @pytest.mark.asyncio
@@ -69,7 +76,7 @@ async def test_exec_transaction(managed_thread):
         transactions_processor, msg_handler_mock, nodes, node_factory_supplier
     )
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -83,7 +90,7 @@ async def test_exec_transaction(managed_thread):
     for node in created_nodes:
         node.exec_transaction.assert_awaited_once_with(transaction)
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -125,7 +132,7 @@ async def test_exec_transaction_no_consensus(managed_thread):
 
     managed_thread(transactions_processor, msg_handler_mock, nodes, node_factory)
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -155,7 +162,7 @@ async def test_exec_transaction_no_consensus(managed_thread):
         == TransactionStatus.UNDETERMINED.value
     )
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -225,7 +232,7 @@ async def test_exec_transaction_one_disagreement(managed_thread):
         transactions_processor, msg_handler_mock, nodes, node_factory_supplier
     )
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -234,7 +241,7 @@ async def test_exec_transaction_one_disagreement(managed_thread):
         node_factory=node_factory_supplier,
     )
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert transactions_processor.updated_transaction_status_history == {
         "transaction_hash": [
@@ -316,7 +323,7 @@ async def test_exec_accepted_appeal_fail(managed_thread):
         transactions_processor, msg_handler_mock, nodes, node_factory_supplier
     )
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -341,7 +348,7 @@ async def test_exec_accepted_appeal_fail(managed_thread):
 
     appeal(transaction, transactions_processor)
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -420,7 +427,7 @@ async def test_exec_accepted_appeal_no_extra_validators(managed_thread):
         transactions_processor, msg_handler_mock, nodes, node_factory_supplier
     )
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -445,7 +452,7 @@ async def test_exec_accepted_appeal_no_extra_validators(managed_thread):
 
     appeal(transaction, transactions_processor)
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -529,7 +536,7 @@ async def test_exec_accepted_appeal_successful(managed_thread):
         transactions_processor, msg_handler_mock, nodes, node_factory_supplier
     )
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -555,7 +562,7 @@ async def test_exec_accepted_appeal_successful(managed_thread):
 
     appeal(transaction, transactions_processor)
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -587,7 +594,7 @@ async def test_exec_accepted_appeal_successful(managed_thread):
         transactions_processor.get_transaction_by_hash(transaction.hash)
     )  # update the variable with the consensus data
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -596,7 +603,7 @@ async def test_exec_accepted_appeal_successful(managed_thread):
         node_factory=node_factory_supplier,
     )
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -688,7 +695,7 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(managed_th
         transactions_processor, msg_handler_mock, nodes, node_factory_supplier
     )
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -710,7 +717,7 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(managed_th
 
     appeal(transaction, transactions_processor)
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -737,7 +744,7 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(managed_th
         transactions_processor.get_transaction_by_hash(transaction.hash)
     )  # update the variable with the consensus data
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -841,7 +848,7 @@ async def test_exec_accepted_appeal_successful_twice(managed_thread):
         transactions_processor, msg_handler_mock, nodes, node_factory_supplier
     )
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -877,7 +884,7 @@ async def test_exec_accepted_appeal_successful_twice(managed_thread):
 
     appeal(transaction, transactions_processor)
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -905,7 +912,7 @@ async def test_exec_accepted_appeal_successful_twice(managed_thread):
         transactions_processor.get_transaction_by_hash(transaction.hash)
     )  # update the variable with the consensus data
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -948,7 +955,7 @@ async def test_exec_accepted_appeal_successful_twice(managed_thread):
 
     appeal(transaction, transactions_processor)
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -976,7 +983,7 @@ async def test_exec_accepted_appeal_successful_twice(managed_thread):
         transactions_processor.get_transaction_by_hash(transaction.hash)
     )  # update the variable with the consensus data
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -985,7 +992,7 @@ async def test_exec_accepted_appeal_successful_twice(managed_thread):
         node_factory=node_factory_supplier,
     )
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -1077,7 +1084,7 @@ async def test_exec_accepted_appeal_fail_three_times(managed_thread):
         transactions_processor, msg_handler_mock, nodes, node_factory_supplier
     )
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -1121,7 +1128,7 @@ async def test_exec_accepted_appeal_fail_three_times(managed_thread):
 
         appeal(transaction, transactions_processor)
 
-        time.sleep(1.5)
+        await asyncio.sleep(1.5)
 
         assert (
             transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -1168,7 +1175,7 @@ async def test_exec_accepted_appeal_fail_three_times(managed_thread):
         assert leader_address == get_leader_address(transaction, transactions_processor)
         assert leader_address not in validator_set_addresses
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -1270,7 +1277,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
         transactions_processor, msg_handler_mock, nodes, node_factory_supplier
     )
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -1307,7 +1314,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
 
     appeal(transaction, transactions_processor)
 
-    time.sleep(2)
+    await asyncio.sleep(2)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -1335,7 +1342,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
         transactions_processor.get_transaction_by_hash(transaction.hash)
     )  # update the variable with the consensus data
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -1344,7 +1351,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
         node_factory=node_factory_supplier,
     )
 
-    time.sleep(2)
+    await asyncio.sleep(2)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -1381,7 +1388,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
     # Appeal fails
     appeal(transaction, transactions_processor)
 
-    time.sleep(2)
+    await asyncio.sleep(2)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -1415,7 +1422,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
     # Appeal successful
     appeal(transaction, transactions_processor)
 
-    time.sleep(2)
+    await asyncio.sleep(2)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -1445,7 +1452,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
         transactions_processor.get_transaction_by_hash(transaction.hash)
     )  # update the variable with the consensus data
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -1454,7 +1461,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
         node_factory=node_factory_supplier,
     )
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 2)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -1556,7 +1563,7 @@ async def test_exec_undetermined_appeal(managed_thread):
         transactions_processor, msg_handler_mock, nodes, node_factory_supplier
     )
 
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -1592,12 +1599,12 @@ async def test_exec_undetermined_appeal(managed_thread):
     assert len(created_nodes) == nb_created_nodes
 
     appeal(transaction, transactions_processor)
-    time.sleep(3)
+    await asyncio.sleep(3)
 
     transaction = Transaction.from_dict(
         transactions_processor.get_transaction_by_hash(transaction.hash)
     )
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -1631,12 +1638,12 @@ async def test_exec_undetermined_appeal(managed_thread):
     assert len(created_nodes) == nb_created_nodes
 
     appeal(transaction, transactions_processor)
-    time.sleep(1)
+    await asyncio.sleep(1)
 
     transaction = Transaction.from_dict(
         transactions_processor.get_transaction_by_hash(transaction.hash)
     )
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -1670,7 +1677,7 @@ async def test_exec_undetermined_appeal(managed_thread):
     assert len(created_nodes) == nb_created_nodes
 
     appeal(transaction, transactions_processor)
-    time.sleep(1)
+    await asyncio.sleep(2)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -1694,7 +1701,7 @@ async def test_exec_undetermined_appeal(managed_thread):
     transaction = Transaction.from_dict(
         transactions_processor.get_transaction_by_hash(transaction.hash)
     )
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -1727,12 +1734,12 @@ async def test_exec_undetermined_appeal(managed_thread):
     assert len(created_nodes) == nb_created_nodes
 
     appeal(transaction, transactions_processor)
-    time.sleep(1)
+    await asyncio.sleep(1)
 
     transaction = Transaction.from_dict(
         transactions_processor.get_transaction_by_hash(transaction.hash)
     )
-    await ConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
         transactions_processor=transactions_processor,
         snapshot=SnapshotMock(nodes),
@@ -1741,7 +1748,7 @@ async def test_exec_undetermined_appeal(managed_thread):
         node_factory=node_factory_supplier,
     )
 
-    time.sleep(DEFAULT_FINALITY_WINDOW + 5)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW + 5)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]

@@ -10,7 +10,7 @@ import { CheckCircleIcon, XCircleIcon } from '@heroicons/vue/16/solid';
 import CopyTextButton from '../global/CopyTextButton.vue';
 import { FilterIcon } from 'lucide-vue-next';
 import { GavelIcon } from 'lucide-vue-next';
-import * as calldata from '@/calldata';
+import { abi } from 'genlayer-js';
 
 const uiStore = useUIStore();
 const nodeStore = useNodeStore();
@@ -74,7 +74,7 @@ function prettifyTxData(x: any): any {
             k,
             {
               status: 'success',
-              data: calldata.toString(calldata.decode(rest)),
+              data: abi.calldata.toString(abi.calldata.decode(rest)),
             },
           ];
         } else if (val[0] == 1) {
