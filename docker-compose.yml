@@ -203,7 +203,6 @@ services:
       - ./hardhat/test:/app/test
       - ./hardhat/hardhat.config.js:/app/hardhat.config.js
       - ./hardhat/deploy:/app/deploy
-      - ./hardhat/scripts:/app/scripts
       - hardhat_artifacts:/app/artifacts
       - hardhat_cache:/app/cache
       - hardhat_deployments:/app/deployments
