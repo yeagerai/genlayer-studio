@@ -186,4 +186,21 @@ export class JsonRpcService implements IJsonRpcService {
       'Error getting transaction count',
     );
   }
+
+  async setTransactionAppeal(tx_address: string): Promise<any> {
+    return this.callRpcMethod<any>(
+      'sim_appealTransaction',
+      [String(tx_address)],
+      'Error setting transaction appeal flag',
+    );
+  }
+
+  async setFinalityWindowTime(time: number): Promise<any> {
+    console.log('Setting finality window time:', time, 'Type:', typeof time);
+    return this.callRpcMethod<any>(
+      'sim_setFinalityWindowTime',
+      [time],
+      'Error setting finality window duration',
+    );
+  }
 }

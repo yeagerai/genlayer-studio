@@ -1,12 +1,12 @@
 import pytest
 from backend.protocol_rpc.transactions_parser import (
-    decode_method_call_data,
-    DecodedMethodCallData,
+    decode_method_send_data,
+    DecodedMethodSendData,
     decode_deployment_data,
     DecodedDeploymentData,
 )
 from rlp import encode
-import backend.node.genvm.calldata as calldata
+import backend.node.genvm.origin.calldata as calldata
 
 
 @pytest.mark.parametrize(
@@ -14,14 +14,14 @@ import backend.node.genvm.calldata as calldata
     [
         (
             [{"method": "__init__", "args": ["John Doe"]}, False],
-            DecodedMethodCallData(
+            DecodedMethodSendData(
                 calldata=b"\x16\x04args\rDJohn Doe\x06methodD__init__",
                 leader_only=False,
             ),
         ),
         (
             [{"method": "__init__", "args": ["John Doe"]}, True],
-            DecodedMethodCallData(
+            DecodedMethodSendData(
                 calldata=b"\x16\x04args\rDJohn Doe\x06methodD__init__",
                 leader_only=True,
             ),
@@ -30,16 +30,16 @@ import backend.node.genvm.calldata as calldata
             (
                 [{"method": "__init__", "args": ["John Doe"]}]
             ),  # Should fallback to default
-            DecodedMethodCallData(
+            DecodedMethodSendData(
                 calldata=b"\x16\x04args\rDJohn Doe\x06methodD__init__",
                 leader_only=False,
             ),
         ),
     ],
 )
-def test_decode_method_call_data(data, expected_result):
+def test_decode_method_send_data(data, expected_result):
     encoded = encode([calldata.encode(data[0]), *data[1:]])
-    assert decode_method_call_data(encoded) == expected_result
+    assert decode_method_send_data(encoded) == expected_result
 
 
 @pytest.mark.parametrize(
@@ -47,32 +47,32 @@ def test_decode_method_call_data(data, expected_result):
     [
         (
             [
-                "class Test(name: str)",
+                b"class Test(name: str)",
                 {"method": "__init__", "args": ["John Doe"]},
                 False,
             ],
             DecodedDeploymentData(
-                contract_code="class Test(name: str)",
+                contract_code=b"class Test(name: str)",
                 calldata=b"\x16\x04args\rDJohn Doe\x06methodD__init__",
                 leader_only=False,
             ),
         ),
         (
             [
-                "class Test(name: str)",
+                b"class Test(name: str)",
                 {"method": "__init__", "args": ["John Doe"]},
                 True,
             ],
             DecodedDeploymentData(
-                contract_code="class Test(name: str)",
+                contract_code=b"class Test(name: str)",
                 calldata=b"\x16\x04args\rDJohn Doe\x06methodD__init__",
                 leader_only=True,
             ),
         ),
         (
-            ["class Test(name: str)", {"method": "__init__", "args": ["John Doe"]}],
+            [b"class Test(name: str)", {"method": "__init__", "args": ["John Doe"]}],
             DecodedDeploymentData(
-                contract_code="class Test(name: str)",
+                contract_code=b"class Test(name: str)",
                 calldata=b"\x16\x04args\rDJohn Doe\x06methodD__init__",
                 leader_only=False,
             ),

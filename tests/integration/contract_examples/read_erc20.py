@@ -1,12 +1,15 @@
-from collections import defaultdict
-from backend.node.genvm.icontract import IContract
+# { "Depends": "py-genlayer:test" }
+
+from genlayer import *
 
 
-class read_erc20(IContract):
+@gl.contract
+class read_erc20:
+    token_contract: Address
+
     def __init__(self, token_contract: str):
-        self.balances = defaultdict(int)
-        self.token_contract = token_contract
+        self.token_contract = Address(token_contract)
 
+    @gl.public.view
     def get_balance_of(self, account_address: str) -> int:
-        contract = Contract(self.token_contract)
-        return contract.get_balance_of(account_address)
+        return gl.ContractAt(self.token_contract).view().get_balance_of(account_address)

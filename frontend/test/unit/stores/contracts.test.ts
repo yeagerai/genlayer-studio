@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { useContractsStore } from '@/stores';
-import { useDb, useFileName, useSetupStores } from '@/hooks';
+import { useContractsStore, useTransactionsStore } from '@/stores';
+import {
+  useDb,
+  useFileName,
+  useSetupStores,
+  useRpcClient,
+  useWebSocketClient,
+  useGenlayer,
+} from '@/hooks';
 import { notify } from '@kyvg/vue3-notification';
 
 const testContract = {
@@ -21,6 +28,9 @@ vi.mock('@/hooks', () => ({
   useDb: vi.fn(),
   useFileName: vi.fn(),
   useSetupStores: vi.fn(),
+  useRpcClient: vi.fn(),
+  useWebSocketClient: vi.fn(),
+  useGenlayer: vi.fn(),
 }));
 
 vi.mock('@kyvg/vue3-notification', () => ({
@@ -29,16 +39,16 @@ vi.mock('@kyvg/vue3-notification', () => ({
 
 describe('useContractsStore', () => {
   let contractsStore: ReturnType<typeof useContractsStore>;
+  let transactionsStore: ReturnType<typeof useTransactionsStore>;
   const mockDb = {
     deployedContracts: {
-      where: vi.fn().mockReturnThis(),
-      anyOf: vi.fn().mockReturnThis(),
-      delete: vi.fn(),
+      clear: vi.fn(),
     },
     contractFiles: {
-      where: vi.fn().mockReturnThis(),
-      anyOf: vi.fn().mockReturnThis(),
-      delete: vi.fn(),
+      clear: vi.fn(),
+    },
+    transactions: {
+      clear: vi.fn(),
     },
   };
 
@@ -55,8 +65,12 @@ describe('useContractsStore', () => {
     (useDb as Mock).mockReturnValue(mockDb);
     (useFileName as Mock).mockReturnValue(mockFileName);
     (useSetupStores as Mock).mockReturnValue(mockSetupStores);
+    (useRpcClient as Mock).mockReturnValue({});
+    (useWebSocketClient as Mock).mockReturnValue({});
+    (useGenlayer as Mock).mockReturnValue({});
 
     contractsStore = useContractsStore();
+    transactionsStore = useTransactionsStore();
     vi.clearAllMocks();
   });
 
@@ -117,10 +131,11 @@ describe('useContractsStore', () => {
     contractsStore.contracts = exampleContracts;
 
     await contractsStore.resetStorage();
+    await transactionsStore.resetStorage();
 
-    expect(mockDb.deployedContracts.delete).toHaveBeenCalled();
-    expect(mockDb.contractFiles.delete).toHaveBeenCalled();
-    expect(mockSetupStores.setupStores).toHaveBeenCalled();
+    expect(mockDb.deployedContracts.clear).toHaveBeenCalled();
+    expect(mockDb.contractFiles.clear).toHaveBeenCalled();
+    expect(mockDb.transactions.clear).toHaveBeenCalled();
     expect(contractsStore.contracts).toHaveLength(0);
     expect(contractsStore.openedFiles).toHaveLength(0);
   });

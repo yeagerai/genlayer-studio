@@ -2,27 +2,26 @@ user_storage_contract_schema = {
     "id": 1,
     "jsonrpc": "2.0",
     "result": {
-        "abi": [
-            {"inputs": [], "type": "constructor"},
-            {
-                "inputs": [{"name": "account_address", "type": "string"}],
-                "name": "get_account_storage",
-                "outputs": [{"name": "", "type": "string"}],
-                "type": "function",
+        "ctor": {"kwparams": {}, "params": []},
+        "methods": {
+            "get_account_storage": {
+                "kwparams": {},
+                "params": [["account_address", "string"]],
+                "readonly": True,
+                "ret": "string",
             },
-            {
-                "inputs": [],
-                "name": "get_complete_storage",
-                "outputs": [{"name": "", "type": "any"}],
-                "type": "function",
+            "get_complete_storage": {
+                "kwparams": {},
+                "params": [],
+                "readonly": True,
+                "ret": {"$dict": "string"},
             },
-            {
-                "inputs": [{"name": "new_storage", "type": "string"}],
-                "name": "update_storage",
-                "outputs": [],
-                "type": "function",
+            "update_storage": {
+                "kwparams": {},
+                "params": [["new_storage", "string"]],
+                "readonly": False,
+                "ret": "null",
             },
-        ],
-        "class": "UserStorage",
+        },
     },
 }

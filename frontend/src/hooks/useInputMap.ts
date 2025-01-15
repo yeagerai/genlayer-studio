@@ -1,22 +1,28 @@
+import AnyField from '@/components/global/fields/AnyField.vue';
 import StringField from '@/components/global/fields/StringField.vue';
 import IntegerField from '@/components/global/fields/IntegerField.vue';
 import BooleanField from '@/components/global/fields/BooleanField.vue';
+import type { ContractParamsSchema } from 'genlayer-js/types';
 
 export const InputTypesMap: { [k: string]: any } = {
   string: StringField,
   int: IntegerField,
   bool: BooleanField,
+  any: AnyField,
 };
 
 export const useInputMap = () => {
-  const getComponent = (type: string) => {
+  const getComponent = (type: ContractParamsSchema) => {
+    if (typeof type !== 'string') {
+      type = 'any';
+    }
     const component = InputTypesMap[type];
 
     if (!component) {
       console.warn(
-        `Component not found for input type: ${type}, defaulting to string`,
+        `Component not found for input type: ${type}, defaulting to any`,
       );
-      return StringField;
+      return AnyField;
     }
 
     return component;

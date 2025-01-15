@@ -6,12 +6,14 @@ from rlp.exceptions import DeserializationError, SerializationError
 from eth_account import Account
 from eth_account._utils.legacy_transactions import Transaction, vrs_from
 from eth_account._utils.signing import hash_of_signed_transaction
+import eth_utils
 from eth_utils import to_checksum_address
 from hexbytes import HexBytes
 
 from backend.protocol_rpc.types import (
     DecodedDeploymentData,
     DecodedMethodCallData,
+    DecodedMethodSendData,
     DecodedTransaction,
 )
 
@@ -93,21 +95,25 @@ def transaction_has_valid_signature(
     return recovered_address == decoded_tx.from_address
 
 
-def decode_method_call_data(data: str) -> DecodedMethodCallData:
+def decode_method_send_data(data: str) -> DecodedMethodSendData:
     data_bytes = HexBytes(data)
 
     try:
-        data_decoded = rlp.decode(data_bytes, MethodCallTransactionPayload)
+        data_decoded = rlp.decode(data_bytes, MethodSendTransactionPayload)
     except rlp.exceptions.DeserializationError as e:
         print("WARN | falling back to default decode method call data:", e)
-        data_decoded = rlp.decode(data_bytes, MethodCallTransactionPayloadDefault)
+        data_decoded = rlp.decode(data_bytes, MethodSendTransactionPayloadDefault)
 
     leader_only = getattr(data_decoded, "leader_only", False)
 
-    return DecodedMethodCallData(
+    return DecodedMethodSendData(
         calldata=data_decoded["calldata"],
         leader_only=leader_only,
     )
+
+
+def decode_method_call_data(data: str) -> DecodedMethodCallData:
+    return DecodedMethodCallData(eth_utils.hexadecimal.decode_hex(data))
 
 
 def decode_deployment_data(data: str) -> DecodedDeploymentData:
@@ -132,7 +138,7 @@ def decode_deployment_data(data: str) -> DecodedDeploymentData:
 
 class DeploymentContractTransactionPayload(rlp.Serializable):
     fields = [
-        ("contract_code", text),
+        ("contract_code", binary),
         ("calldata", binary),
         ("leader_only", boolean),
     ]
@@ -140,19 +146,19 @@ class DeploymentContractTransactionPayload(rlp.Serializable):
 
 class DeploymentContractTransactionPayloadDefault(rlp.Serializable):
     fields = [
-        ("contract_code", text),
+        ("contract_code", binary),
         ("calldata", binary),
     ]
 
 
-class MethodCallTransactionPayload(rlp.Serializable):
+class MethodSendTransactionPayload(rlp.Serializable):
     fields = [
         ("calldata", binary),
         ("leader_only", boolean),
     ]
 
 
-class MethodCallTransactionPayloadDefault(rlp.Serializable):
+class MethodSendTransactionPayloadDefault(rlp.Serializable):
     fields = [
         ("calldata", binary),
     ]

@@ -1,4 +1,7 @@
 # tests/e2e/test_storage.py
+
+import eth_utils
+
 from tests.common.request import (
     deploy_intelligent_contract,
     send_transaction,
@@ -20,6 +23,8 @@ from tests.common.response import (
 
 from tests.common.request import call_contract_method
 
+import json
+
 INITIAL_STATE = "a"
 UPDATED_STATE = "b"
 
@@ -28,7 +33,10 @@ def test_storage(setup_validators, from_account):
     # Get contract schema
     contract_code = open("examples/contracts/storage.py", "r").read()
     result_schema = post_request_localhost(
-        payload("gen_getContractSchemaForCode", contract_code)
+        payload(
+            "gen_getContractSchemaForCode",
+            eth_utils.hexadecimal.encode_hex(contract_code),
+        )
     ).json()
     assert has_success_status(result_schema)
     assert_dict_exact(result_schema, storage_contract_schema)

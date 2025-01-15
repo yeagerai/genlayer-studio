@@ -4,19 +4,16 @@ FROM python:3.12.6-slim AS base
 ARG path=/app
 WORKDIR $path
 
-ADD backend/protocol_rpc/requirements.txt backend/protocol_rpc/requirements.txt
+COPY backend/protocol_rpc/requirements.txt backend/protocol_rpc/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --cache-dir=/root/.cache/pip torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --cache-dir=/root/.cache/pip -r backend/protocol_rpc/requirements.txt
-
-ENV HUGGINGFACE_HUB_CACHE /home/backend-user/.cache/huggingface
+    pip install --cache-dir=/root/.cache/pip -r backend/protocol_rpc/requirements.txt
 
 COPY ../.env .
 COPY backend $path/backend
 
 FROM base AS migration
 
-ENV PYTHONPATH ""
+ENV PYTHONPATH=""
 WORKDIR /app/backend/database_handler
 
 RUN --mount=type=cache,target=/root/.cache/pip \

@@ -25,6 +25,7 @@ def test_transactions_processor(transactions_processor: TransactionsProcessor):
         transaction_type,
         nonce,
         True,
+        None,
     )
     transactions_processor.session.commit()
 
@@ -34,8 +35,9 @@ def test_transactions_processor(transactions_processor: TransactionsProcessor):
         data,
         value,
         transaction_type,
-        nonce,
+        nonce + 1,
         True,
+        None,
         first_transaction_hash,
     )
 

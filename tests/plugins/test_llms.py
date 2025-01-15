@@ -8,7 +8,7 @@ The purpose of these tests is to have a small feedback loop for developing the L
 import asyncio
 
 import pytest
-from backend.node.genvm.llms import AnthropicPlugin, OllamaPlugin, OpenAIPlugin
+from webrequest.llms import AnthropicPlugin, OllamaPlugin, OpenAIPlugin
 
 
 def test_openai_plugin():

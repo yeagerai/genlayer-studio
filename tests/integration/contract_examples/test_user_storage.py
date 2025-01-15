@@ -1,4 +1,7 @@
 # tests/e2e/test_storage.py
+
+import eth_utils
+
 from tests.common.request import (
     deploy_intelligent_contract,
     send_transaction,
@@ -22,6 +25,9 @@ from tests.common.response import (
 from tests.common.accounts import create_new_account
 from tests.common.request import call_contract_method
 
+import json
+from backend.node.types import Address
+
 INITIAL_STATE_USER_A = "user_a_initial_state"
 UPDATED_STATE_USER_A = "user_a_updated_state"
 INITIAL_STATE_USER_B = "user_b_initial_state"
@@ -36,7 +42,10 @@ def test_user_storage(setup_validators):
     # Get contract schema
     contract_code = open("examples/contracts/user_storage.py", "r").read()
     result_schema = post_request_localhost(
-        payload("gen_getContractSchemaForCode", contract_code)
+        payload(
+            "gen_getContractSchemaForCode",
+            eth_utils.hexadecimal.encode_hex(contract_code),
+        )
     ).json()
     assert has_success_status(result_schema)
     assert_dict_exact(result_schema, user_storage_contract_schema)
@@ -55,7 +64,7 @@ def test_user_storage(setup_validators):
     contract_state_1 = call_contract_method(
         contract_address, from_account_a, "get_complete_storage", []
     )
-    assert len(contract_state_1) == 0
+    assert contract_state_1 == {}
 
     ########################################
     ########## ADD User A State ############
@@ -72,6 +81,7 @@ def test_user_storage(setup_validators):
     contract_state_2_1 = call_contract_method(
         contract_address, from_account_a, "get_complete_storage", []
     )
+    print(contract_state_2_1)
     assert contract_state_2_1[from_account_a.address] == INITIAL_STATE_USER_A
 
     # Get Updated State

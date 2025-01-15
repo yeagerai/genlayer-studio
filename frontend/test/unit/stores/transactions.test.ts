@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useTransactionsStore } from '@/stores';
-import { useRpcClient } from '@/hooks';
+import { useDb, useRpcClient, useGenlayer } from '@/hooks';
 import { type TransactionItem } from '@/types';
+import type { TransactionHash } from 'genlayer-js/types';
 
 vi.mock('@/hooks', () => ({
+  useGenlayer: vi.fn(),
   useRpcClient: vi.fn(),
   useWebSocketClient: vi.fn(() => ({
     connected: true,
@@ -41,16 +43,26 @@ const updatedTransactionPayload = {
 
 describe('useTransactionsStore', () => {
   let transactionsStore: ReturnType<typeof useTransactionsStore>;
-  const mockRpcClient = {
-    getTransactionByHash: vi.fn(),
+  const mockGenlayerClient = {
+    getTransaction: vi.fn(),
+  };
+  const mockDb = {
+    transactions: {
+      where: vi.fn().mockReturnThis(),
+      anyOf: vi.fn().mockReturnThis(),
+      equals: vi.fn().mockReturnThis(),
+      modify: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn(),
+    },
   };
 
   beforeEach(() => {
     setActivePinia(createPinia());
-    (useRpcClient as Mock).mockReturnValue(mockRpcClient);
+    (useGenlayer as Mock).mockReturnValue({ client: mockGenlayerClient });
+    (useDb as Mock).mockReturnValue(mockDb);
     transactionsStore = useTransactionsStore();
     transactionsStore.transactions = [];
-    mockRpcClient.getTransactionByHash.mockClear();
+    mockGenlayerClient.getTransaction.mockClear();
   });
 
   it('should add a transaction', () => {
@@ -71,16 +83,17 @@ describe('useTransactionsStore', () => {
     expect(transactionsStore.transactions[0].status).toBe('FINALIZED');
   });
 
-  it('should get a transaction by hash using rpcClient', async () => {
-    const transactionHash = '0x1234567890123456789012345678901234567890';
+  it('should get a transaction by hash using genlayer', async () => {
+    const transactionHash =
+      '0x1234567890123456789012345678901234567890' as TransactionHash;
     const transactionData = { id: transactionHash, status: 'PENDING' };
-    mockRpcClient.getTransactionByHash.mockResolvedValue(transactionData);
+    mockGenlayerClient.getTransaction.mockResolvedValue(transactionData);
 
     const result = await transactionsStore.getTransaction(transactionHash);
 
-    expect(mockRpcClient.getTransactionByHash).toHaveBeenCalledWith(
-      transactionHash,
-    );
+    expect(mockGenlayerClient.getTransaction).toHaveBeenCalledWith({
+      hash: transactionHash,
+    });
     expect(result).toEqual(transactionData);
   });
 
@@ -101,6 +114,10 @@ describe('useTransactionsStore', () => {
 
     transactionsStore.clearTransactionsForContract('contract-1');
 
+    expect(mockDb.transactions.where).toHaveBeenCalledWith('localContractId');
+    expect(mockDb.transactions.equals).toHaveBeenCalledWith('contract-1');
+    expect(mockDb.transactions.delete).toHaveBeenCalled();
+
     expect(transactionsStore.transactions).toEqual([tx2]);
   });
 
@@ -115,13 +132,21 @@ describe('useTransactionsStore', () => {
     };
 
     transactionsStore.addTransaction(pendingTransaction);
-    mockRpcClient.getTransactionByHash.mockResolvedValue(updatedTransaction);
+    mockGenlayerClient.getTransaction.mockResolvedValue(updatedTransaction);
 
     await transactionsStore.refreshPendingTransactions();
 
-    expect(mockRpcClient.getTransactionByHash).toHaveBeenCalledWith(
+    expect(mockGenlayerClient.getTransaction).toHaveBeenCalledWith({
+      hash: pendingTransaction.hash,
+    });
+    expect(mockDb.transactions.where).toHaveBeenCalledWith('hash');
+    expect(mockDb.transactions.equals).toHaveBeenCalledWith(
       pendingTransaction.hash,
     );
+    expect(mockDb.transactions.modify).toHaveBeenCalledWith({
+      status: 'FINALIZED',
+      data: updatedTransaction,
+    });
     expect(transactionsStore.transactions[0].status).toBe('FINALIZED');
   });
 });

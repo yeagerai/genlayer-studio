@@ -3,7 +3,7 @@ from typing import Callable, List, Optional
 import pytest
 from backend.domain.types import LLMProvider
 from backend.node.create_nodes.create_nodes import random_validator_config
-from backend.node.genvm.llms import Plugin
+from backend.llms import Plugin
 
 
 def plugin_mock(available: bool, available_models: List[str]) -> Plugin:
@@ -18,12 +18,12 @@ def plugin_mock(available: bool, available_models: List[str]) -> Plugin:
             regex: Optional[str],
             return_streaming_channel: Optional[asyncio.Queue],
         ) -> str:
-            pass
+            return ""
 
-        def is_available(self):
+        async def is_available(self):
             return available
 
-        def is_model_available(self, model: str) -> bool:
+        async def is_model_available(self, model: str) -> bool:
             return model in available_models and self.is_available()
 
     return PluginMock({})
@@ -310,16 +310,20 @@ def plugin_mock(available: bool, available_models: List[str]) -> Plugin:
         ),
     ],
 )
-def test_random_validator_config(
+@pytest.mark.asyncio
+async def test_random_validator_config(
     stored_providers,
     plugins,
     limit_providers,
     limit_models,
     expected,
 ):
-    result = random_validator_config(
+    async def get_llm_plugin(plugin, config):
+        return plugins[plugin]
+
+    result = await random_validator_config(
         lambda: stored_providers,
-        lambda plugin, config: plugins[plugin],
+        get_llm_plugin,
         limit_providers,
         limit_models,
         10,
@@ -372,7 +376,8 @@ def test_random_validator_config(
         ),
     ],
 )
-def test_random_validator_config_fail(
+@pytest.mark.asyncio
+async def test_random_validator_config_fail(
     stored_providers,
     plugins,
     limit_providers,
@@ -380,12 +385,10 @@ def test_random_validator_config_fail(
     exception,
 ):
     with pytest.raises(exception):
-        random_validator_config(
-            result=random_validator_config(
-                lambda: stored_providers,
-                lambda plugin, config: plugins[plugin],
-                limit_providers,
-                limit_models,
-                10,
-            )
+        await random_validator_config(
+            lambda: stored_providers,
+            lambda plugin, config: plugins[plugin],
+            limit_providers,
+            limit_models,
+            10,
         )

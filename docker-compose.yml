@@ -1,4 +1,36 @@
 services:
+  nginx:
+    profiles: ["studio"]  # For hosted studio, turned off by default
+    build:
+      context: ./
+      dockerfile: ./docker/Dockerfile.nginx
+    cap_add:
+      - NET_BIND_SERVICE
+    ports:
+      - "80:80"
+      - "443:443"   # For the frontend
+      - "8443:8443" # For the jsonrpc
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/rpc-blocker.lua:/etc/nginx/rpc-blocker.lua:ro
+    depends_on:
+      - frontend
+      - jsonrpc
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: always
+    security_opt:
+      - "no-new-privileges=true"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   frontend:
     build:
       context: ./
@@ -18,30 +50,61 @@ services:
       - "${FRONTEND_PORT}"
     environment:
       - VITE_*
+    restart: always
+    security_opt:
+      - "no-new-privileges=true"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   jsonrpc:
     build:
       context: ./
       dockerfile: ./docker/Dockerfile.backend
-      target: debug
+      target: ${BACKEND_BUILD_TARGET:-prod}
     environment:
       - FLASK_SERVER_PORT=${RPCPORT}
       # TODO: remove this in production
       - PYTHONUNBUFFERED=1
       - RPCDEBUGPORT=${RPCDEBUGPORT}
+      - WEBREQUESTPORT=${WEBREQUESTPORT}
+      - WEBREQUESTHOST=${WEBREQUESTHOST}
+      - WEBREQUESTPROTOCOL=${WEBREQUESTPROTOCOL}
     ports:
       - "${RPCPORT}:${RPCPORT}"
       - "${RPCDEBUGPORT}:${RPCDEBUGPORT}"
     volumes:
       - ./.env:/app/.env
       - ./backend:/app/backend
+      - hardhat_artifacts:/app/hardhat/artifacts
+      - hardhat_deployments:/app/hardhat/deployments
     depends_on:
-      ollama:
-        condition: service_started
+      hardhat:
+        condition: service_healthy
       database-migration:
         condition: service_completed_successfully
+      webrequest:
+        condition: service_healthy
     expose:
       - "${RPCPORT}"
+    healthcheck:
+      test: ["CMD", "python3", "backend/healthcheck.py", "--port", "${RPCPORT}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: always
+    security_opt:
+      - "no-new-privileges=true"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      replicas: ${JSONRPC_REPLICAS:-1}
 
   webrequest:
     build:
@@ -49,16 +112,30 @@ services:
       dockerfile: ./docker/Dockerfile.webrequest
     shm_size: 2gb
     volumes:
+      - ./.env:/app/webrequest/.env
       - ./webrequest:/app/webrequest
     environment:
       - FLASK_SERVER_PORT=${WEBREQUESTPORT}
+      - WEBREQUESTSELENIUMPORT=${WEBREQUESTSELENIUMPORT}
       # TODO: remove this in production
       - PYTHONUNBUFFERED=1
+    depends_on:
+      ollama:
+        condition: service_started
     expose:
-      - "${WEBREQUESTPORT}"
+      - "${WEBREQUESTPORT}:${WEBREQUESTPORT}"
+      - "${WEBREQUESTSELENIUMPORT}:${WEBREQUESTSELENIUMPORT}"
+    restart: always
+    security_opt:
+      - "no-new-privileges=true"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   ollama:
-    image: ollama/ollama:0.3.11
+    image: ollama/ollama:0.4.1
     ports:
       - 11434:11434
     volumes:
@@ -66,6 +143,13 @@ services:
     container_name: ollama
     tty: true
     restart: always
+    security_opt:
+      - "no-new-privileges=true"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   postgres:
     image: postgres:16-alpine
@@ -80,10 +164,17 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
-
+    restart: always
+    security_opt:
+      - "no-new-privileges=true"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     # If you want your db to persist in dev
-    # volumes:
-    #  - "./data/postgres:/var/lib/postgresql/data"
+    volumes:
+     - "./data/postgres:/var/lib/postgresql/data"
 
   database-migration:
     build:
@@ -91,6 +182,44 @@ services:
       dockerfile: docker/Dockerfile.database-migration
     environment:
       - DB_URL=postgresql://${DBUSER}:${DBUSER}@postgres/${DBNAME}
+      - WEBREQUESTPORT=${WEBREQUESTPORT}
+      - WEBREQUESTHOST=${WEBREQUESTHOST}
+      - WEBREQUESTPROTOCOL=${WEBREQUESTPROTOCOL}
     depends_on:
       postgres:
         condition: service_healthy
+      webrequest:
+        condition: service_healthy
+
+  hardhat:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.hardhat
+    ports:
+      - "${HARDHAT_PORT:-8545}:8545"
+    volumes:
+      - ./hardhat/contracts:/app/contracts
+      - ./hardhat/scripts:/app/scripts
+      - ./hardhat/test:/app/test
+      - ./hardhat/hardhat.config.js:/app/hardhat.config.js
+      - ./hardhat/deploy:/app/deploy
+      - ./hardhat/scripts:/app/scripts
+      - hardhat_artifacts:/app/artifacts
+      - hardhat_cache:/app/cache
+      - hardhat_deployments:/app/deployments
+      - ignition_deployments:/app/ignition/deployments
+    environment:
+      - HARDHAT_NETWORK=hardhat
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-X", "POST", "-H", "Content-Type: application/json", "--fail", "http://localhost:8545", "-d", '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}']
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  hardhat_artifacts:
+  hardhat_cache:
+  hardhat_deployments:
+  ignition_deployments:

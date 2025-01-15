@@ -23,6 +23,7 @@ from backend.database_handler.validators_registry import ValidatorsRegistry
 from backend.database_handler.accounts_manager import AccountsManager
 from backend.consensus.base import ConsensusAlgorithm
 from backend.database_handler.models import Base
+from backend.rollup.consensus_service import ConsensusService
 
 
 def get_db_name(database: str) -> str:
@@ -59,6 +60,7 @@ def create_app():
     accounts_manager = AccountsManager(sqlalchemy_db.session)
     validators_registry = ValidatorsRegistry(sqlalchemy_db.session)
     llm_provider_registry = LLMProviderRegistry(sqlalchemy_db.session)
+    consensus_service = ConsensusService()
 
     # Initialize validators from environment configuration in a thread
     initialize_validators_db_session = Session(engine, expire_on_commit=False)
@@ -84,6 +86,7 @@ def create_app():
         consensus,
         llm_provider_registry,
         sqlalchemy_db,
+        consensus_service,
     )
 
 
@@ -100,6 +103,7 @@ load_dotenv()
     consensus,
     llm_provider_registry,
     sqlalchemy_db,
+    consensus_service,
 ) = create_app()
 register_all_rpc_endpoints(
     jsonrpc,
@@ -109,6 +113,8 @@ register_all_rpc_endpoints(
     transactions_processor,
     validators_registry,
     llm_provider_registry,
+    consensus,
+    consensus_service,
 )
 
 
@@ -157,4 +163,8 @@ thread_crawl_snapshot.start()
 
 # Thread for the run_consensus method
 thread_consensus = threading.Thread(target=consensus.run_consensus_loop)
+thread_consensus.start()
+
+# Thread for the appeal_window method
+thread_consensus = threading.Thread(target=consensus.run_appeal_window_loop)
 thread_consensus.start()

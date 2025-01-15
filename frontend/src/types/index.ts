@@ -44,13 +44,6 @@ export interface NewProviderDataModel {
   plugin_config: Record<string, any>;
 }
 
-export interface ContractMethod {
-  type: string;
-  name: string;
-  inputs: [{ name: string; type: string }];
-  outputs: [{ name: string; type: string }];
-}
-
 export type Address = `0x${string}`;
 
 export interface SchemaProperty {

@@ -1,0 +1,5 @@
+# This Dockerfile is used to build the nginx image with lua and LuaRocks installed
+FROM fabiocicerchia/nginx-lua:1.27.2-almalinux9.4-20240923
+
+# Install lua-cjson
+RUN luarocks install lua-cjson

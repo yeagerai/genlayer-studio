@@ -62,6 +62,10 @@ describe('useTransactionListener', () => {
     const { init } = useTransactionListener();
     init();
 
+    const currentTx = { hash: '123', status: 'confirmed' };
+
+    transactionsStoreMock.transactions = [currentTx];
+
     const handleTransactionStatusUpdate =
       webSocketClientMock.on.mock.calls[0][1];
 
@@ -70,7 +74,9 @@ describe('useTransactionListener', () => {
 
     await handleTransactionStatusUpdate(eventData);
 
-    expect(transactionsStoreMock.removeTransaction).toHaveBeenCalledWith(null);
+    expect(transactionsStoreMock.removeTransaction).toHaveBeenCalledWith(
+      currentTx,
+    );
   });
 
   it('should do nothing if local transaction is not found', async () => {

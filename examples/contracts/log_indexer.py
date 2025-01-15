@@ -1,37 +1,67 @@
-from backend.node.genvm.icontract import IContract
-from backend.node.genvm.std.vector_store import VectorStore
+# {
+#   "Seq": [
+#     { "Depends": "py-lib-genlayermodelwrappers:test" },
+#     { "Depends": "py-genlayer:test" }
+#   ]
+# }
+
+from genlayer import *
+import genlayermodelwrappers
+import numpy as np
+from dataclasses import dataclass
+import typing
+
+
+@dataclass
+class StoreValue:
+    log_id: u256
+    text: str
 
 
 # contract class
-class LogIndexer(IContract):
+@gl.contract
+class LogIndexer:
+    vector_store: VecDB[np.float32, typing.Literal[384], StoreValue]
 
-    # constructor
     def __init__(self):
-        self.vector_store = VectorStore()
+        pass
 
-    # read methods must start with get_
-    def get_closest_vector(self, text: str) -> dict:
-        result = self.vector_store.get_closest_vector(text)
-        if result is None:
+    def get_embedding_generator(self):
+        return genlayermodelwrappers.SentenceTransformer("all-MiniLM-L6-v2")
+
+    def get_embedding(
+        self, txt: str
+    ) -> np.ndarray[tuple[typing.Literal[384]], np.dtypes.Float32DType]:
+        return self.get_embedding_generator()(txt)
+
+    @gl.public.view
+    def get_closest_vector(self, text: str) -> dict | None:
+        emb = self.get_embedding(text)
+        result = list(self.vector_store.knn(emb, 1))
+        if len(result) == 0:
             return None
+        result = result[0]
         return {
-            "similarity": result[0],
-            "id": result[1],
-            "text": result[2],
-            "metadata": result[3],
-            "vector": result[4],
+            "vector": list(str(x) for x in result.key),
+            "similarity": str(1 - result.distance),
+            "id": result.value.log_id,
+            "text": result.value.text,
         }
 
-    # write method
+    @gl.public.write
     def add_log(self, log: str, log_id: int) -> None:
-        self.vector_store.add_text(log, {"log_id": log_id})
+        emb = self.get_embedding(log)
+        self.vector_store.insert(emb, StoreValue(text=log, log_id=u256(log_id)))
 
-    def update_log(self, id: int, log: str, log_id: int) -> None:
-        self.vector_store.update_text(id, log, {"log_id": log_id})
+    @gl.public.write
+    def update_log(self, log_id: int, log: str) -> None:
+        emb = self.get_embedding(log)
+        for elem in self.vector_store.knn(emb, 2):
+            if elem.value.text == log:
+                elem.value.log_id = u256(log_id)
 
+    @gl.public.write
     def remove_log(self, id: int) -> None:
-        self.vector_store.delete_vector(id)
-
-    def get_vector_metadata(self, id: int) -> None:
-        _, metadata, _ = self.vector_store.get_vector(id)
-        return metadata
+        for el in self.vector_store:
+            if el.value.log_id == id:
+                el.remove()

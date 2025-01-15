@@ -2,24 +2,20 @@ wizard_contract_schema = {
     "id": 1,
     "jsonrpc": "2.0",
     "result": {
-        "abi": [
-            {
-                "inputs": [{"name": "have_coin", "type": "bool"}],
-                "type": "constructor",
+        "ctor": {"kwparams": {}, "params": [["have_coin", "bool"]]},
+        "methods": {
+            "ask_for_coin": {
+                "kwparams": {},
+                "params": [["request", "string"]],
+                "readonly": False,
+                "ret": "null",
             },
-            {
-                "inputs": [{"name": "request", "type": "string"}],
-                "name": "ask_for_coin",
-                "outputs": [],
-                "type": "function",
+            "get_have_coin": {
+                "kwparams": {},
+                "params": [],
+                "readonly": True,
+                "ret": "bool",
             },
-            {
-                "inputs": [],
-                "name": "get_have_coin",
-                "outputs": [{"name": "", "type": "bool"}],
-                "type": "function",
-            },
-        ],
-        "class": "WizardOfCoin",
+        },
     },
 }

@@ -1,20 +1,25 @@
-from backend.node.genvm.icontract import IContract
+# { "Depends": "py-genlayer:test" }
+
+from genlayer import *
 
 
-# contract class
-class UserStorage(IContract):
+@gl.contract
+class UserStorage:
+    storage: TreeMap[Address, str]
 
     # constructor
     def __init__(self):
-        self.storage = {}
+        pass
 
-    # read methods must start with get_
-    def get_complete_storage(self) -> dict:
-        return self.storage
+    # read methods must be annotated
+    @gl.public.view
+    def get_complete_storage(self) -> dict[str, str]:
+        return {k.as_hex: v for k, v in self.storage.items()}
 
+    @gl.public.view
     def get_account_storage(self, account_address: str) -> str:
-        return self.storage[account_address]
+        return self.storage[Address(account_address)]
 
-    # write method
+    @gl.public.write
     def update_storage(self, new_storage: str) -> None:
-        self.storage[contract_runner.from_address] = new_storage
+        self.storage[gl.message.sender_account] = new_storage

@@ -2,33 +2,26 @@ llm_erc20_contract_schema = {
     "id": 1,
     "jsonrpc": "2.0",
     "result": {
-        "abi": [
-            {
-                "inputs": [{"name": "total_supply", "type": "int"}],
-                "type": "constructor",
+        "ctor": {"kwparams": {}, "params": [["total_supply", "int"]]},
+        "methods": {
+            "get_balance_of": {
+                "kwparams": {},
+                "params": [["address", "string"]],
+                "readonly": True,
+                "ret": "int",
             },
-            {
-                "inputs": [{"name": "address", "type": "string"}],
-                "name": "get_balance_of",
-                "outputs": [{"name": "", "type": "int"}],
-                "type": "function",
+            "get_balances": {
+                "kwparams": {},
+                "params": [],
+                "readonly": True,
+                "ret": {"$dict": "int"},
             },
-            {
-                "inputs": [],
-                "name": "get_balances",
-                "outputs": [{"name": "", "type": ", in"}],
-                "type": "function",
+            "transfer": {
+                "kwparams": {},
+                "params": [["amount", "int"], ["to_address", "string"]],
+                "readonly": False,
+                "ret": "null",
             },
-            {
-                "inputs": [
-                    {"name": "amount", "type": "int"},
-                    {"name": "to_address", "type": "string"},
-                ],
-                "name": "transfer",
-                "outputs": [],
-                "type": "function",
-            },
-        ],
-        "class": "LlmErc20",
+        },
     },
 }

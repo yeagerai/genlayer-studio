@@ -2,46 +2,32 @@ log_indexer_contract_schema = {
     "id": 1,
     "jsonrpc": "2.0",
     "result": {
-        "abi": [
-            {"inputs": [], "type": "constructor"},
-            {
-                "inputs": [
-                    {"name": "log", "type": "string"},
-                    {"name": "log_id", "type": "int"},
-                ],
-                "name": "add_log",
-                "outputs": [],
-                "type": "function",
+        "ctor": {"kwparams": {}, "params": []},
+        "methods": {
+            "add_log": {
+                "kwparams": {},
+                "params": [["log", "string"], ["log_id", "int"]],
+                "readonly": False,
+                "ret": "null",
             },
-            {
-                "inputs": [{"name": "text", "type": "string"}],
-                "name": "get_closest_vector",
-                "outputs": [{"name": "", "type": "any"}],
-                "type": "function",
+            "get_closest_vector": {
+                "kwparams": {},
+                "params": [["text", "string"]],
+                "readonly": True,
+                "ret": {"$or": ["dict", "null"]},
             },
-            {
-                "inputs": [{"name": "id", "type": "int"}],
-                "name": "get_vector_metadata",
-                "outputs": [],
-                "type": "function",
+            "remove_log": {
+                "kwparams": {},
+                "params": [["id", "int"]],
+                "readonly": False,
+                "ret": "null",
             },
-            {
-                "inputs": [{"name": "id", "type": "int"}],
-                "name": "remove_log",
-                "outputs": [],
-                "type": "function",
+            "update_log": {
+                "kwparams": {},
+                "params": [["log_id", "int"], ["log", "string"]],
+                "readonly": False,
+                "ret": "null",
             },
-            {
-                "inputs": [
-                    {"name": "id", "type": "int"},
-                    {"name": "log", "type": "string"},
-                    {"name": "log_id", "type": "int"},
-                ],
-                "name": "update_log",
-                "outputs": [],
-                "type": "function",
-            },
-        ],
-        "class": "LogIndexer",
+        },
     },
 }

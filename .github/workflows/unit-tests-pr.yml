@@ -28,12 +28,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: 3.11
+          python-version: 3.12.4
           cache: pip
       - run: pip install -r backend/protocol_rpc/requirements.txt
       - run: pip install pytest-cov
       - run: pytest tests/unit --cov=backend --cov-report=xml --cov-branch
       - name: SonarCloud Scan
-        uses: sonarsource/sonarcloud-github-action@v3.0.0
+        uses: sonarsource/sonarcloud-github-action@v4.0.0
+
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

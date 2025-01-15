@@ -23,7 +23,7 @@ def test_contract_snapshot_with_contract(session: Session):
     assert contract_snapshot.contract_data["code"] == contract_code
     assert contract_snapshot.contract_data["state"] == contract_state
 
-    new_state = "new_state"
+    new_state = {}
     contract_snapshot.update_contract_state(new_state)
 
     actual_contract = session.query(CurrentState).filter_by(id=contract_address).one()

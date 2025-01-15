@@ -1,14 +1,16 @@
 # tests/common/request.py
 import os
+import eth_utils
 import json
 import requests
 import time
 from dotenv import load_dotenv
 from eth_account import Account
+import base64
 
 from tests.common.transactions import sign_transaction, encode_transaction_data
 
-import backend.node.genvm.calldata as calldata
+import backend.node.genvm.origin.calldata as calldata
 
 load_dotenv()
 
@@ -59,8 +61,8 @@ def call_contract_method(
     method_name: str,
     method_args: list,
 ):
-    encoded_data = encode_transaction_data(
-        [calldata.encode({"method": method_name, "args": method_args})]
+    encoded_data = eth_utils.hexadecimal.encode_hex(
+        calldata.encode({"method": method_name, "args": method_args})
     )
     method_response = post_request_localhost(
         payload(
@@ -72,7 +74,8 @@ def call_contract_method(
             },
         )
     ).json()
-    return method_response["result"]
+    enc_result = method_response["result"]
+    return calldata.decode(eth_utils.hexadecimal.decode_hex(enc_result))
 
 
 def send_transaction(
@@ -95,11 +98,15 @@ def send_transaction(
 
 
 def deploy_intelligent_contract(
-    account: Account, contract_code: str, method_args: list
+    account: Account, contract_code: str | bytes, method_args: list
 ) -> tuple[str, dict]:
     nonce = get_transaction_count(account.address)
     deploy_data = [
-        contract_code,
+        (
+            contract_code.encode("utf-8")
+            if isinstance(contract_code, str)
+            else contract_code
+        ),
         calldata.encode({"method": "__init__", "args": method_args}),
     ]
     signed_transaction = sign_transaction(account, deploy_data, nonce=nonce)

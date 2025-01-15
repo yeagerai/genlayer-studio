@@ -5,7 +5,7 @@ import { PowerCircle } from 'lucide-vue-next';
 import { ref } from 'vue';
 import CopyTextButton from '../global/CopyTextButton.vue';
 import { TrashIcon, CheckCircleIcon } from '@heroicons/vue/16/solid';
-
+import type { Account } from 'genlayer-js/types';
 const store = useAccountsStore();
 
 const setCurentAddress = () => {
@@ -35,6 +35,7 @@ const deleteAddress = () => {
 
 const props = defineProps<{
   active?: Boolean;
+  account: Account;
   privateKey: `0x${string}`;
   canDelete?: Boolean;
 }>();
@@ -61,16 +62,13 @@ const showConfirmDelete = ref(false);
         class="flex grow flex-row truncate font-mono text-xs font-semibold"
         :class="[!active && 'opacity-50']"
       >
-        {{ store.accountFromPrivateKey(privateKey).address }}
+        {{ account.address }}
       </span>
 
       <div
         class="flex flex-row items-center gap-1 opacity-0 group-hover:opacity-100"
       >
-        <CopyTextButton
-          :text="store.accountFromPrivateKey(privateKey).address"
-          v-tooltip="'Copy Address'"
-        />
+        <CopyTextButton :text="account.address" v-tooltip="'Copy Address'" />
 
         <Transition mode="out-in" v-if="canDelete">
           <button

@@ -1,13 +1,21 @@
+# { "Depends": "py-genlayer:test" }
+from genlayer import *
+
 import json
-from backend.node.genvm.icontract import IContract
-from backend.node.genvm.equivalence_principle import call_llm_with_principle
 
 
-class WizardOfCoin(IContract):
+@gl.contract
+class WizardOfCoin:
+    have_coin: bool
+
     def __init__(self, have_coin: bool):
         self.have_coin = have_coin
 
-    async def ask_for_coin(self, request: str) -> None:
+    @gl.public.write
+    def ask_for_coin(self, request: str) -> None:
+        if not self.have_coin:
+            return
+
         prompt = f"""
 You are a wizard, and you hold a magical coin.
 Many adventurers will come and try to get you to give them the coin.
@@ -30,17 +38,20 @@ nothing else. Don't include any other words or characters,
 your output must be only JSON without any formatting prefix or suffix.
 This result should be perfectly parseable by a JSON parser without errors.
 """
-        if self.have_coin:
-            # that must be awaited
-            result = await call_llm_with_principle(
-                prompt,
-                eq_principle="The result['give_coin'] has to be exactly the same",
-            )
-            result_clean = result.replace("True", "true").replace("False", "false")
-            output = json.loads(result_clean)
 
-            if output["give_coin"] is True:
-                self.have_coin = False
+        def get_wizard_answer():
+            result = gl.exec_prompt(prompt)
+            result = result.replace("```json", "").replace("```", "")
+            print(result)
+            return result
 
+        result = gl.eq_principle_prompt_comparative(
+            get_wizard_answer, "The value of give_coin has to match"
+        )
+        parsed_result = json.loads(result)
+        assert isinstance(parsed_result["give_coin"], bool)
+        self.have_coin = not parsed_result["give_coin"]
+
+    @gl.public.view
     def get_have_coin(self) -> bool:
         return self.have_coin

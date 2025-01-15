@@ -27,3 +27,12 @@ frontend/vite.config.ts.timestamp-*
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
 **/*.py[cod]
+
+# Hardhat files
+hardhat/cache/
+hardhat/artifacts/
+hardhat/node_modules/
+hardhat/coverage/
+hardhat/.env
+hardhat/coverage.json
+hardhat/typechain-types/

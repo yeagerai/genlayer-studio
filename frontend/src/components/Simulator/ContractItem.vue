@@ -6,6 +6,7 @@ import {
   DocumentPlusIcon,
   PencilSquareIcon,
   TrashIcon,
+  ArrowDownOnSquareIcon,
 } from '@heroicons/vue/16/solid';
 import { nextTick } from 'process';
 import { ref, onMounted } from 'vue';
@@ -87,6 +88,20 @@ const handleRemoveFile = (id: string) => {
     title: 'Contract deleted',
   });
 };
+
+const handleDownloadFile = (e: Event) => {
+  e.preventDefault();
+  if (!props.contract?.content) return;
+  const blob = new Blob([props.contract.content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = String(props.contract?.name);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 </script>
 
 <template>
@@ -132,6 +147,12 @@ const handleRemoveFile = (id: string) => {
         <div class="hidden flex-row gap-1 group-hover:flex">
           <button @click.stop="handleEditFile" v-tooltip="'Edit Name'">
             <PencilSquareIcon
+              class="h-[16px] w-[16px] p-[2px] text-gray-400 transition-all hover:text-gray-800 active:scale-90 dark:hover:text-white"
+            />
+          </button>
+
+          <button @click.stop="handleDownloadFile" v-tooltip="'Download file'">
+            <ArrowDownOnSquareIcon
               class="h-[16px] w-[16px] p-[2px] text-gray-400 transition-all hover:text-gray-800 active:scale-90 dark:hover:text-white"
             />
           </button>

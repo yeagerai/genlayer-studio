@@ -174,10 +174,6 @@ describe('useNodeStore', () => {
     expect(nodeStore.logs).toHaveLength(0);
   });
 
-  it('should compute contractsToDelete', () => {
-    expect(nodeStore.contractsToDelete).toEqual([{ id: 1, example: true }]);
-  });
-
   it('should compute validatorsOrderedById', () => {
     nodeStore.validators = [testValidator2, testValidator1];
     expect(nodeStore.validatorsOrderedById).toEqual([

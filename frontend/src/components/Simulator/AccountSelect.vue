@@ -6,7 +6,7 @@ import { Wallet } from 'lucide-vue-next';
 import { PlusIcon } from '@heroicons/vue/16/solid';
 import { notify } from '@kyvg/vue3-notification';
 import { useEventTracking } from '@/hooks';
-
+import { createAccount } from 'genlayer-js';
 const store = useAccountsStore();
 const { trackEvent } = useEventTracking();
 
@@ -42,6 +42,7 @@ const handleCreateNewAccount = async () => {
           v-for="privateKey in store.privateKeys"
           :key="privateKey"
           :privateKey="privateKey"
+          :account="createAccount(privateKey)"
           :active="privateKey === store.currentPrivateKey"
           :canDelete="true"
           v-close-popper

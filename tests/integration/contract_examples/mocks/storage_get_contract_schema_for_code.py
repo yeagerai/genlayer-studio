@@ -2,24 +2,20 @@ storage_contract_schema = {
     "id": 1,
     "jsonrpc": "2.0",
     "result": {
-        "abi": [
-            {
-                "inputs": [{"name": "initial_storage", "type": "string"}],
-                "type": "constructor",
+        "ctor": {"kwparams": {}, "params": [["initial_storage", "string"]]},
+        "methods": {
+            "get_storage": {
+                "kwparams": {},
+                "params": [],
+                "readonly": True,
+                "ret": "string",
             },
-            {
-                "inputs": [],
-                "name": "get_storage",
-                "outputs": [{"name": "", "type": "string"}],
-                "type": "function",
+            "update_storage": {
+                "kwparams": {},
+                "params": [["new_storage", "string"]],
+                "readonly": False,
+                "ret": "null",
             },
-            {
-                "inputs": [{"name": "new_storage", "type": "string"}],
-                "name": "update_storage",
-                "outputs": [],
-                "type": "function",
-            },
-        ],
-        "class": "Storage",
+        },
     },
 }

@@ -1,8 +1,8 @@
-name: Create releases from main every day
+name: Create releases from main
 on:
   schedule:
     - cron: "00 08 * * 1-4" # 08:00 AM (UTC) from Monday to Thursday
-
+  workflow_dispatch:
 permissions:
   contents: read # for checkout
 

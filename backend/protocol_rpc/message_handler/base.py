@@ -5,6 +5,7 @@ from logging.config import dictConfig
 import traceback
 
 from flask import request
+from flask_jsonrpc.exceptions import JSONRPCError
 from loguru import logger
 import sys
 
@@ -41,19 +42,22 @@ class MessageHandler:
         return log_endpoint_info_wrapper(self, self.config)(func)
 
     def _socket_emit(self, log_event: LogEvent):
-        if log_event.name == "transaction_status_updated":
+        if log_event.transaction_hash:
             self.socketio.emit(
                 log_event.name,
                 log_event.to_dict(),
-                room=log_event.data.get("hash"),
+                room=log_event.transaction_hash,
             )
         else:
+            client_session_id = (
+                log_event.client_session_id
+                or self.client_session_id
+                or get_client_session_id()
+            )
             self.socketio.emit(
                 log_event.name,
                 log_event.to_dict(),
-                to=log_event.client_session_id
-                or self.client_session_id
-                or get_client_session_id(),
+                to=client_session_id,
             )
 
     def _log_message(self, log_event: LogEvent):
@@ -95,7 +99,7 @@ class MessageHandler:
 def log_endpoint_info_wrapper(msg_handler: MessageHandler, config: GlobalConfiguration):
     def decorator(func):
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             shouldPrintInfoLogs = (
                 func.__name__ not in config.get_disabled_info_logs_endpoints()
             )
@@ -112,6 +116,8 @@ def log_endpoint_info_wrapper(msg_handler: MessageHandler, config: GlobalConfigu
                 )
             try:
                 result = func(*args, **kwargs)
+                if hasattr(result, "__await__"):
+                    result = await result
                 if shouldPrintInfoLogs:
                     msg_handler.send_message(
                         LogEvent(
@@ -127,6 +133,9 @@ def log_endpoint_info_wrapper(msg_handler: MessageHandler, config: GlobalConfigu
                     )
                 return result
             except Exception as e:
+                as_jsonrpc = None
+                if isinstance(e, JSONRPCError):
+                    as_jsonrpc = e.jsonrpc_format
                 msg_handler.send_message(
                     LogEvent(
                         "endpoint_error",
@@ -137,6 +146,7 @@ def log_endpoint_info_wrapper(msg_handler: MessageHandler, config: GlobalConfigu
                             "endpoint_name": func.__name__,
                             "error": str(e),
                             "traceback": traceback.format_exc(),
+                            "jsonrpc_error": as_jsonrpc,
                         },
                     )
                 )

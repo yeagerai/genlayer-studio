@@ -2,10 +2,9 @@
 import { useContractQueries } from '@/hooks';
 import { computed } from 'vue';
 import PageSection from '@/components/Simulator/PageSection.vue';
-import { type ContractMethod } from '@/types';
 import ContractMethodItem from '@/components/Simulator/ContractMethodItem.vue';
 import EmptyListPlaceholder from '@/components/Simulator/EmptyListPlaceholder.vue';
-
+import type { ContractSchema } from 'genlayer-js/types';
 const props = defineProps<{
   leaderOnly: boolean;
 }>();
@@ -15,12 +14,8 @@ const { contractAbiQuery } = useContractQueries();
 const { data, isPending, isError, error, isRefetching } = contractAbiQuery;
 
 const writeMethods = computed(() => {
-  return data.value.abi
-    .filter((method: ContractMethod) => method.type !== 'constructor')
-    .filter(
-      (method: ContractMethod) =>
-        !method.name.startsWith('get_') && !method.name.startsWith('_'),
-    );
+  const methods = (data.value as ContractSchema).methods;
+  return Object.entries(methods).filter((x) => !x[1].readonly);
 });
 </script>
 
@@ -41,8 +36,9 @@ const writeMethods = computed(() => {
     <template v-else-if="data">
       <ContractMethodItem
         v-for="method in writeMethods"
-        :key="method.name"
-        :method="method"
+        :name="method[0]"
+        :key="method[0]"
+        :method="method[1]"
         methodType="write"
         :leaderOnly="props.leaderOnly"
       />

@@ -4,9 +4,10 @@
 
 from dataclasses import dataclass
 import decimal
-from enum import Enum
+from enum import Enum, IntEnum
 
 from backend.database_handler.models import TransactionStatus
+from backend.database_handler.types import ConsensusData
 
 
 @dataclass()
@@ -54,7 +55,7 @@ class Validator:
         return result
 
 
-class TransactionType(Enum):
+class TransactionType(IntEnum):
     SEND = 0
     DEPLOY_CONTRACT = 1
     RUN_CONTRACT = 2
@@ -65,11 +66,11 @@ class Transaction:
     hash: str
     status: TransactionStatus
     type: TransactionType
-    from_address: str | None = None
-    to_address: str | None = None
+    from_address: str | None
+    to_address: str | None
     input_data: dict | None = None
     data: dict | None = None
-    consensus_data: dict | None = None
+    consensus_data: ConsensusData | None = None
     nonce: int | None = None
     value: int | None = None
     gaslimit: int | None = None
@@ -79,6 +80,11 @@ class Transaction:
     leader_only: bool = (
         False  # Flag to indicate if this transaction should be processed only by the leader. Used for fast and cheap execution of transactions.
     )
+    created_at: str | None = None
+    ghost_contract_address: str | None = None
+    appealed: bool = False
+    timestamp_accepted: int | None = None
+    appeal_failed: int = 0
 
     def to_dict(self):
         return {
@@ -97,24 +103,34 @@ class Transaction:
             "s": self.s,
             "v": self.v,
             "leader_only": self.leader_only,
+            "created_at": self.created_at,
+            "ghost_contract_address": self.ghost_contract_address,
+            "appealed": self.appealed,
+            "timestamp_accepted": self.timestamp_accepted,
+            "appeal_failed": self.appeal_failed,
         }
 
-
-def transaction_from_dict(input: dict) -> Transaction:
-    return Transaction(
-        hash=input["hash"],
-        status=TransactionStatus(input["status"]),
-        type=TransactionType(input["type"]),
-        from_address=input.get("from_address"),
-        to_address=input.get("to_address"),
-        input_data=input.get("input_data"),
-        data=input.get("data"),
-        consensus_data=input.get("consensus_data"),
-        nonce=input.get("nonce"),
-        value=input.get("value"),
-        gaslimit=input.get("gaslimit"),
-        r=input.get("r"),
-        s=input.get("s"),
-        v=input.get("v"),
-        leader_only=input.get("leader_only", False),
-    )
+    @classmethod
+    def from_dict(cls, input: dict) -> "Transaction":
+        return cls(
+            hash=input["hash"],
+            status=TransactionStatus(input["status"]),
+            type=TransactionType(input["type"]),
+            from_address=input.get("from_address"),
+            to_address=input.get("to_address"),
+            input_data=input.get("input_data"),
+            data=input.get("data"),
+            consensus_data=ConsensusData.from_dict(input.get("consensus_data")),
+            nonce=input.get("nonce"),
+            value=input.get("value"),
+            gaslimit=input.get("gaslimit"),
+            r=input.get("r"),
+            s=input.get("s"),
+            v=input.get("v"),
+            leader_only=input.get("leader_only", False),
+            created_at=input.get("created_at"),
+            ghost_contract_address=input.get("ghost_contract_address"),
+            appealed=input.get("appealed"),
+            timestamp_accepted=input.get("timestamp_accepted"),
+            appeal_failed=input.get("appeal_failed", 0),
+        )

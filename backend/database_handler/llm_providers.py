@@ -2,7 +2,7 @@ from backend.domain.types import LLMProvider
 from backend.node.create_nodes.providers import get_default_providers
 from .models import LLMProviderDBModel
 from sqlalchemy.orm import Session
-from backend.node.genvm.llms import get_llm_plugin
+from backend.llms import get_llm_plugin
 import pprint
 
 
@@ -26,7 +26,7 @@ class LLMProviderRegistry:
             for provider in self.session.query(LLMProviderDBModel).all()
         ]
 
-    def get_all_dict(self) -> list[dict]:
+    async def get_all_dict(self) -> list[dict]:
         providers = self.session.query(LLMProviderDBModel).all()
         result = []
 
@@ -34,12 +34,12 @@ class LLMProviderRegistry:
             domain_provider = _to_domain(provider)
             provider_dict = domain_provider.__dict__
 
-            plugin = get_llm_plugin(
+            plugin = await get_llm_plugin(
                 domain_provider.plugin, domain_provider.plugin_config
             )
 
-            provider_dict["is_available"] = plugin.is_available()
-            provider_dict["is_model_available"] = plugin.is_model_available(
+            provider_dict["is_available"] = await plugin.is_available()
+            provider_dict["is_model_available"] = await plugin.is_model_available(
                 domain_provider.model
             )
 

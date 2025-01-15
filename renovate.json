@@ -1,11 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    "group:recommended",
-    "group:allNonMajor",
-    "group:githubArtifactActions"
-  ],
+  "extends": ["config:recommended", "group:recommended", "group:allNonMajor", "group:githubArtifactActions"],
   "packageRules": [
     {
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
@@ -20,5 +15,6 @@
   "npm": {
     "minimumReleaseAge": "3 days"
   },
-  "reviewers": ["denishacquin", "AgustinRamiroDiaz"]
+  "reviewers": ["denishacquin", "mpaya5", "kstroobants", "epsjunior"],
+  "baseBranches": ["staging"]
 }

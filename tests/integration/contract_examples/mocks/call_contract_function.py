@@ -1,12 +1,10 @@
 call_contract_function_response = {
     "consensus_data": {
-        "final": bool,
         "leader_receipt": {
-            "class_name": str,
+            "result": str,
             "calldata": str,
-            "contract_state": str,
-            "eq_outputs": {"leader": dict},
-            "error": str | None,
+            "contract_state": dict,
+            "eq_outputs": dict,
             "execution_result": str,
             "gas_used": int,
             "mode": str,

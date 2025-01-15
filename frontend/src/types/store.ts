@@ -35,6 +35,7 @@ export interface TransactionItem {
   decodedData?: {
     functionName: string;
     args: any[];
+    kwargs: { [key: string]: any };
   };
 }
 

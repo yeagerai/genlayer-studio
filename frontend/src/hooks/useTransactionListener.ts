@@ -33,15 +33,16 @@ export function useTransactionListener() {
 
     const newTx = await getTransaction(hash, requestTime);
 
-    if (!newTx) {
-      console.warn('Server tx not found for local tx:', newTx);
-      transactionsStore.removeTransaction(newTx);
-      return;
-    }
-
     const currentTx = transactionsStore.transactions.find(
       (t: TransactionItem) => t.hash === hash,
     );
+
+    if (currentTx && !newTx) {
+      console.log('Server tx not found for local tx:', currentTx);
+      // We're cleaning up local txs that don't exist on the server anymore
+      transactionsStore.removeTransaction(currentTx);
+      return;
+    }
 
     if (!currentTx) {
       // This happens when local transactions get cleared (e.g. user clears all txs or deploys new contract instance)

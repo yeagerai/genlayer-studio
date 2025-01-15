@@ -22,6 +22,7 @@ class LogEvent:
     scope: EventScope
     message: str
     data: dict | None = None
+    transaction_hash: str | None = None
     client_session_id: str | None = None
 
     def to_dict(self):
@@ -31,5 +32,6 @@ class LogEvent:
             "scope": self.scope.value,
             "message": self.message,
             "data": self.data,
+            "transaction_hash": self.transaction_hash,
             "client_id": self.client_session_id,
         }

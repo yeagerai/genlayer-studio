@@ -3,6 +3,7 @@ import { useInputMap } from '@/hooks';
 import StringField from '@/components/global/fields/StringField.vue';
 import IntegerField from '@/components/global/fields/IntegerField.vue';
 import BooleanField from '@/components/global/fields/BooleanField.vue';
+import AnyField from '@/components/global/fields/AnyField.vue';
 
 describe('useInputMap composable', () => {
   const { getComponent } = useInputMap();
@@ -23,12 +24,12 @@ describe('useInputMap composable', () => {
   });
 
   it('should default to string for an empty type', () => {
-    const component = getComponent('');
-    expect(component).toBe(StringField);
+    const component = getComponent('' as any);
+    expect(component).toBe(AnyField);
   });
 
   it('should default to string for an unknown type', () => {
-    const component = getComponent('unknown');
-    expect(component).toBe(StringField);
+    const component = getComponent('unknown' as any);
+    expect(component).toBe(AnyField);
   });
 });

@@ -1,5 +1,6 @@
 import json
 import os
+from backend.node.types import Address
 
 from tests.common.accounts import create_new_account
 from tests.common.request import (

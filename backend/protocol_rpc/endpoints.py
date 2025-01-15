@@ -1,22 +1,25 @@
 # rpc/endpoints.py
 import random
 import json
+import eth_utils
 from functools import partial
 from typing import Any
 from flask_jsonrpc import JSONRPC
+from flask_jsonrpc.exceptions import JSONRPCError
 from sqlalchemy import Table
 from sqlalchemy.orm import Session
-
+import backend.node.genvm.origin.calldata as genvm_calldata
 
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
+from backend.rollup.consensus_service import ConsensusService
 from backend.database_handler.models import Base
-from backend.domain.types import LLMProvider, Validator
+from backend.domain.types import LLMProvider, Validator, TransactionType
 from backend.node.create_nodes.providers import (
     get_default_provider_for,
     validate_provider,
 )
-from backend.node.genvm.llms import get_llm_plugin
+from backend.llms import get_llm_plugin
 from backend.protocol_rpc.message_handler.base import (
     MessageHandler,
     get_client_session_id,
@@ -33,6 +36,7 @@ from backend.protocol_rpc.transactions_parser import (
     decode_signed_transaction,
     transaction_has_valid_signature,
     decode_method_call_data,
+    decode_method_send_data,
     decode_deployment_data,
 )
 from backend.errors.errors import InvalidAddressError, InvalidTransactionError
@@ -42,9 +46,12 @@ from backend.database_handler.transactions_processor import (
     TransactionsProcessor,
 )
 from backend.node.base import Node
-from backend.node.genvm.types import ExecutionMode
+from backend.node.types import ExecutionMode, ExecutionResultStatus
+from backend.consensus.base import ConsensusAlgorithm
 
 from flask import request
+from flask_jsonrpc.exceptions import JSONRPCError
+import base64
 
 
 ####### HELPER ENDPOINTS #######
@@ -81,8 +88,10 @@ def reset_defaults_llm_providers(llm_provider_registry: LLMProviderRegistry) -> 
     llm_provider_registry.reset_defaults()
 
 
-def get_providers_and_models(llm_provider_registry: LLMProviderRegistry) -> list[dict]:
-    return llm_provider_registry.get_all_dict()
+async def get_providers_and_models(
+    llm_provider_registry: LLMProviderRegistry,
+) -> list[dict]:
+    return await llm_provider_registry.get_all_dict()
 
 
 def add_provider(llm_provider_registry: LLMProviderRegistry, params: dict) -> int:
@@ -153,23 +162,25 @@ def create_validator(
     )
 
 
-def create_random_validator(
+async def create_random_validator(
     validators_registry: ValidatorsRegistry,
     accounts_manager: AccountsManager,
     llm_provider_registry: LLMProviderRegistry,
     stake: int,
 ) -> dict:
-    return create_random_validators(
-        validators_registry,
-        accounts_manager,
-        llm_provider_registry,
-        1,
-        stake,
-        stake,
+    return (
+        await create_random_validators(
+            validators_registry,
+            accounts_manager,
+            llm_provider_registry,
+            1,
+            stake,
+            stake,
+        )
     )[0]
 
 
-def create_random_validators(
+async def create_random_validators(
     validators_registry: ValidatorsRegistry,
     accounts_manager: AccountsManager,
     llm_provider_registry: LLMProviderRegistry,
@@ -182,7 +193,7 @@ def create_random_validators(
     limit_providers = limit_providers or []
     limit_models = limit_models or []
 
-    details = random_validator_config(
+    details = await random_validator_config(
         llm_provider_registry.get_all,
         get_llm_plugin,
         limit_providers=set(limit_providers),
@@ -278,7 +289,7 @@ def count_validators(validators_registry: ValidatorsRegistry) -> int:
 
 
 ####### GEN ENDPOINTS #######
-def get_contract_schema(
+async def get_contract_schema(
     accounts_manager: AccountsManager,
     msg_handler: MessageHandler,
     contract_address: str,
@@ -314,11 +325,14 @@ def get_contract_schema(
         msg_handler=msg_handler.with_client_session(get_client_session_id()),
         contract_snapshot_factory=None,
     )
-    return node.get_contract_schema(contract_account["data"]["code"])
+    schema = await node.get_contract_schema(
+        base64.b64decode(contract_account["data"]["code"])
+    )
+    return json.loads(schema)
 
 
-def get_contract_schema_for_code(
-    msg_handler: MessageHandler, contract_code: str
+async def get_contract_schema_for_code(
+    msg_handler: MessageHandler, contract_code_hex: str
 ) -> dict:
     node = Node(  # Mock node just to get the data from the GenVM
         contract_snapshot=None,
@@ -338,7 +352,10 @@ def get_contract_schema_for_code(
         msg_handler=msg_handler.with_client_session(get_client_session_id()),
         contract_snapshot_factory=None,
     )
-    return node.get_contract_schema(contract_code)
+    schema = await node.get_contract_schema(
+        eth_utils.hexadecimal.decode_hex(contract_code_hex)
+    )
+    return json.loads(schema)
 
 
 ####### ETH ENDPOINTS #######
@@ -354,7 +371,7 @@ def get_balance(
 
 
 def get_transaction_count(
-    transactions_processor: TransactionsProcessor, address: str
+    transactions_processor: TransactionsProcessor, address: str, block: str = "latest"
 ) -> int:
     return transactions_processor.get_transaction_count(address)
 
@@ -365,13 +382,13 @@ def get_transaction_by_hash(
     return transactions_processor.get_transaction_by_hash(transaction_hash)
 
 
-def call(
+async def call(
     session: Session,
     accounts_manager: AccountsManager,
     msg_handler: MessageHandler,
     params: dict,
     block_tag: str = "latest",
-) -> Any:
+) -> str:
     to_address = params["to"]
     from_address = params["from"] if "from" in params else None
     data = params["data"]
@@ -384,9 +401,9 @@ def call(
 
     decoded_data = decode_method_call_data(data)
 
-    contract_account = accounts_manager.get_account_or_fail(to_address)
     node = Node(  # Mock node just to get the data from the GenVM
-        contract_snapshot=None,
+        contract_snapshot=ContractSnapshot(to_address, session),
+        contract_snapshot_factory=partial(ContractSnapshot, session=session),
         validator_mode=ExecutionMode.LEADER,
         validator=Validator(
             address="",
@@ -401,14 +418,17 @@ def call(
         ),
         leader_receipt=None,
         msg_handler=msg_handler.with_client_session(get_client_session_id()),
-        contract_snapshot_factory=partial(ContractSnapshot, session=session),
     )
 
-    return node.get_contract_data(
-        code=contract_account["data"]["code"],
-        state=contract_account["data"]["state"],
+    receipt = await node.get_contract_data(
+        from_address="0x" + "00" * 20,
         calldata=decoded_data.calldata,
     )
+    if receipt.execution_result != ExecutionResultStatus.SUCCESS:
+        raise JSONRPCError(
+            message="running contract failed", data={"receipt": receipt.to_dict()}
+        )
+    return eth_utils.hexadecimal.encode_hex(receipt.result[1:])
 
 
 def send_raw_transaction(
@@ -443,11 +463,11 @@ def send_raw_transaction(
 
     transaction_data = {}
     result = {}
-    transaction_type = None
+    transaction_type: TransactionType
     leader_only = False
     if not decoded_transaction.data:
         # Sending value transaction
-        transaction_type = 0
+        transaction_type = TransactionType.SEND
     elif not to_address or to_address == "0x":
         # Contract deployment
         if value > 0:
@@ -462,8 +482,8 @@ def send_raw_transaction(
             "calldata": decoded_data.calldata,
         }
         result["contract_address"] = new_contract_address
-        to_address = None
-        transaction_type = 1
+        to_address = new_contract_address
+        transaction_type = TransactionType.DEPLOY_CONTRACT
         leader_only = decoded_data.leader_only
     else:
         # Contract Call
@@ -471,9 +491,9 @@ def send_raw_transaction(
             raise InvalidAddressError(
                 to_address, f"Invalid address to_address: {to_address}"
             )
-        decoded_data = decode_method_call_data(decoded_transaction.data)
+        decoded_data = decode_method_send_data(decoded_transaction.data)
         transaction_data = {"calldata": decoded_data.calldata}
-        transaction_type = 2
+        transaction_type = TransactionType.RUN_CONTRACT
         leader_only = decoded_data.leader_only
 
     # Insert transaction into the database
@@ -482,7 +502,7 @@ def send_raw_transaction(
         to_address,
         transaction_data,
         value,
-        transaction_type,
+        transaction_type.value,
         nonce,
         leader_only,
     )
@@ -504,6 +524,42 @@ def get_transactions_for_address(
     )
 
 
+def set_transaction_appeal(
+    transactions_processor: TransactionsProcessor, transaction_hash: str
+) -> None:
+    transactions_processor.set_transaction_appeal(transaction_hash, True)
+
+
+def set_finality_window_time(consensus: ConsensusAlgorithm, time: int) -> None:
+    consensus.set_finality_window_time(time)
+
+
+def get_contract(consensus_service: ConsensusService, contract_name: str) -> dict:
+    """
+    Get contract instance by name
+
+    Args:
+        consensus_service: The consensus service instance
+        contract_name: Name of the contract to retrieve
+
+    Returns:
+        dict: Contract information including address and ABI
+    """
+    contract = consensus_service._load_contract(contract_name)
+
+    if contract is None:
+        raise JSONRPCError(
+            message=f"Contract {contract_name} not found",
+            data={"contract_name": contract_name},
+        )
+
+    return {
+        "address": contract["address"],
+        "abi": contract["abi"],
+        "bytecode": contract["bytecode"],
+    }
+
+
 def register_all_rpc_endpoints(
     jsonrpc: JSONRPC,
     msg_handler: MessageHandler,
@@ -512,6 +568,8 @@ def register_all_rpc_endpoints(
     transactions_processor: TransactionsProcessor,
     validators_registry: ValidatorsRegistry,
     llm_provider_registry: LLMProviderRegistry,
+    consensus: ConsensusAlgorithm,
+    consensus_service: ConsensusService,
 ):
     register_rpc_endpoint = partial(generate_rpc_endpoint, jsonrpc, msg_handler)
 
@@ -621,4 +679,16 @@ def register_all_rpc_endpoints(
     register_rpc_endpoint(
         partial(get_transactions_for_address, transactions_processor, accounts_manager),
         method_name="sim_getTransactionsForAddress",
+    )
+    register_rpc_endpoint(
+        partial(set_transaction_appeal, transactions_processor),
+        method_name="sim_appealTransaction",
+    )
+    register_rpc_endpoint(
+        partial(set_finality_window_time, consensus),
+        method_name="sim_setFinalityWindowTime",
+    )
+    register_rpc_endpoint(
+        partial(get_contract, consensus_service),
+        method_name="sim_getConsensusContract",
     )
