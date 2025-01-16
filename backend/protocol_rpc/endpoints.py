@@ -551,7 +551,7 @@ def get_block_number(transactions_processor: TransactionsProcessor) -> str:
 
 def get_block_by_number(
     transactions_processor: TransactionsProcessor, block_number: str, full_tx: bool
-) -> dict | None:
+) -> dict:
     try:
         block_number_int = int(block_number, 16)
     except ValueError:
