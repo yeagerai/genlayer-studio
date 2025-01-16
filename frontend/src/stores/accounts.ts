@@ -101,7 +101,20 @@ export const useAccountsStore = defineStore('accountsStore', () => {
         if (selectedAccount.value?.type === 'metamask') {
           setCurrentAccount(metamaskAccount);
         }
+      } else {
+        accounts.value = accounts.value.filter(
+          (acc) => acc.type !== 'metamask',
+        );
+        setCurrentAccount(accounts.value[0]);
       }
+      localStorage.setItem(
+        'accountsStore.accounts',
+        JSON.stringify(accounts.value),
+      );
+      localStorage.setItem(
+        'accountsStore.currentAccount',
+        JSON.stringify(selectedAccount.value),
+      );
     });
   }
 
