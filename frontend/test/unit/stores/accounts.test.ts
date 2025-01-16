@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import { useAccountsStore } from '@/stores';
 import { useGenlayer } from '@/hooks';
 import { generatePrivateKey, createAccount } from 'genlayer-js';
+import type { AccountInfo } from '@/stores/accounts';
 
 const testKey1 =
   '0xb69426b0f5838a514b263868978faaa53057ac83c5ccad6b7fddbc051b052c6a'; // ! NEVER USE THIS PRIVATE KEY
@@ -45,43 +46,58 @@ describe('useAccountsStore', () => {
 
     mockGenlayerClient.getTransaction.mockClear();
     (localStorage.getItem as Mock).mockClear();
-    (localStorage.getItem as Mock).mockClear();
+    (localStorage.setItem as Mock).mockClear();
     (localStorage.removeItem as Mock).mockClear();
   });
 
   it('should generate a new account', () => {
-    const newPrivateKey = testKey1;
-    const generatedKey = accountsStore.generateNewAccount();
+    const newAccount = accountsStore.generateNewAccount();
 
-    expect(generatedKey).toBe(newPrivateKey);
-    expect(accountsStore.privateKeys).toContain(newPrivateKey);
-    expect(accountsStore.currentPrivateKey).toBe(newPrivateKey);
+    expect(newAccount.privateKey).toBe(testKey1);
+    expect(newAccount.address).toBe(testAddress1);
+    expect(accountsStore.selectedAccount?.privateKey).toBe(testKey1);
   });
 
   it('should remove an account and default to existing one', () => {
-    accountsStore.privateKeys = [testKey1, testKey2];
-    accountsStore.currentPrivateKey = testKey1;
+    const account1: AccountInfo = {
+      type: 'local',
+      address: testAddress1,
+      privateKey: testKey1,
+    };
+    const account2: AccountInfo = {
+      type: 'local',
+      address: testAddress1,
+      privateKey: testKey2,
+    };
+    accountsStore.accounts = [account1, account2];
+    accountsStore.selectedAccount = account1;
 
-    accountsStore.removeAccount(testKey1);
+    accountsStore.removeAccount(account1);
 
-    expect(accountsStore.privateKeys).toEqual([testKey2]);
-    expect(accountsStore.currentPrivateKey).toBe(testKey2);
+    expect(accountsStore.accounts).toEqual([account2]);
+    expect(accountsStore.selectedAccount).toBe(account2);
   });
 
-  it('should throw error when removing the last account', () => {
-    accountsStore.privateKeys = [testKey1];
+  it('should throw error when removing the last local account', () => {
+    const account: AccountInfo = {
+      type: 'local',
+      address: testAddress1,
+      privateKey: testKey1,
+    };
+    accountsStore.accounts = [account];
 
-    expect(() => accountsStore.removeAccount(testKey1)).toThrow(
-      'You need at least 1 account',
+    expect(() => accountsStore.removeAccount(account)).toThrow(
+      'You need at least 1 local account',
     );
   });
 
   it('should handle errors in displayAddress computation', () => {
-    accountsStore.currentPrivateKey = '0xinvalidkey';
-
-    (createAccount as Mock).mockImplementation(() => {
-      throw new Error('Invalid private key');
-    });
+    const invalidAccount: AccountInfo = {
+      type: 'local',
+      address: '0xinvalidkey',
+      privateKey: '0xinvalidkey',
+    };
+    accountsStore.selectedAccount = invalidAccount;
 
     const consoleSpy = vi.spyOn(console, 'error');
     consoleSpy.mockImplementation(() => {});
@@ -89,27 +105,32 @@ describe('useAccountsStore', () => {
     expect(accountsStore.displayAddress).toBe('0x');
 
     consoleSpy.mockRestore();
-    (createAccount as Mock).mockRestore();
   });
 
   it('should set current account', () => {
-    const newPrivateKey = testKey2;
-    accountsStore.setCurrentAccount(newPrivateKey);
+    const account: AccountInfo = {
+      type: 'local',
+      address: testAddress1,
+      privateKey: testKey2,
+    };
+    accountsStore.setCurrentAccount(account);
 
-    expect(accountsStore.currentPrivateKey).toBe(newPrivateKey);
+    expect(accountsStore.selectedAccount).toBe(account);
   });
 
   it('should compute currentUserAddress correctly', () => {
-    const privateKey = testKey1;
-    const account = { address: testAddress1 };
-    accountsStore.currentPrivateKey = privateKey;
+    const account: AccountInfo = {
+      type: 'local',
+      address: testAddress1,
+      privateKey: testKey1,
+    };
+    accountsStore.selectedAccount = account;
 
     expect(accountsStore.currentUserAddress).toBe(testAddress1);
-    expect(createAccount).toHaveBeenCalledWith(privateKey);
   });
 
-  it('should return an empty string for currentUserAddress when no private key is set', () => {
-    accountsStore.currentPrivateKey = null;
+  it('should return an empty string for currentUserAddress when no account is selected', () => {
+    accountsStore.selectedAccount = null;
     expect(accountsStore.currentUserAddress).toBe('');
   });
 });
@@ -130,7 +151,7 @@ describe('fetchMetaMaskAccount', () => {
     });
   });
 
-  it('should fetch the MetaMask account and set walletAddress', async () => {
+  it('should fetch the MetaMask account and set it as selected', async () => {
     const testAccount = '0x1234567890abcdef1234567890abcdef12345678';
     (window?.ethereum?.request as Mock).mockResolvedValueOnce([testAccount]);
 
@@ -139,15 +160,15 @@ describe('fetchMetaMaskAccount', () => {
     expect(window?.ethereum?.request).toHaveBeenCalledWith({
       method: 'eth_requestAccounts',
     });
-    expect(accountsStore.walletAddress).toBe(testAccount);
-    expect(accountsStore.isWalletSelected).toBe(true);
+    expect(accountsStore.selectedAccount?.address).toBe(testAccount);
+    expect(accountsStore.selectedAccount?.type).toBe('metamask');
   });
 
-  it('should not set walletAddress if window.ethereum is undefined', async () => {
+  it('should not set account if window.ethereum is undefined', async () => {
     vi.stubGlobal('window', {}); // Remove ethereum from window object
 
     await accountsStore.fetchMetaMaskAccount();
 
-    expect(accountsStore.walletAddress).toBe(undefined);
+    expect(accountsStore.selectedAccount?.type).not.toBe('metamask');
   });
 });
