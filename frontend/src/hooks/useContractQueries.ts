@@ -98,7 +98,7 @@ export function useContractQueries() {
     isDeploying.value = true;
 
     try {
-      if (!contract.value || !accountsStore.currentUserAccount) {
+      if (!contract.value || !accountsStore.selectedAccount) {
         throw new Error('Error Deploying the contract');
       }
 
@@ -106,7 +106,7 @@ export function useContractQueries() {
       const code_bytes = new TextEncoder().encode(code);
 
       const result = await genlayer.client?.deployContract({
-        account: accountsStore.currentUserAccount as Account,
+        account: accountsStore.selectedAccount as Account,
         code: code_bytes as any as string, // FIXME: code should accept both bytes and string in genlayer-js
         args: args.args,
         leaderOnly,
@@ -207,16 +207,12 @@ export function useContractQueries() {
     leaderOnly: boolean;
   }) {
     try {
-      if (!accountsStore.currentUserAccount) {
+      if (!accountsStore.selectedAccount) {
         throw new Error('Error writing to contract');
       }
-      console.log(
-        '🚀 ~ useContractQueries ~ accountsStore.currentUserAccount:',
-        accountsStore.currentUserAccount,
-      );
 
       const result = await genlayer.client?.writeContract({
-        account: accountsStore.currentUserAccount as Account,
+        account: accountsStore.selectedAccount as Account,
         address: address.value as Address,
         functionName: method,
         args: args.args,

@@ -1,6 +1,7 @@
 import type { ContractFile, DeployedContract } from '@/types';
 import { type PiniaPluginContext } from 'pinia';
 import { useDb, useFileName } from '@/hooks';
+import type { AccountInfo } from '@/stores/accounts';
 
 const ENABLE_LOGS = false;
 const db = useDb();
@@ -113,23 +114,24 @@ export function persistStorePlugin(context: PiniaPluginContext): void {
           default:
             break;
         }
-        // } else if (store.$id === 'accountsStore') {
-        //   switch (name) {
-        //     case 'generateNewAccount':
-        //     case 'removeAccount':
-        //     case 'setCurrentAccount':
-        //       localStorage.setItem(
-        //         'accountsStore.privateKeys',
-        //         store.privateKeys.join(','),
-        //       );
-        //       localStorage.setItem(
-        //         'accountsStore.currentPrivateKey',
-        //         store.currentPrivateKey,
-        //       );
-        //       break;
-        //     default:
-        //       break;
-        //   }
+      } else if (store.$id === 'accountsStore') {
+        switch (name) {
+          case 'generateNewAccount':
+          case 'removeAccount':
+            localStorage.setItem(
+              'accountsStore.accounts',
+              JSON.stringify(store.accounts),
+            );
+            break;
+          case 'setCurrentAccount':
+            localStorage.setItem(
+              'accountsStore.currentAccount',
+              JSON.stringify(store.currentAccount),
+            );
+            break;
+          default:
+            break;
+        }
       } else if (store.$id === 'transactionsStore') {
         switch (name) {
           case 'addTransaction':

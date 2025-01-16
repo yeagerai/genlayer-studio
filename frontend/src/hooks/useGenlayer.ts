@@ -13,15 +13,15 @@ export function useGenlayer() {
     initClient();
   }
 
-  watch([() => accountsStore.currentUserAccount?.address], () => {
+  watch([() => accountsStore.selectedAccount?.address], () => {
     initClient();
   });
 
   function initClient() {
     const clientAccount =
-      accountsStore.currentUserAccount?.type === 'local'
-        ? (accountsStore.currentUserAccount as Account)
-        : accountsStore.currentUserAccount?.address;
+      accountsStore.selectedAccount?.type === 'local'
+        ? (accountsStore.selectedAccount as Account)
+        : accountsStore.selectedAccount?.address;
 
     client = createClient({
       chain: simulator,

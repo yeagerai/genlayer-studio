@@ -16,9 +16,9 @@ const hasMetaMaskAccount = computed(() =>
 );
 
 const handleCreateNewAccount = async () => {
-  const privateKey = store.generateNewAccount();
+  const address = store.generateNewAccount();
 
-  if (privateKey) {
+  if (address) {
     notify({
       title: 'New Account Created',
       type: 'success',
@@ -51,7 +51,7 @@ const connectMetaMask = async () => {
           v-for="account in store.accounts"
           :key="account.privateKey"
           :account="account"
-          :active="account.address === store.currentUserAccount?.address"
+          :active="account.address === store.selectedAccount?.address"
           :canDelete="account.type === 'local'"
           v-close-popper
         />

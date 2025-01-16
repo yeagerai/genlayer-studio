@@ -17,7 +17,7 @@ export const useAccountsStore = defineStore('accountsStore', () => {
   const accounts = ref<AccountInfo[]>([]);
   const selectedAccount = ref<AccountInfo | null>(null);
 
-  // Initialize local accounts from localStorage
+  // Migrate from old storage to new storage
   const storedKeys = localStorage.getItem('accountsStore.privateKeys');
   if (storedKeys) {
     const privateKeys = storedKeys.split(',') as Address[];
@@ -26,16 +26,40 @@ export const useAccountsStore = defineStore('accountsStore', () => {
       address: createAccount(key).address,
       privateKey: key,
     }));
+    localStorage.removeItem('accountsStore.privateKeys');
+    localStorage.removeItem('accountsStore.currentPrivateKey');
+    localStorage.removeItem('accountsStore.accounts');
+    _initAccountsLocalStorage();
+  }
 
-    // Set initial selected account if stored
-    const storedSelectedKey = localStorage.getItem(
-      'accountsStore.currentPrivateKey',
+  // Initialize accounts from localStorage
+  const storedAccounts = JSON.parse(
+    localStorage.getItem('accountsStore.accounts') || '[]',
+  );
+  if (storedAccounts.length === 0) {
+    generateNewAccount();
+    _initAccountsLocalStorage();
+  } else {
+    accounts.value = storedAccounts;
+  }
+
+  // Initialize selected account from localStorage
+  const storedSelectedAccount = JSON.parse(
+    localStorage.getItem('accountsStore.currentAccount') || 'null',
+  );
+  setCurrentAccount(
+    storedSelectedAccount ? storedSelectedAccount : accounts.value[0],
+  );
+
+  function _initAccountsLocalStorage() {
+    localStorage.setItem(
+      'accountsStore.accounts',
+      JSON.stringify(accounts.value),
     );
-    if (storedSelectedKey) {
-      selectedAccount.value =
-        accounts.value.find((acc) => acc.privateKey === storedSelectedKey) ||
-        null;
-    }
+    localStorage.setItem(
+      'accountsStore.currentAccount',
+      JSON.stringify(accounts.value[0]),
+    );
   }
 
   async function fetchMetaMaskAccount() {
@@ -85,7 +109,7 @@ export const useAccountsStore = defineStore('accountsStore', () => {
     });
   }
 
-  function generateNewAccount(): Address {
+  function generateNewAccount(): AccountInfo {
     const privateKey = generatePrivateKey();
     const newAccount: AccountInfo = {
       type: 'local',
@@ -95,17 +119,7 @@ export const useAccountsStore = defineStore('accountsStore', () => {
 
     accounts.value.push(newAccount);
     setCurrentAccount(newAccount);
-
-    const storedKeys = localStorage.getItem('accountsStore.privateKeys');
-    if (storedKeys) {
-      localStorage.setItem(
-        'accountsStore.privateKeys',
-        [...storedKeys.split(','), privateKey].join(','),
-      );
-    } else {
-      localStorage.setItem('accountsStore.privateKeys', privateKey);
-    }
-    return privateKey;
+    return newAccount;
   }
 
   function removeAccount(accountToRemove: AccountInfo) {
@@ -116,35 +130,20 @@ export const useAccountsStore = defineStore('accountsStore', () => {
       throw new Error('You need at least 1 local account');
     }
 
-    accounts.value = accounts.value.filter((acc) =>
-      acc.type === 'metamask'
-        ? acc.address !== accountToRemove.address
-        : acc.privateKey !== accountToRemove.privateKey,
+    accounts.value = accounts.value.filter(
+      (acc) => acc.address !== accountToRemove.address,
     );
 
     if (selectedAccount.value === accountToRemove) {
       const firstLocalAccount = accounts.value.find(
         (acc) => acc.type === 'local',
       );
-      if (firstLocalAccount) {
-        setCurrentAccount(firstLocalAccount);
-      }
+      setCurrentAccount(firstLocalAccount || null);
     }
   }
 
   function setCurrentAccount(account: AccountInfo | null) {
     selectedAccount.value = account;
-
-    // Persist local account selection to localStorage
-    if (account?.type === 'local' && account.privateKey) {
-      localStorage.setItem(
-        'accountsStore.currentPrivateKey',
-        account.privateKey,
-      );
-    } else {
-      // Clear stored private key if no local account is selected
-      localStorage.removeItem('accountsStore.currentPrivateKey');
-    }
   }
 
   const displayAddress = computed(() => {
@@ -157,44 +156,14 @@ export const useAccountsStore = defineStore('accountsStore', () => {
     }
   });
 
-  const currentUserAccount = computed(() => {
-    if (!selectedAccount.value) return undefined;
-
-    if (
-      selectedAccount.value.type === 'local' &&
-      selectedAccount.value.privateKey
-    ) {
-      return createAccount(selectedAccount.value.privateKey);
-    }
-
-    if (selectedAccount.value.type === 'metamask') {
-      // For MetaMask accounts, return a minimal account interface with just the address
-      return {
-        address: selectedAccount.value.address,
-        type: 'metamask',
-      };
-    }
-
-    return undefined;
-  });
-
   const currentUserAddress = computed(() =>
     selectedAccount.value ? selectedAccount.value.address : '',
-  );
-
-  // For backwards compatibility and persistence
-  const privateKeys = computed(() =>
-    accounts.value
-      .filter((acc) => acc.type === 'local')
-      .map((acc) => acc.privateKey!),
   );
 
   return {
     accounts,
     selectedAccount,
-    currentUserAccount,
     currentUserAddress,
-    privateKeys,
     fetchMetaMaskAccount,
     generateNewAccount,
     removeAccount,

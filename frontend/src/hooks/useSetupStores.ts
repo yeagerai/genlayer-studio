@@ -57,7 +57,7 @@ export const useSetupStores = () => {
     nodeStore.getValidatorsData();
     nodeStore.getProvidersData();
 
-    if (accountsStore.privateKeys.length < 1) {
+    if (accountsStore.accounts.length < 1) {
       accountsStore.generateNewAccount();
     }
 
