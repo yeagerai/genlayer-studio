@@ -15,6 +15,7 @@ from backend.domain.types import TransactionType
 from web3 import Web3
 from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
+from backend.domain.types import MAX_ROTATIONS
 
 
 class TransactionAddressFilter(Enum):
@@ -64,6 +65,7 @@ class TransactionsProcessor:
             "timestamp_awaiting_finalization": transaction_data.timestamp_awaiting_finalization,
             "appeal_failed": transaction_data.appeal_failed,
             "appeal_undetermined": transaction_data.appeal_undetermined,
+            "config_rotation_rounds": transaction_data.config_rotation_rounds,
         }
 
     @staticmethod
@@ -229,6 +231,7 @@ class TransactionsProcessor:
             timestamp_awaiting_finalization=None,
             appeal_failed=0,
             appeal_undetermined=False,
+            config_rotation_rounds=MAX_ROTATIONS,
         )
 
         self.session.add(new_transaction)

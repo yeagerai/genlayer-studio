@@ -4,7 +4,6 @@ import asyncio
 
 from backend.consensus.base import (
     ConsensusAlgorithm,
-    rotate,
     DEFAULT_VALIDATORS_COUNT,
 )
 from backend.database_handler.models import TransactionStatus
@@ -116,8 +115,10 @@ async def test_exec_transaction_no_consensus(managed_thread):
     """
 
     transaction = init_dummy_transaction()
+    rotation_rounds = 2
+    transaction.config_rotation_rounds = rotation_rounds
 
-    nodes = get_nodes_specs(3)
+    nodes = get_nodes_specs(DEFAULT_VALIDATORS_COUNT + rotation_rounds)
 
     created_nodes = []
 
@@ -152,7 +153,7 @@ async def test_exec_transaction_no_consensus(managed_thread):
         or created_nodes[-1],
     )
 
-    assert len(created_nodes) == len(nodes) ** 2
+    assert len(created_nodes) == DEFAULT_VALIDATORS_COUNT * (rotation_rounds + 1)
 
     for node in created_nodes:
         node.exec_transaction.assert_awaited_once_with(transaction)
@@ -187,6 +188,77 @@ async def test_exec_transaction_no_consensus(managed_thread):
 
 
 @pytest.mark.asyncio
+async def test_exec_transaction_rotation_no_validators(managed_thread):
+    """
+    Scenario: all nodes disagree on the transaction execution, leaving the transaction in UNDETERMINED state
+    Tests that consensus algorithm correctly puts the transaction in undetermined state when there are no validators left to rotate
+    """
+    transaction = init_dummy_transaction()
+
+    nodes = get_nodes_specs(DEFAULT_VALIDATORS_COUNT)
+
+    created_nodes = []
+
+    def get_vote():
+        return Vote.DISAGREE
+
+    transactions_processor = TransactionsProcessorMock(
+        [transaction_to_dict(transaction)]
+    )
+
+    msg_handler_mock = Mock(MessageHandler)
+
+    managed_thread(transactions_processor, msg_handler_mock, nodes, node_factory)
+
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+        transaction=transaction,
+        transactions_processor=transactions_processor,
+        snapshot=SnapshotMock(nodes),
+        accounts_manager=AccountsManagerMock(),
+        contract_snapshot_factory=contract_snapshot_factory,
+        node_factory=lambda node, mode, contract_snapshot, receipt, msg_handler, contract_snapshot_factory: created_nodes.append(
+            node_factory(
+                node,
+                mode,
+                contract_snapshot,
+                receipt,
+                msg_handler,
+                contract_snapshot_factory,
+                get_vote(),
+            )
+        )
+        or created_nodes[-1],
+    )
+
+    assert len(created_nodes) == DEFAULT_VALIDATORS_COUNT
+
+    for node in created_nodes:
+        node.exec_transaction.assert_awaited_once_with(transaction)
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
+        == TransactionStatus.UNDETERMINED.value
+    )
+
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
+        == TransactionStatus.FINALIZED.value
+    )
+
+    assert transactions_processor.updated_transaction_status_history == {
+        "transaction_hash": [
+            TransactionStatus.PROPOSING,
+            TransactionStatus.COMMITTING,
+            TransactionStatus.REVEALING,
+            TransactionStatus.UNDETERMINED,
+            TransactionStatus.FINALIZED,
+        ]
+    }
+
+
+@pytest.mark.asyncio
 async def test_exec_transaction_one_disagreement(managed_thread):
     """
     Scenario: first round is disagreement, second round is agreement
@@ -195,17 +267,15 @@ async def test_exec_transaction_one_disagreement(managed_thread):
 
     transaction = init_dummy_transaction()
 
-    nodes = get_nodes_specs(3)
+    nodes = get_nodes_specs(DEFAULT_VALIDATORS_COUNT + 1)
 
     created_nodes = []
 
     def get_vote():
-        return (
-            Vote.AGREE
-            if ((len(created_nodes) - 1) // len(nodes))
-            == 1  # only agree in the second round
-            else Vote.DISAGREE
-        )
+        if len(created_nodes) < DEFAULT_VALIDATORS_COUNT:
+            return Vote.DISAGREE
+        else:
+            return Vote.AGREE
 
     transactions_processor = TransactionsProcessorMock(
         [transaction_to_dict(transaction)]
@@ -256,24 +326,10 @@ async def test_exec_transaction_one_disagreement(managed_thread):
         ]
     }
 
-    assert len(created_nodes) == len(nodes) * 2
+    assert len(created_nodes) == DEFAULT_VALIDATORS_COUNT * 2
 
     for node in created_nodes:
         node.exec_transaction.assert_awaited_once_with(transaction)
-
-
-def test_rotate():
-    input = [1, 2, 3, 4, 5]
-    iterator = rotate(input)
-
-    assert next(iterator) == [1, 2, 3, 4, 5]
-    assert next(iterator) == [2, 3, 4, 5, 1]
-    assert next(iterator) == [3, 4, 5, 1, 2]
-    assert next(iterator) == [4, 5, 1, 2, 3]
-    assert next(iterator) == [5, 1, 2, 3, 4]
-
-    with pytest.raises(StopIteration):
-        next(iterator)
 
 
 @pytest.mark.asyncio
@@ -651,11 +707,13 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(managed_th
     4. Perform all rotation until transaction is undetermined
     The states the transaction goes through are:
         PROPOSING -> COMMITTING -> REVEALING -> ACCEPTED -appeal-> COMMITTING -> REVEALING -appeal-success->
-        PENDING -> (PROPOSING -> COMMITTING -> REVEALING) * 11 -> UNDERTERMINED
+        PENDING -> (PROPOSING -> COMMITTING -> REVEALING) * 3 -> UNDERTERMINED
     """
     transaction = init_dummy_transaction()
 
-    nodes = get_nodes_specs(2 * DEFAULT_VALIDATORS_COUNT + 2)
+    nodes = get_nodes_specs(
+        2 * DEFAULT_VALIDATORS_COUNT + 2 + transaction.config_rotation_rounds
+    )
 
     created_nodes = []
 
@@ -765,7 +823,7 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(managed_th
                 TransactionStatus.COMMITTING,
                 TransactionStatus.REVEALING,
             ]
-            * 11
+            * (transaction.config_rotation_rounds + 1)
         ),
         TransactionStatus.UNDETERMINED,
     ]
@@ -1506,10 +1564,11 @@ async def test_exec_undetermined_appeal(managed_thread):
     4. The transaction is finalized after the appeal window
     The transaction flow:
         UNDETERMINED -appeal-fail-> UNDETERMINED
-        -appeal-success-after-3-rounds-> ACCEPTED
+        -appeal-success-after-2-rotation-rounds-> ACCEPTED
         -successful-appeal-> PENDING -> UNDETERMINED -appeal-success-> FINALIZED
     """
     transaction = init_dummy_transaction()
+    transaction.config_rotation_rounds = 4
 
     nodes = get_nodes_specs(
         2 * (2 * (2 * (2 * DEFAULT_VALIDATORS_COUNT + 1) + 1) + 1) + 1 + 4
@@ -1520,17 +1579,20 @@ async def test_exec_undetermined_appeal(managed_thread):
     def get_vote():
         """
         Leader disagrees + 4 validators disagree for 5 rounds
-        Appeal leader fails: leader disagrees + 10 validators disagree for 11 rounds
+        Appeal leader fails: leader disagrees + 10 validators disagree for 5 rounds
         Appeal leader succeeds: leader disagrees + 22 validators disagree for 2 rounds then agree for 1 round
 
         Appeal validator succeeds: 25 validators disagree
         Leader disagrees + 46 validators disagree. -> 47 rounds
         Appeal leader fails: leader disagrees + 94 validators disagree. -> 95 rounds
         """
+        exec_rounds = transaction.config_rotation_rounds + 1
         n_first = DEFAULT_VALIDATORS_COUNT
         n_second = 2 * n_first + 1
         n_third = 2 * n_second + 1
-        nb_first_agree = (n_first**2) + (n_second**2) + (n_third * 2)
+        nb_first_agree = (
+            (n_first * exec_rounds) + (n_second * exec_rounds) + (n_third * 2)
+        )
         if (len(created_nodes) >= nb_first_agree) and (
             len(created_nodes) < nb_first_agree + n_third
         ):
@@ -1586,7 +1648,7 @@ async def test_exec_undetermined_appeal(managed_thread):
             TransactionStatus.COMMITTING,
             TransactionStatus.REVEALING,
         ]
-        * DEFAULT_VALIDATORS_COUNT,
+        * (transaction.config_rotation_rounds + 1),
         TransactionStatus.UNDETERMINED,
     ]
     assert transactions_processor.updated_transaction_status_history == {
@@ -1594,7 +1656,9 @@ async def test_exec_undetermined_appeal(managed_thread):
     }
 
     nb_validators = DEFAULT_VALIDATORS_COUNT
-    nb_created_nodes = DEFAULT_VALIDATORS_COUNT**2
+    nb_created_nodes = DEFAULT_VALIDATORS_COUNT * (
+        transaction.config_rotation_rounds + 1
+    )
     check_validator_count(transaction, transactions_processor, nb_validators)
     assert len(created_nodes) == nb_created_nodes
 
@@ -1625,7 +1689,7 @@ async def test_exec_undetermined_appeal(managed_thread):
             TransactionStatus.COMMITTING,
             TransactionStatus.REVEALING,
         ]
-        * (2 * DEFAULT_VALIDATORS_COUNT + 1),
+        * (transaction.config_rotation_rounds + 1),
         TransactionStatus.UNDETERMINED,
     ]
     assert transactions_processor.updated_transaction_status_history == {
@@ -1633,12 +1697,12 @@ async def test_exec_undetermined_appeal(managed_thread):
     }
 
     nb_validators += nb_validators + 1
-    nb_created_nodes += nb_validators**2
+    nb_created_nodes += nb_validators * (transaction.config_rotation_rounds + 1)
     check_validator_count(transaction, transactions_processor, nb_validators)
     assert len(created_nodes) == nb_created_nodes
 
     appeal(transaction, transactions_processor)
-    await asyncio.sleep(1)
+    await asyncio.sleep(2)
 
     transaction = Transaction.from_dict(
         transactions_processor.get_transaction_by_hash(transaction.hash)
@@ -1721,7 +1785,7 @@ async def test_exec_undetermined_appeal(managed_thread):
             TransactionStatus.COMMITTING,
             TransactionStatus.REVEALING,
         ]
-        * (2 * (2 * (2 * DEFAULT_VALIDATORS_COUNT + 1) + 1) + 1),
+        * (transaction.config_rotation_rounds + 1),
         TransactionStatus.UNDETERMINED,
     ]
     assert transactions_processor.updated_transaction_status_history == {
@@ -1729,7 +1793,7 @@ async def test_exec_undetermined_appeal(managed_thread):
     }
 
     nb_validators -= 1
-    nb_created_nodes += nb_validators**2
+    nb_created_nodes += nb_validators * (transaction.config_rotation_rounds + 1)
     check_validator_count(transaction, transactions_processor, nb_validators)
     assert len(created_nodes) == nb_created_nodes
 
@@ -1762,7 +1826,7 @@ async def test_exec_undetermined_appeal(managed_thread):
             TransactionStatus.COMMITTING,
             TransactionStatus.REVEALING,
         ]
-        * (2 * (2 * (2 * (2 * DEFAULT_VALIDATORS_COUNT + 1) + 1) + 1) + 1),
+        * (transaction.config_rotation_rounds + 1),
         TransactionStatus.UNDETERMINED,
         TransactionStatus.FINALIZED,
     ]
@@ -1771,6 +1835,6 @@ async def test_exec_undetermined_appeal(managed_thread):
     }
 
     nb_validators += nb_validators + 1
-    nb_created_nodes += nb_validators**2
+    nb_created_nodes += nb_validators * (transaction.config_rotation_rounds + 1)
     check_validator_count(transaction, transactions_processor, nb_validators)
     assert len(created_nodes) == nb_created_nodes

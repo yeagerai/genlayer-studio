@@ -128,6 +128,7 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "timestamp_awaiting_finalization": transaction.timestamp_awaiting_finalization,
         "appeal_failed": transaction.appeal_failed,
         "appeal_undetermined": transaction.appeal_undetermined,
+        "config_rotation_rounds": transaction.config_rotation_rounds,
     }
 
 
@@ -276,7 +277,7 @@ async def _appeal_window(
                     try:
                         context.remaining_validators = (
                             ConsensusAlgorithm.get_extra_validators(
-                                chain_snapshot,
+                                chain_snapshot.get_all_validators(),
                                 transaction.consensus_data,
                                 transaction.appeal_failed,
                             )
