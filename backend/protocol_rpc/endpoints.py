@@ -1,13 +1,13 @@
 # rpc/endpoints.py
 import random
 import json
+import eth_utils
 from functools import partial
 from typing import Any
 from flask_jsonrpc import JSONRPC
 from flask_jsonrpc.exceptions import JSONRPCError
 from sqlalchemy import Table
 from sqlalchemy.orm import Session
-
 import backend.node.genvm.origin.calldata as genvm_calldata
 
 from backend.database_handler.contract_snapshot import ContractSnapshot
@@ -36,6 +36,7 @@ from backend.protocol_rpc.transactions_parser import (
     decode_signed_transaction,
     transaction_has_valid_signature,
     decode_method_call_data,
+    decode_method_send_data,
     decode_deployment_data,
 )
 from backend.errors.errors import InvalidAddressError, InvalidTransactionError
@@ -331,7 +332,7 @@ async def get_contract_schema(
 
 
 async def get_contract_schema_for_code(
-    msg_handler: MessageHandler, contract_code: str
+    msg_handler: MessageHandler, contract_code_hex: str
 ) -> dict:
     node = Node(  # Mock node just to get the data from the GenVM
         contract_snapshot=None,
@@ -351,7 +352,9 @@ async def get_contract_schema_for_code(
         msg_handler=msg_handler.with_client_session(get_client_session_id()),
         contract_snapshot_factory=None,
     )
-    schema = await node.get_contract_schema(contract_code.encode("utf-8"))
+    schema = await node.get_contract_schema(
+        eth_utils.hexadecimal.decode_hex(contract_code_hex)
+    )
     return json.loads(schema)
 
 
@@ -368,7 +371,7 @@ def get_balance(
 
 
 def get_transaction_count(
-    transactions_processor: TransactionsProcessor, address: str, block: str
+    transactions_processor: TransactionsProcessor, address: str, block: str = "latest"
 ) -> int:
     return transactions_processor.get_transaction_count(address)
 
@@ -430,7 +433,7 @@ async def call(
         raise JSONRPCError(
             message="running contract failed", data={"receipt": receipt.to_dict()}
         )
-    return base64.b64encode(receipt.result[1:]).decode("ascii")
+    return eth_utils.hexadecimal.encode_hex(receipt.result[1:])
 
 
 def send_raw_transaction(
@@ -493,7 +496,7 @@ def send_raw_transaction(
             raise InvalidAddressError(
                 to_address, f"Invalid address to_address: {to_address}"
             )
-        decoded_data = decode_method_call_data(decoded_transaction.data)
+        decoded_data = decode_method_send_data(decoded_transaction.data)
         transaction_data = {"calldata": decoded_data.calldata}
         transaction_type = TransactionType.RUN_CONTRACT
         leader_only = decoded_data.leader_only

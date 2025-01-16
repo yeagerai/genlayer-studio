@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ContractMethod } from 'genlayer-js/types';
+import { abi } from 'genlayer-js';
 import { ref } from 'vue';
 import { Collapse } from 'vue-collapsed';
 import { notify } from '@kyvg/vue3-notification';
@@ -7,7 +8,6 @@ import { ChevronDownIcon } from '@heroicons/vue/16/solid';
 import { useEventTracking, useContractQueries } from '@/hooks';
 import { unfoldArgsData, type ArgData } from './ContractParams';
 import ContractParams from './ContractParams.vue';
-import * as calldata from '@/calldata';
 
 const { callWriteMethod, callReadMethod, contract } = useContractQueries();
 const { trackEvent } = useEventTracking();
@@ -29,13 +29,16 @@ const handleCallReadMethod = async () => {
   isCalling.value = true;
 
   try {
-    responseMessage.value = await callReadMethod(
+    const result = await callReadMethod(
       props.name,
-      unfoldArgsData({
-        args: calldataArguments.value.args,
-        kwargs: calldataArguments.value.kwargs,
-      }),
+      unfoldArgsData(calldataArguments.value),
     );
+
+    if (result !== undefined) {
+      responseMessage.value = abi.calldata.toString(result);
+    } else {
+      responseMessage.value = '<genlayer.client is undefined>';
+    }
 
     trackEvent('called_read_method', {
       contract_name: contract.value?.name || '',

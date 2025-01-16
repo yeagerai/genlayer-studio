@@ -40,7 +40,7 @@ const setInputParams = (method: ContractMethodBase | undefined) => {
     kwargs: {},
   };
   let i = 0;
-  for (const [paramName, paramType] of method.params) {
+  for (const [_paramName, paramType] of method.params) {
     newArgs.args.push({
       val: getDefaultValueForType(paramType),
       key: i,
