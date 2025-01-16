@@ -1,7 +1,7 @@
 import type { ContractFile, DeployedContract } from '@/types';
 import { type PiniaPluginContext } from 'pinia';
 import { useDb, useFileName } from '@/hooks';
-import type { AccountInfo } from '@/stores/accounts';
+import { toRaw } from 'vue';
 
 const ENABLE_LOGS = false;
 const db = useDb();
@@ -118,15 +118,15 @@ export function persistStorePlugin(context: PiniaPluginContext): void {
         switch (name) {
           case 'generateNewAccount':
           case 'removeAccount':
-            localStorage.setItem(
-              'accountsStore.accounts',
-              JSON.stringify(store.accounts),
-            );
-            break;
+          case 'fetchMetaMaskAccount':
           case 'setCurrentAccount':
             localStorage.setItem(
+              'accountsStore.accounts',
+              JSON.stringify(toRaw(store.accounts)),
+            );
+            localStorage.setItem(
               'accountsStore.currentAccount',
-              JSON.stringify(store.currentAccount),
+              JSON.stringify(toRaw(store.selectedAccount)),
             );
             break;
           default:

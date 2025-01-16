@@ -11,12 +11,13 @@ import { notify } from '@kyvg/vue3-notification';
 import { useMockContractData } from './useMockContractData';
 import { useEventTracking, useGenlayer } from '@/hooks';
 import * as calldata from '@/calldata';
-import type { Account, Address, TransactionHash } from 'genlayer-js/types';
+import type { Address, TransactionHash } from 'genlayer-js/types';
 
 const schema = ref<any>();
 
 export function useContractQueries() {
   const genlayer = useGenlayer();
+  const genlayerClient = computed(() => genlayer.client.value);
   const accountsStore = useAccountsStore();
   const transactionsStore = useTransactionsStore();
   const contractsStore = useContractsStore();
@@ -64,7 +65,7 @@ export function useContractQueries() {
     }
 
     try {
-      const result = await genlayer.client?.getContractSchemaForCode(
+      const result = await genlayerClient.value?.getContractSchemaForCode(
         contract.value?.content ?? '',
       );
 
@@ -105,8 +106,7 @@ export function useContractQueries() {
       const code = contract.value?.content ?? '';
       const code_bytes = new TextEncoder().encode(code);
 
-      const result = await genlayer.client?.deployContract({
-        account: accountsStore.selectedAccount as Account,
+      const result = await genlayerClient.value?.deployContract({
         code: code_bytes as any as string, // FIXME: code should accept both bytes and string in genlayer-js
         args: args.args,
         leaderOnly,
@@ -166,7 +166,7 @@ export function useContractQueries() {
       return mockContractSchema;
     }
 
-    const result = await genlayer.client?.getContractSchema(
+    const result = await genlayerClient.value?.getContractSchema(
       deployedContract.value?.address ?? '',
     );
 
@@ -181,7 +181,7 @@ export function useContractQueries() {
     },
   ) {
     try {
-      const result = await genlayer.client?.readContract({
+      const result = await genlayerClient.value?.readContract({
         address: address.value as Address,
         functionName: method,
         args: args.args,
@@ -211,8 +211,7 @@ export function useContractQueries() {
         throw new Error('Error writing to contract');
       }
 
-      const result = await genlayer.client?.writeContract({
-        account: accountsStore.selectedAccount as Account,
+      const result = await genlayerClient.value?.writeContract({
         address: address.value as Address,
         functionName: method,
         args: args.args,

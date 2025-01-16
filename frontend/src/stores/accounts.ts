@@ -21,11 +21,7 @@ export const useAccountsStore = defineStore('accountsStore', () => {
   const storedKeys = localStorage.getItem('accountsStore.privateKeys');
   if (storedKeys) {
     const privateKeys = storedKeys.split(',') as Address[];
-    accounts.value = privateKeys.map((key) => ({
-      type: 'local',
-      address: createAccount(key).address,
-      privateKey: key,
-    }));
+    accounts.value = privateKeys.map(createAccount);
     localStorage.removeItem('accountsStore.privateKeys');
     localStorage.removeItem('accountsStore.currentPrivateKey');
     localStorage.removeItem('accountsStore.accounts');
@@ -111,9 +107,10 @@ export const useAccountsStore = defineStore('accountsStore', () => {
 
   function generateNewAccount(): AccountInfo {
     const privateKey = generatePrivateKey();
+    const newAccountAddress = createAccount(privateKey).address;
     const newAccount: AccountInfo = {
       type: 'local',
-      address: createAccount(privateKey).address,
+      address: newAccountAddress,
       privateKey,
     };
 

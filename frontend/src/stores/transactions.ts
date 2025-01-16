@@ -7,6 +7,7 @@ import { useContractsStore } from '@/stores';
 
 export const useTransactionsStore = defineStore('transactionsStore', () => {
   const genlayer = useGenlayer();
+  const genlayerClient = genlayer.client.value;
   const webSocketClient = useWebSocketClient();
   const transactions = ref<TransactionItem[]>([]);
   const contractsStore = useContractsStore();
@@ -53,7 +54,7 @@ export const useTransactionsStore = defineStore('transactionsStore', () => {
   }
 
   async function getTransaction(hash: TransactionHash) {
-    return genlayer.client?.getTransaction({ hash });
+    return genlayerClient?.getTransaction({ hash });
   }
 
   async function refreshPendingTransactions() {
