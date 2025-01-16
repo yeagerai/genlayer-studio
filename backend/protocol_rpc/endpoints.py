@@ -59,7 +59,7 @@ import os
 def check_vite_hosted(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if bool(os.getenv("VITE_IS_HOSTED")):
+        if os.getenv("VITE_IS_HOSTED") == "true":
             raise JSONRPCError(
                 code=-32000,
                 message="Non-allowed operation",
