@@ -2,7 +2,7 @@
 import random
 import json
 import eth_utils
-from functools import partial
+from functools import partial, wraps
 from typing import Any
 from flask_jsonrpc import JSONRPC
 from flask_jsonrpc.exceptions import JSONRPCError
@@ -52,6 +52,22 @@ from backend.consensus.base import ConsensusAlgorithm
 from flask import request
 from flask_jsonrpc.exceptions import JSONRPCError
 import base64
+import os
+
+
+####### WRAPPER TO BLOCK ENDPOINTS FOR HOSTED ENVIRONMENT #######
+def check_vite_hosted(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if bool(os.getenv("VITE_IS_HOSTED")):
+            raise JSONRPCError(
+                code=-32000,
+                message="Non-allowed operation",
+                data={},
+            )
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 ####### HELPER ENDPOINTS #######
@@ -60,6 +76,7 @@ def ping() -> str:
 
 
 ####### SIMULATOR ENDPOINTS #######
+@check_vite_hosted
 def clear_db_tables(session: Session, tables: list) -> None:
     for table_name in tables:
         table = Table(
@@ -84,6 +101,7 @@ def fund_account(
     return transaction_hash
 
 
+@check_vite_hosted
 def reset_defaults_llm_providers(llm_provider_registry: LLMProviderRegistry) -> None:
     llm_provider_registry.reset_defaults()
 
@@ -94,6 +112,7 @@ async def get_providers_and_models(
     return await llm_provider_registry.get_all_dict()
 
 
+@check_vite_hosted
 def add_provider(llm_provider_registry: LLMProviderRegistry, params: dict) -> int:
     provider = LLMProvider(
         provider=params["provider"],
@@ -108,6 +127,7 @@ def add_provider(llm_provider_registry: LLMProviderRegistry, params: dict) -> in
     return llm_provider_registry.add(provider)
 
 
+@check_vite_hosted
 def update_provider(
     llm_provider_registry: LLMProviderRegistry, id: int, params: dict
 ) -> None:
@@ -123,10 +143,12 @@ def update_provider(
     llm_provider_registry.update(id, provider)
 
 
+@check_vite_hosted
 def delete_provider(llm_provider_registry: LLMProviderRegistry, id: int) -> None:
     llm_provider_registry.delete(id)
 
 
+@check_vite_hosted
 def create_validator(
     validators_registry: ValidatorsRegistry,
     accounts_manager: AccountsManager,
@@ -162,6 +184,7 @@ def create_validator(
     )
 
 
+@check_vite_hosted
 async def create_random_validator(
     validators_registry: ValidatorsRegistry,
     accounts_manager: AccountsManager,
@@ -180,6 +203,7 @@ async def create_random_validator(
     )[0]
 
 
+@check_vite_hosted
 async def create_random_validators(
     validators_registry: ValidatorsRegistry,
     accounts_manager: AccountsManager,
@@ -214,6 +238,7 @@ async def create_random_validators(
     return response
 
 
+@check_vite_hosted
 def update_validator(
     validators_registry: ValidatorsRegistry,
     accounts_manager: AccountsManager,
@@ -254,6 +279,7 @@ def update_validator(
     return validators_registry.update_validator(validator)
 
 
+@check_vite_hosted
 def delete_validator(
     validators_registry: ValidatorsRegistry,
     accounts_manager: AccountsManager,
@@ -267,6 +293,7 @@ def delete_validator(
     return validator_address
 
 
+@check_vite_hosted
 def delete_all_validators(
     validators_registry: ValidatorsRegistry,
 ) -> list:
@@ -530,6 +557,7 @@ def set_transaction_appeal(
     transactions_processor.set_transaction_appeal(transaction_hash, True)
 
 
+@check_vite_hosted
 def set_finality_window_time(consensus: ConsensusAlgorithm, time: int) -> None:
     consensus.set_finality_window_time(time)
 
