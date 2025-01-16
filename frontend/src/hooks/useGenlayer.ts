@@ -1,10 +1,15 @@
 import { simulator } from 'genlayer-js/chains';
 import { createClient, createAccount } from 'genlayer-js';
 import type { GenLayerClient } from 'genlayer-js/types';
-import { ref, watch } from 'vue';
+import { ref, watch, type Ref } from 'vue';
 import { useAccountsStore } from '@/stores';
 
-export function useGenlayer() {
+type UseGenlayerReturn = {
+  client: Ref<GenLayerClient<typeof simulator> | null>;
+  initClient: () => void;
+};
+
+export function useGenlayer(): UseGenlayerReturn {
   const accountsStore = useAccountsStore();
   const client = ref<GenLayerClient<typeof simulator> | null>(null);
 
