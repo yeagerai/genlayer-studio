@@ -7,7 +7,7 @@ import { ChevronDownIcon } from '@heroicons/vue/16/solid';
 import { useEventTracking, useContractQueries } from '@/hooks';
 import { unfoldArgsData, type ArgData } from './ContractParams';
 import ContractParams from './ContractParams.vue';
-import * as calldata from '@/calldata';
+import { abi } from 'genlayer-js';
 
 const { callWriteMethod, callReadMethod, contract } = useContractQueries();
 const { trackEvent } = useEventTracking();
@@ -31,10 +31,7 @@ const handleCallReadMethod = async () => {
   try {
     responseMessage.value = await callReadMethod(
       props.name,
-      unfoldArgsData({
-        args: calldataArguments.value.args,
-        kwargs: calldataArguments.value.kwargs,
-      }),
+      unfoldArgsData(calldataArguments.value),
     );
 
     trackEvent('called_read_method', {

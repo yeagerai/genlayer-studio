@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import * as calldata from '@/calldata';
+import { abi } from 'genlayer-js';
+import { parse as calldataParse } from '@/calldata/parser';
 
 describe('calldata decoding tests', () => {
   it('smoke', () => {
@@ -16,8 +17,8 @@ describe('calldata decoding tests', () => {
     );
     const text = new TextDecoder('utf-8').decode(text_decoded_to_arr);
 
-    const parsed = calldata.parse(text);
-    const decoded = calldata.decode(bin);
+    const parsed = calldataParse(text);
+    const decoded = abi.calldata.decode(bin);
     expect(decoded).toEqual(parsed);
   });
 });
