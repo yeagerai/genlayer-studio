@@ -370,6 +370,7 @@ class TransactionsProcessor:
     def get_highest_timestamp(self) -> int:
         transaction = (
             self.session.query(Transactions)
+            .filter(Transactions.timestamp_accepted.isnot(None))
             .order_by(desc(Transactions.timestamp_accepted))
             .first()
         )
