@@ -7,7 +7,7 @@ import { useContractsStore } from '@/stores';
 
 export const useTransactionsStore = defineStore('transactionsStore', () => {
   const genlayer = useGenlayer();
-  const genlayerClient = genlayer.client.value;
+  const genlayerClient = genlayer.client?.value;
   const webSocketClient = useWebSocketClient();
   const transactions = ref<TransactionItem[]>([]);
   const contractsStore = useContractsStore();
