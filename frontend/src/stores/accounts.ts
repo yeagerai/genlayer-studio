@@ -144,7 +144,7 @@ export const useAccountsStore = defineStore('accountsStore', () => {
       (acc) => acc.address !== accountToRemove.address,
     );
 
-    if (selectedAccount.value === accountToRemove) {
+    if (selectedAccount.value?.address === accountToRemove.address) {
       const firstLocalAccount = accounts.value.find(
         (acc) => acc.type === 'local',
       );
@@ -157,7 +157,16 @@ export const useAccountsStore = defineStore('accountsStore', () => {
   }
 
   const displayAddress = computed(() => {
-    if (!selectedAccount.value) return '';
+    if (!selectedAccount.value) return '0x';
+    if (selectedAccount.value.address.startsWith('0x')) {
+      if (selectedAccount.value.address.length !== 42) {
+        return '0x';
+      }
+    }
+    if (selectedAccount.value.address.length !== 40) {
+      return '0x';
+    }
+
     try {
       return shorten(selectedAccount.value.address);
     } catch (err) {

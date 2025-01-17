@@ -11,9 +11,7 @@ const testKey2 =
 
 vi.mock('@/hooks', () => ({
   useGenlayer: vi.fn(),
-  useShortAddress: vi.fn(() => ({
-    shorten: vi.fn(),
-  })),
+  useShortAddress: vi.fn(() => ({})),
 }));
 
 vi.mock('genlayer-js', () => ({
