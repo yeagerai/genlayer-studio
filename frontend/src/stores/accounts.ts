@@ -162,8 +162,7 @@ export const useAccountsStore = defineStore('accountsStore', () => {
       if (selectedAccount.value.address.length !== 42) {
         return '0x';
       }
-    }
-    if (selectedAccount.value.address.length !== 40) {
+    } else if (selectedAccount.value.address.length !== 40) {
       return '0x';
     }
 
