@@ -58,7 +58,7 @@ const connectMetaMask = async () => {
       </div>
 
       <div
-        class="flex w-full border-t border-gray-300 bg-gray-200 p-1 dark:border-gray-600 dark:bg-gray-800"
+        class="flex w-full flex-row gap-1 border-t border-gray-300 bg-gray-200 p-1 dark:border-gray-600 dark:bg-gray-800"
       >
         <Btn
           @click="handleCreateNewAccount"
