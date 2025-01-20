@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import type { Address } from '@/types';
 import { createAccount, generatePrivateKey } from 'genlayer-js';
 import { useShortAddress } from '@/hooks';
+import { notify } from '@kyvg/vue3-notification';
 
 export interface AccountInfo {
   type: 'local' | 'metamask';
@@ -59,28 +60,34 @@ export const useAccountsStore = defineStore('accountsStore', () => {
   }
 
   async function fetchMetaMaskAccount() {
-    if (window.ethereum) {
-      const ethAccounts = await window.ethereum.request({
-        method: 'eth_requestAccounts',
+    if (!window.ethereum) {
+      notify({
+        title: 'MetaMask is not installed',
+        type: 'error',
       });
-
-      const metamaskAccount: AccountInfo = {
-        type: 'metamask',
-        address: ethAccounts[0] as Address,
-      };
-
-      // Update or add MetaMask account
-      const existingMetaMaskIndex = accounts.value.findIndex(
-        (acc) => acc.type === 'metamask',
-      );
-      if (existingMetaMaskIndex >= 0) {
-        accounts.value[existingMetaMaskIndex] = metamaskAccount;
-      } else {
-        accounts.value.push(metamaskAccount);
-      }
-
-      setCurrentAccount(metamaskAccount);
+      return;
     }
+
+    const ethAccounts = await window.ethereum.request({
+      method: 'eth_requestAccounts',
+    });
+
+    const metamaskAccount: AccountInfo = {
+      type: 'metamask',
+      address: ethAccounts[0] as Address,
+    };
+
+    // Update or add MetaMask account
+    const existingMetaMaskIndex = accounts.value.findIndex(
+      (acc) => acc.type === 'metamask',
+    );
+    if (existingMetaMaskIndex >= 0) {
+      accounts.value[existingMetaMaskIndex] = metamaskAccount;
+    } else {
+      accounts.value.push(metamaskAccount);
+    }
+
+    setCurrentAccount(metamaskAccount);
   }
 
   if (window.ethereum) {
