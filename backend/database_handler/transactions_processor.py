@@ -351,7 +351,10 @@ class TransactionsProcessor:
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
-        transaction.appealed = appeal
+        if (transaction.status == TransactionStatus.ACCEPTED.value) or (
+            transaction.status == TransactionStatus.UNDETERMINED.value
+        ):
+            transaction.appealed = appeal
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
