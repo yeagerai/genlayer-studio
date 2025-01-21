@@ -141,7 +141,7 @@ class TransactionsProcessor:
         #     )
 
         transaction_hash = self._generate_transaction_hash(
-            from_address, to_address, data, value, type, nonce
+            from_address, to_address, data, value, type, current_nonce
         )
         ghost_contract_address = None
 
