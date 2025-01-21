@@ -133,10 +133,12 @@ class TransactionsProcessor:
     ) -> str:
         current_nonce = self.get_transaction_count(from_address)
 
-        if nonce != current_nonce:
-            raise Exception(
-                f"Unexpected nonce. Provided: {nonce}, expected: {current_nonce}"
-            )
+        # Follow up: https://github.com/MetaMask/metamask-extension/issues/29787
+        # to uncomment this check
+        # if nonce != current_nonce:
+        #     raise Exception(
+        #         f"Unexpected nonce. Provided: {nonce}, expected: {current_nonce}"
+        #     )
 
         transaction_hash = self._generate_transaction_hash(
             from_address, to_address, data, value, type, nonce
