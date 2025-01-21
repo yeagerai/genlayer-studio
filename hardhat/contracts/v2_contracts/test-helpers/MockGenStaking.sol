@@ -3,7 +3,9 @@ pragma solidity ^0.8.0;
 
 error NoValidatorsAvailable();
 error NotEnoughValidators();
+error AllValidatorsConsumed();
 error ZeroTotalWeight();
+error ValidValidatorNotFound();
 
 contract MockGenStaking {
 	address public owner;
@@ -15,6 +17,7 @@ contract MockGenStaking {
 	uint256 public topStakersTotalWeight;
 	uint256 public previousTopStakersTotalWeight;
 	mapping(address => bool) public isValidator;
+	uint256 public lastFinalizationTimestamp;
 
 	// a bit longer than the real one to make sure we don't get any edge cases
 	uint256 public FINALIZATION_INTERVAL = 1 hours + 10 minutes;
@@ -28,7 +31,7 @@ contract MockGenStaking {
 	mapping(address => address) public hotToColdWallet;
 	mapping(address => address) public coldToHotWallet;
 
-	constructor(address _initialValidator) {
+	constructor() {
 		owner = msg.sender;
 		// _addValidator(_initialValidator);
 	}
@@ -121,8 +124,7 @@ contract MockGenStaking {
 	}
 
 	// Function used in ConsensusMain for getting a single validator
-	function getActivatorForTx(
-		address _recipient,
+	function getActivatorForSeed(
 		bytes32 _randomSeed
 	) external view returns (address) {
 		if (validators.length == 0) revert NoValidatorsAvailable();
@@ -130,38 +132,20 @@ contract MockGenStaking {
 		return validators[randomIndex];
 	}
 
-	// Function used in ConsensusMain for getting a single validator
-	function getActivatorForSeed(
-		bytes32 _randomSeed,
-		uint256 timestamp
-	) external view returns (address) {
-		if (validators.length == 0) revert NoValidatorsAvailable();
-		uint256 randomIndex = uint256(_randomSeed) % validators.length;
-		return validators[randomIndex];
-	}
-
-	function getValidatorsLen(uint256 timestamp) public view returns (uint256) {
+	function getValidatorsLen() public view returns (uint256) {
 		return previousTopStakersHot.length;
 	}
 
-	function getValidatorsLenExternal(
-		uint256 timestamp
-	) external view returns (uint256) {
+	function getValidatorsLenExternal() external view returns (uint256) {
 		return previousTopStakersHot.length;
 	}
 
-	function getValidatorsItem(
-		uint256 timestamp,
-		uint256 index
-	) public view returns (address) {
+	function getValidatorsItem(uint256 index) public view returns (address) {
 		if (index >= previousTopStakersHot.length) return address(0);
 		return previousTopStakersHot[index];
 	}
 
-	function getAccumWeightItem(
-		uint256 timestamp,
-		uint256 index
-	) public view returns (uint256) {
+	function getAccumWeightItem(uint256 index) public view returns (uint256) {
 		require(
 			index < previousAccumulatedWeights.length,
 			"Index out of bounds"
@@ -175,13 +159,15 @@ contract MockGenStaking {
 	}
 
 	function getValidatorsForTx(
-		bytes32 _tx_id,
 		bytes32 _randomSeed,
-		uint256 timestamp,
 		uint256 requestedValidatorsCount,
 		address[] memory consumedValidators
-	) external view returns (address[] memory _validators) {
-		uint256 maxValidators = getValidatorsLen(timestamp);
+	)
+		external
+		view
+		returns (address[] memory validators_, uint256 leaderIndex)
+	{
+		uint256 maxValidators = previousTopStakersHot.length;
 		if (maxValidators == 0) {
 			revert NoValidatorsAvailable();
 		}
@@ -192,60 +178,63 @@ contract MockGenStaking {
 		}
 
 		uint256 alreadyConsumedCount = consumedValidators.length;
+		if (alreadyConsumedCount >= maxValidators) {
+			revert AllValidatorsConsumed();
+		}
 		uint256 nonConsumedCount = maxValidators - alreadyConsumedCount;
 
 		// If the number of requested validators is greater or equal to the number
 		// of non-consumed validators, simply return all non-consumed, non-banned validators.
 		if (requestedValidatorsCount >= nonConsumedCount) {
-			return
-				_getAllNonConsumedValidators(
-					timestamp,
-					consumedValidators,
-					maxValidators
-				);
-		}
+			validators_ = _getAllNonConsumedValidators(
+				consumedValidators,
+				maxValidators
+			);
+		} else {
+			uint256 totalWeight = block.timestamp <
+				lastFinalizationTimestamp + FINALIZATION_INTERVAL
+				? previousTopStakersTotalWeight
+				: topStakersTotalWeight;
 
-		// Otherwise, we select validators randomly based on their stake weights.
-		uint256 totalWeight = _getCurrentTotalWeight(timestamp);
-		if (totalWeight == 0) {
-			revert ZeroTotalWeight();
-		}
-
-		return
-			_selectValidatorsRandomly(
-				timestamp,
+			if (totalWeight == 0) {
+				revert ZeroTotalWeight();
+			}
+			// Otherwise, we select validators randomly based on their stake weights.
+			validators_ = _selectValidatorsRandomly(
 				_randomSeed,
 				requestedValidatorsCount,
 				consumedValidators,
 				totalWeight,
 				maxValidators
 			);
+		}
+		leaderIndex = validators_.length > 0
+			? uint256(_randomSeed) % validators_.length
+			: 0;
 	}
 
 	function _getAllNonConsumedValidators(
-		uint256 timestamp,
 		address[] memory consumedValidators,
 		uint256 maxValidators
-	) internal view returns (address[] memory) {
-		address[] memory validators = new address[](
-			maxValidators - consumedValidators.length
-		);
-		uint256 index = 0;
+	) internal view returns (address[] memory validators_) {
+		if (maxValidators <= previousTopStakersHot.length) {
+			validators_ = new address[](
+				maxValidators - consumedValidators.length
+			);
+			uint256 index = 0;
 
-		for (uint256 i = 0; i < maxValidators; i++) {
-			address validatorHot = getValidatorsItem(timestamp, i);
-			address coldWallet = hotToColdWallet[validatorHot];
+			for (uint256 i = 0; i < maxValidators; i++) {
+				address validatorHot = previousTopStakersHot[i];
 
-			if (
-				!_isConsumed(validatorHot, consumedValidators) &&
-				!validatorBans[coldWallet].isBanned
-			) {
-				validators[index] = validatorHot;
-				index++;
+				if (
+					!_isConsumed(validatorHot, consumedValidators) &&
+					!validatorBans[hotToColdWallet[validatorHot]].isBanned
+				) {
+					validators_[index] = validatorHot;
+					index++;
+				}
 			}
 		}
-
-		return validators;
 	}
 
 	function _getCurrentTotalWeight(
@@ -261,7 +250,6 @@ contract MockGenStaking {
 	}
 
 	function _selectValidatorsRandomly(
-		uint256 timestamp,
 		bytes32 _randomSeed,
 		uint256 numValidators,
 		address[] memory consumedValidators,
@@ -280,14 +268,12 @@ contract MockGenStaking {
 				totalWeight
 			);
 			uint256 validatorIndex = _findValidatorIndexByWeight(
-				timestamp,
 				randomStake,
 				maxValidators
 			);
 
 			// Find the next eligible validator (non-consumed, non-banned, not already selected).
 			address validator = _findNextEligibleValidator(
-				timestamp,
 				validatorIndex,
 				consumedValidators,
 				isSelected,
@@ -295,7 +281,7 @@ contract MockGenStaking {
 			);
 
 			if (validator == address(0)) {
-				revert("No valid validator found");
+				revert ValidValidatorNotFound();
 			}
 
 			selectedValidators[i] = validator;
@@ -321,16 +307,17 @@ contract MockGenStaking {
 	}
 
 	function _findValidatorIndexByWeight(
-		uint256 timestamp,
 		uint256 randomStake,
 		uint256 maxValidators
 	) internal view returns (uint256) {
 		// Binary search to find the appropriate validator index for the given randomStake.
 		uint256 low = 0;
-		uint256 high = maxValidators - 1;
+		uint256 high = maxValidators > previousAccumulatedWeights.length
+			? previousAccumulatedWeights.length - 1
+			: maxValidators - 1;
 		while (low <= high) {
 			uint256 mid = (low + high) >> 1;
-			uint256 midWeight = getAccumWeightItem(timestamp, mid);
+			uint256 midWeight = previousAccumulatedWeights[mid];
 
 			if (midWeight > randomStake) {
 				// If this midWeight surpasses randomStake and is the first such occurrence, we settle here.
@@ -349,7 +336,6 @@ contract MockGenStaking {
 	}
 
 	function _findNextEligibleValidator(
-		uint256 timestamp,
 		uint256 startIndex,
 		address[] memory consumedValidators,
 		bool[] memory isSelected,
@@ -358,7 +344,7 @@ contract MockGenStaking {
 		uint256 originalIndex = startIndex;
 
 		for (uint256 attempt = 0; attempt < maxValidators; attempt++) {
-			address validatorHot = getValidatorsItem(timestamp, startIndex);
+			address validatorHot = getValidatorsItem(startIndex);
 			address coldWallet = hotToColdWallet[validatorHot];
 
 			// If validator is consumed, banned or already selected, move to the next.
@@ -379,7 +365,8 @@ contract MockGenStaking {
 		}
 
 		// No valid validator found after trying all possible indices.
-		return address(0);
+		revert AllValidatorsConsumed();
+		//return address(0);
 	}
 
 	function _isConsumed(

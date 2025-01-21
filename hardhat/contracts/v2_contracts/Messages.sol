@@ -6,7 +6,6 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "./interfaces/ITransactions.sol";
 import "./interfaces/IGenConsensus.sol";
-
 contract Messages is
 	Initializable,
 	Ownable2StepUpgradeable,
@@ -46,7 +45,7 @@ contract Messages is
 			if (!message.onAcceptance) {
 				continue;
 			}
-			_handleMessage(message, transaction.recipient);
+			_handleMessage(message);
 
 			// Update the count of already emitted messages
 			emit MessagesOnAcceptance(_tx_id);
@@ -67,18 +66,23 @@ contract Messages is
 			if (message.onAcceptance) {
 				continue;
 			}
-			_handleMessage(message, transaction.recipient);
+			_handleMessage(message);
 
 			// Update the count of already emitted messages
 			emit MessagesOnFinalization(_tx_id);
 		}
 	}
 
+	function executeMessage(
+		IMessages.SubmittedMessage memory message
+	) external onlyConsensus {
+		_handleMessage(message);
+	}
+
 	function _handleMessage(
-		IMessages.SubmittedMessage memory message,
-		address recipient
+		IMessages.SubmittedMessage memory message
 	) internal {
-		bytes memory messageBytes = message.message;
+		bytes memory messageBytes = message.data;
 		// Decode the message data
 		(address to, bytes memory data) = abi.decode(
 			messageBytes,
@@ -87,28 +91,27 @@ contract Messages is
 		bytes32 msgId = keccak256(abi.encode(to, data));
 		// Call handleOp on the recipient
 		bool success = genConsensus.executeMessage(
-			recipient,
+			message.recipient,
 			0,
 			abi.encodeWithSignature(
 				"handleOp(address,bytes32,uint256,bytes)",
 				to,
 				msgId,
-				ghostNonce[recipient] + 1,
+				ghostNonce[message.recipient] + 1,
 				data
 			)
 		);
 		require(success, "handleOp call failed");
-		ghostNonce[recipient]++;
+		ghostNonce[message.recipient]++;
 	}
 
 	function _handleMessagePacked(
-		IMessages.SubmittedMessage memory message,
-		address recipient
+		IMessages.SubmittedMessage memory message
 	) internal {
 		// Extract the first 20 bytes for address (without using slice)
 		address to;
 		bytes memory data;
-		bytes memory messageBytes = message.message;
+		bytes memory messageBytes = message.data;
 		assembly {
 			// Load the first 20 bytes into 'to' - corrected offset
 			// We need to right-shift by 12 bytes (96 bits) to get the correct 20 bytes
@@ -134,7 +137,7 @@ contract Messages is
 		bytes32 msgId = keccak256(abi.encode(to, data));
 
 		// Call handleOp on the recipient
-		(bool success, ) = recipient.call{ value: 0 }(
+		(bool success, ) = message.recipient.call{ value: 0 }(
 			abi.encodeWithSignature(
 				"handleOp(address,bytes32,bytes)",
 				to,
