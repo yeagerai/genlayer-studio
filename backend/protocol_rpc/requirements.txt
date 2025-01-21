@@ -16,7 +16,7 @@ aiohttp==3.11.11
 SQLAlchemy[asyncio]==2.0.37
 alembic==1.14.1
 eth-account==0.13.4
-eth-utils==5.1.0
+eth-utils==5.2.0
 Flask-SQLAlchemy==3.1.1
 jsf==0.11.2
 jsonschema==4.23.0
