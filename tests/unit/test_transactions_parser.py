@@ -1,7 +1,7 @@
 import pytest
 from backend.protocol_rpc.transactions_parser import (
-    decode_method_call_data,
-    DecodedMethodCallData,
+    decode_method_send_data,
+    DecodedMethodSendData,
     decode_deployment_data,
     DecodedDeploymentData,
 )
@@ -14,14 +14,14 @@ import backend.node.genvm.origin.calldata as calldata
     [
         (
             [{"method": "__init__", "args": ["John Doe"]}, False],
-            DecodedMethodCallData(
+            DecodedMethodSendData(
                 calldata=b"\x16\x04args\rDJohn Doe\x06methodD__init__",
                 leader_only=False,
             ),
         ),
         (
             [{"method": "__init__", "args": ["John Doe"]}, True],
-            DecodedMethodCallData(
+            DecodedMethodSendData(
                 calldata=b"\x16\x04args\rDJohn Doe\x06methodD__init__",
                 leader_only=True,
             ),
@@ -30,16 +30,16 @@ import backend.node.genvm.origin.calldata as calldata
             (
                 [{"method": "__init__", "args": ["John Doe"]}]
             ),  # Should fallback to default
-            DecodedMethodCallData(
+            DecodedMethodSendData(
                 calldata=b"\x16\x04args\rDJohn Doe\x06methodD__init__",
                 leader_only=False,
             ),
         ),
     ],
 )
-def test_decode_method_call_data(data, expected_result):
+def test_decode_method_send_data(data, expected_result):
     encoded = encode([calldata.encode(data[0]), *data[1:]])
-    assert decode_method_call_data(encoded) == expected_result
+    assert decode_method_send_data(encoded) == expected_result
 
 
 @pytest.mark.parametrize(

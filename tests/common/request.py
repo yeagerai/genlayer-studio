@@ -1,5 +1,6 @@
 # tests/common/request.py
 import os
+import eth_utils
 import json
 import requests
 import time
@@ -60,8 +61,8 @@ def call_contract_method(
     method_name: str,
     method_args: list,
 ):
-    encoded_data = encode_transaction_data(
-        [calldata.encode({"method": method_name, "args": method_args})]
+    encoded_data = eth_utils.hexadecimal.encode_hex(
+        calldata.encode({"method": method_name, "args": method_args})
     )
     method_response = post_request_localhost(
         payload(
@@ -74,7 +75,7 @@ def call_contract_method(
         )
     ).json()
     enc_result = method_response["result"]
-    return calldata.decode(base64.b64decode(enc_result))
+    return calldata.decode(eth_utils.hexadecimal.decode_hex(enc_result))
 
 
 def send_transaction(
