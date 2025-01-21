@@ -45,7 +45,7 @@ from backend.database_handler.transactions_processor import (
     TransactionAddressFilter,
     TransactionsProcessor,
 )
-from backend.node.base import Node
+from backend.node.base import Node, SIMULATOR_CHAIN_ID
 from backend.node.types import ExecutionMode, ExecutionResultStatus
 from backend.consensus.base import ConsensusAlgorithm
 
@@ -420,6 +420,11 @@ async def call(
     from_address = params["from"] if "from" in params else None
     data = params["data"]
 
+    if from_address is None:
+        return base64.b64encode(b"\x00' * 31 + b'\x01").decode(
+            "ascii"
+        )  # Return '1' as a uint256
+
     if from_address and not accounts_manager.is_valid_address(from_address):
         raise InvalidAddressError(from_address)
 
@@ -560,6 +565,113 @@ def set_transaction_appeal(
 @check_forbidden_method_in_hosted_studio
 def set_finality_window_time(consensus: ConsensusAlgorithm, time: int) -> None:
     consensus.set_finality_window_time(time)
+
+
+def get_chain_id() -> str:
+    return hex(SIMULATOR_CHAIN_ID)
+
+
+def get_net_version() -> str:
+    return str(SIMULATOR_CHAIN_ID)
+
+
+def get_block_number(transactions_processor: TransactionsProcessor) -> str:
+    transaction_count = transactions_processor.get_highest_timestamp()
+    return hex(transaction_count)
+
+
+def get_block_by_number(
+    transactions_processor: TransactionsProcessor, block_number: str, full_tx: bool
+) -> dict:
+    try:
+        block_number_int = int(block_number, 16)
+    except ValueError:
+        raise JSONRPCError(f"Invalid block number format: {block_number}")
+
+    block_details = transactions_processor.get_transactions_for_block(
+        block_number_int, include_full_tx=full_tx
+    )
+
+    if not block_details:
+        raise JSONRPCError(f"Block not found for number: {block_number}")
+
+    return block_details
+
+
+def get_gas_price() -> str:
+    gas_price_in_wei = 20 * 10**9
+    return hex(gas_price_in_wei)
+
+
+def get_transaction_receipt(
+    transactions_processor: TransactionsProcessor,
+    transaction_hash: str,
+) -> dict | None:
+
+    transaction = transactions_processor.get_transaction_by_hash(transaction_hash)
+
+    if not transaction:
+        return None
+
+    receipt = {
+        "transactionHash": transaction_hash,
+        "transactionIndex": hex(0),
+        "blockHash": transaction_hash,
+        "blockNumber": hex(transaction.get("block_number", 0)),
+        "from": transaction.get("from_address"),
+        "to": transaction.get("to_address") if transaction.get("to_address") else None,
+        "cumulativeGasUsed": hex(transaction.get("gas_used", 21000)),
+        "gasUsed": hex(transaction.get("gas_used", 21000)),
+        "contractAddress": (
+            transaction.get("contract_address")
+            if transaction.get("contract_address")
+            else None
+        ),
+        "logs": transaction.get("logs", []),
+        "logsBloom": "0x" + "00" * 256,
+        "status": hex(1 if transaction.get("status", True) else 0),
+    }
+
+    return receipt
+
+
+def get_block_by_hash(
+    transactions_processor: TransactionsProcessor,
+    transaction_hash: str,
+    full_tx: bool = False,
+) -> dict | None:
+
+    transaction = transactions_processor.get_transaction_by_hash(transaction_hash)
+
+    if not transaction:
+        return None
+
+    block_details = {
+        "hash": transaction_hash,
+        "parentHash": "0x" + "00" * 32,
+        "number": hex(transaction.get("block_number", 0)),
+        "timestamp": hex(transaction.get("timestamp", 0)),
+        "nonce": "0x" + "00" * 8,
+        "transactionsRoot": "0x" + "00" * 32,
+        "stateRoot": "0x" + "00" * 32,
+        "receiptsRoot": "0x" + "00" * 32,
+        "miner": "0x" + "00" * 20,
+        "difficulty": "0x1",
+        "totalDifficulty": "0x1",
+        "size": "0x0",
+        "extraData": "0x",
+        "gasLimit": hex(transaction.get("gas_limit", 8000000)),
+        "gasUsed": hex(transaction.get("gas_used", 21000)),
+        "logsBloom": "0x" + "00" * 256,
+        "transactions": [],
+    }
+
+    if full_tx:
+        block_details["transactions"].append(transaction)
+    else:
+        block_details["transactions"].append(transaction_hash)
+
+    return block_details
 
 
 def get_contract(consensus_service: ConsensusService, contract_name: str) -> dict:
@@ -719,4 +831,23 @@ def register_all_rpc_endpoints(
     register_rpc_endpoint(
         partial(get_contract, consensus_service),
         method_name="sim_getConsensusContract",
+    )
+    register_rpc_endpoint(get_chain_id, method_name="eth_chainId")
+    register_rpc_endpoint(get_net_version, method_name="net_version")
+    register_rpc_endpoint(
+        partial(get_block_number, transactions_processor),
+        method_name="eth_blockNumber",
+    )
+    register_rpc_endpoint(
+        partial(get_block_by_number, transactions_processor),
+        method_name="eth_getBlockByNumber",
+    )
+    register_rpc_endpoint(get_gas_price, method_name="eth_gasPrice")
+    register_rpc_endpoint(
+        partial(get_transaction_receipt, transactions_processor),
+        method_name="eth_getTransactionReceipt",
+    )
+    register_rpc_endpoint(
+        partial(get_block_by_hash, transactions_processor),
+        method_name="eth_getBlockByHash",
     )

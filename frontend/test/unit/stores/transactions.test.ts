@@ -58,7 +58,9 @@ describe('useTransactionsStore', () => {
 
   beforeEach(() => {
     setActivePinia(createPinia());
-    (useGenlayer as Mock).mockReturnValue({ client: mockGenlayerClient });
+    (useGenlayer as Mock).mockReturnValue({
+      client: { value: mockGenlayerClient },
+    });
     (useDb as Mock).mockReturnValue(mockDb);
     transactionsStore = useTransactionsStore();
     transactionsStore.transactions = [];

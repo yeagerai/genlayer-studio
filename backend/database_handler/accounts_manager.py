@@ -1,7 +1,7 @@
 # consensus/services/transactions_db_service.py
 
 from eth_account import Account
-from eth_account._utils.validation import is_valid_address
+from eth_utils import is_address
 
 from .models import CurrentState
 from backend.database_handler.errors import AccountNotFoundError
@@ -38,7 +38,7 @@ class AccountsManager:
         self.session.commit()
 
     def is_valid_address(self, address: str) -> bool:
-        return is_valid_address(address)
+        return is_address(address)
 
     def get_account(self, account_address: str) -> CurrentState | None:
         """Private method to retrieve an account from the data base"""
