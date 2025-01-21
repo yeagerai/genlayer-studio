@@ -1047,12 +1047,10 @@ class RevealingState(TransactionState):
             )
 
         # Determine if the majority of validators agree
-        # majority_agrees = (
-        #     len([vote for vote in context.votes.values() if vote == Vote.AGREE.value])
-        #     > context.num_validators // 2
-        # )
-
-        majority_agrees = False
+        majority_agrees = (
+            len([vote for vote in context.votes.values() if vote == Vote.AGREE.value])
+            > context.num_validators // 2
+        )
 
         if context.transaction.appealed:
             # Update the consensus results with all new votes and validators
