@@ -63,7 +63,6 @@ def test_transactions_processor(transactions_processor: TransactionsProcessor):
         transaction_type,
         nonce + 1,
         True,
-        None,
         first_transaction_hash,
     )
 
