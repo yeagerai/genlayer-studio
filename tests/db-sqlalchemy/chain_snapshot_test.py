@@ -23,6 +23,8 @@ def test_chain_snapshot(session: Session):
         s=None,
         v=None,
         leader_only=False,
+        ghost_contract_address=None,
+        appeal_failed=0,
         # triggered_by_hash=None,
     )
 
@@ -42,6 +44,8 @@ def test_chain_snapshot(session: Session):
         s=None,
         v=None,
         leader_only=False,
+        ghost_contract_address=None,
+        appeal_failed=0,
         # triggered_by_hash="0xdef",
     )
 
@@ -61,6 +65,8 @@ def test_chain_snapshot(session: Session):
         s=None,
         v=None,
         leader_only=False,
+        ghost_contract_address=None,
+        appeal_failed=0,
         # triggered_by_hash=None,
     )
 
