@@ -557,9 +557,11 @@ def get_transactions_for_address(
 
 
 def set_transaction_appeal(
-    transactions_processor: TransactionsProcessor, transaction_hash: str
+    transactions_processor: TransactionsProcessor,
+    msg_handler: MessageHandler,
+    transaction_hash: str,
 ) -> None:
-    transactions_processor.set_transaction_appeal(transaction_hash, True)
+    transactions_processor.set_transaction_appeal(transaction_hash, True, msg_handler)
 
 
 @check_forbidden_method_in_hosted_studio
@@ -821,7 +823,7 @@ def register_all_rpc_endpoints(
         method_name="sim_getTransactionsForAddress",
     )
     register_rpc_endpoint(
-        partial(set_transaction_appeal, transactions_processor),
+        partial(set_transaction_appeal, transactions_processor, msg_handler),
         method_name="sim_appealTransaction",
     )
     register_rpc_endpoint(

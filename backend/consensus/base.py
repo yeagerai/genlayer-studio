@@ -503,10 +503,12 @@ class ConsensusAlgorithm:
                                     # When no validators are found, then the appeal failed
                                     print(e, transaction)
                                     context.transactions_processor.set_transaction_appeal(
-                                        context.transaction.hash, False
+                                        context.transaction.hash,
+                                        False,
+                                        self.msg_handler,
                                     )
                                     context.transaction.appealed = False
-                                    session.commit()
+
                                 else:
                                     # Set up the context for the committing state
                                     context.num_validators = len(
