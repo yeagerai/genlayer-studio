@@ -350,8 +350,12 @@ class TransactionsProcessor:
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
-        if (transaction.status == TransactionStatus.ACCEPTED) or (
-            transaction.status == TransactionStatus.UNDETERMINED
+        # You can only appeal the transaction if it is in accepted or undetermined state
+        # Setting it to false is always allowed
+        if (
+            (not appeal)
+            or (transaction.status == TransactionStatus.ACCEPTED)
+            or (transaction.status == TransactionStatus.UNDETERMINED)
         ):
             transaction.appealed = appeal
 
