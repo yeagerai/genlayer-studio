@@ -156,7 +156,7 @@ class TransactionsProcessor:
             # Read contract ABI and bytecode from compiled contract
             try:
                 consensus_service = ConsensusService()
-                ghost_contract = consensus_service._load_contract("GhostContract")
+                ghost_contract = consensus_service.load_contract("GhostContract")
 
                 abi = ghost_contract["abi"]
                 bytecode = ghost_contract["bytecode"]
