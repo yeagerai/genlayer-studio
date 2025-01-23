@@ -148,7 +148,6 @@ def delete_provider(llm_provider_registry: LLMProviderRegistry, id: int) -> None
     llm_provider_registry.delete(id)
 
 
-@check_forbidden_method_in_hosted_studio
 def create_validator(
     validators_registry: ValidatorsRegistry,
     accounts_manager: AccountsManager,
@@ -745,7 +744,11 @@ def register_all_rpc_endpoints(
         method_name="sim_deleteProvider",
     )
     register_rpc_endpoint(
-        partial(create_validator, validators_registry, accounts_manager),
+        partial(
+            check_forbidden_method_in_hosted_studio(create_validator),
+            validators_registry,
+            accounts_manager,
+        ),
         method_name="sim_createValidator",
     )
     register_rpc_endpoint(
