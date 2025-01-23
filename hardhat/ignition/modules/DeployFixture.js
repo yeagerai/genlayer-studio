@@ -10,17 +10,9 @@ module.exports = buildModule("DeployFixture", (m) => {
     // Deploy base contracts
     const GhostContract = m.contract("GhostContract");
     const ConsensusManager = m.contract("ConsensusManager");
-    const ConsensusMain = m.contract("ConsensusMain");
-
-    // Initialize ConsensusMain
-    const initConsensusMain = m.call(ConsensusMain, "initialize", [ConsensusManager], {
-        after: [ConsensusManager]
-    });
 
     const GhostFactory = m.contract("GhostFactory");
-    const initGhostFactory = m.call(GhostFactory, "initialize", [], {
-        after: [initConsensusMain]
-    });
+    const initGhostFactory = m.call(GhostFactory, "initialize", []);
 
     const GhostBlueprint = m.contract("GhostBlueprint");
     const initGhostBlueprint = m.call(GhostBlueprint, "initialize", [owner], {
@@ -36,11 +28,17 @@ module.exports = buildModule("DeployFixture", (m) => {
     });
 
     // Important: Ensure that validator1.address is available before using it
-    const MockGenStaking = m.contract("MockGenStaking", [validator1]);
+    const MockGenStaking = m.contract("MockGenStaking");
 
     const Queues = m.contract("Queues");
     const Transactions = m.contract("Transactions");
     const Messages = m.contract("Messages");
+    const ConsensusMain = m.contract("ConsensusMain");
+
+    // Initialize ConsensusMain
+    const initConsensusMain = m.call(ConsensusMain, "initialize", [ConsensusManager], {
+        after: [ConsensusManager]
+    });
 
     // Initialize contracts
     const initTransactions = m.call(Transactions, "initialize", [ConsensusMain], {
@@ -122,6 +120,15 @@ module.exports = buildModule("DeployFixture", (m) => {
         id: "verifyValidator3"
     });
 
+    // Add Appeals contract deployment
+    const Appeals = m.contract("Appeals");
+    const initAppeals = m.call(Appeals, "initialize", [], {
+        after: [Appeals]
+    });
+    const setGenAppealsByConsensusMain = m.call(ConsensusMain, "setGenAppeals", [Appeals], {
+        after: [initAppeals]
+    });
+
 
     return {
         GhostContract,
@@ -133,6 +140,7 @@ module.exports = buildModule("DeployFixture", (m) => {
         Queues,
         Transactions,
         Messages,
-        ConsensusData
+        ConsensusData,
+        Appeals
     };
 });

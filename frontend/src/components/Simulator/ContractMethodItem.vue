@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ContractMethod } from 'genlayer-js/types';
+import { abi } from 'genlayer-js';
 import { ref } from 'vue';
 import { Collapse } from 'vue-collapsed';
 import { notify } from '@kyvg/vue3-notification';
@@ -7,7 +8,6 @@ import { ChevronDownIcon } from '@heroicons/vue/16/solid';
 import { useEventTracking, useContractQueries } from '@/hooks';
 import { unfoldArgsData, type ArgData } from './ContractParams';
 import ContractParams from './ContractParams.vue';
-import { abi } from 'genlayer-js';
 
 const { callWriteMethod, callReadMethod, contract } = useContractQueries();
 const { trackEvent } = useEventTracking();
@@ -21,12 +21,11 @@ const props = defineProps<{
 
 const isExpanded = ref(false);
 const isCalling = ref(false);
-const responseMessage = ref('');
+const responseMessage = ref();
 
 const calldataArguments = ref<ArgData>({ args: [], kwargs: {} });
 
 const handleCallReadMethod = async () => {
-  responseMessage.value = '';
   isCalling.value = true;
 
   try {

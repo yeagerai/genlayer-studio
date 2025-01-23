@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import { useAccountsStore } from '@/stores';
+import { useAccountsStore, type AccountInfo } from '@/stores';
 import { notify } from '@kyvg/vue3-notification';
-import { PowerCircle } from 'lucide-vue-next';
+import { PowerCircle, Wallet } from 'lucide-vue-next';
 import { ref } from 'vue';
 import CopyTextButton from '../global/CopyTextButton.vue';
 import { TrashIcon, CheckCircleIcon } from '@heroicons/vue/16/solid';
-import type { Account } from 'genlayer-js/types';
 const store = useAccountsStore();
 
 const setCurentAddress = () => {
-  store.setCurrentAccount(props.privateKey);
+  store.setCurrentAccount(props.account as AccountInfo);
   notify({
     title: 'Active account changed',
     type: 'success',
@@ -18,7 +17,7 @@ const setCurentAddress = () => {
 
 const deleteAddress = () => {
   try {
-    store.removeAccount(props.privateKey);
+    store.removeAccount(props.account as AccountInfo);
     notify({
       title: 'Account deleted',
       type: 'success',
@@ -35,8 +34,7 @@ const deleteAddress = () => {
 
 const props = defineProps<{
   active?: Boolean;
-  account: Account;
-  privateKey: `0x${string}`;
+  account: AccountInfo;
   canDelete?: Boolean;
 }>();
 
@@ -64,6 +62,12 @@ const showConfirmDelete = ref(false);
       >
         {{ account.address }}
       </span>
+
+      <Wallet
+        v-if="account.type === 'metamask'"
+        class="h-4 w-4 text-orange-500"
+        v-tooltip="'MetaMask Account'"
+      />
 
       <div
         class="flex flex-row items-center gap-1 opacity-0 group-hover:opacity-100"

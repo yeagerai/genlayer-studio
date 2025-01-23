@@ -44,6 +44,7 @@ contract ConsensusData is
 		ITransactions.TransactionStatus status;
 		uint256 committedVotesCount;
 		uint256 revealedVotesCount;
+		uint256 rotationsLeft;
 	}
 
 	receive() external payable {}
@@ -70,8 +71,8 @@ contract ConsensusData is
 
 		address activator = consensusMain.txActivator(_tx_id);
 		uint validatorsCount = consensusMain.validatorsCountForTx(_tx_id);
-		address[] memory validators = consensusMain.getValidatorsForTx(_tx_id);
 		uint leaderIndex = consensusMain.txLeaderIndex(_tx_id);
+		address[] memory validators = consensusMain.getValidatorsForTx(_tx_id);
 		address leader = validatorsCount > 0
 			? validators[leaderIndex]
 			: address(0);
@@ -101,7 +102,8 @@ contract ConsensusData is
 			leader: leader,
 			status: consensusMain.txStatus(_tx_id),
 			committedVotesCount: consensusMain.voteCommittedCountForTx(_tx_id),
-			revealedVotesCount: consensusMain.voteRevealedCountForTx(_tx_id)
+			revealedVotesCount: consensusMain.voteRevealedCountForTx(_tx_id),
+			rotationsLeft: transaction.rotationsLeft
 		});
 
 		return txData;
