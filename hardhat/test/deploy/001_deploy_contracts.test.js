@@ -18,7 +18,8 @@ describe("Deploy Script", function () {
         'Transactions',
         'Messages',
         'ConsensusMain',
-        'ConsensusData'
+        'ConsensusData',
+        'Appeals'
     ];
 
     before(async function () {
@@ -201,5 +202,35 @@ describe("Deploy Script", function () {
                 ]);
         });
 
+        it("should have initialized Appeals contract properly", async function() {
+            const appealsAddress = await contracts.Appeals.getAddress();
+            expect(appealsAddress, "Appeals contract should have a valid address")
+                .to.not.equal(ZeroAddress);
+        });
+
+        it("should have set Appeals contract in ConsensusMain properly", async function() {
+            const appealsAddress = await contracts.Appeals.getAddress();
+            expect(
+                await contracts.ConsensusMain.genAppeals(),
+                "ConsensusMain should have set GenAppeals address"
+            ).to.equal(appealsAddress);
+        });
+
+        it("should verify all validators are correctly registered", async function() {
+            expect(
+                await contracts.MockGenStaking.isValidator(validator1.address),
+                "Validator1 should be registered"
+            ).to.be.true;
+
+            expect(
+                await contracts.MockGenStaking.isValidator(validator2.address),
+                "Validator2 should be registered"
+            ).to.be.true;
+
+            expect(
+                await contracts.MockGenStaking.isValidator(validator3.address),
+                "Validator3 should be registered"
+            ).to.be.true;
+        });
     });
 });

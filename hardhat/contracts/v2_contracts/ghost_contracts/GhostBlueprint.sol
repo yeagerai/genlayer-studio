@@ -24,13 +24,15 @@ contract GhostBlueprint is Initializable, OwnableUpgradeable {
 
 	function addTransaction(
 		uint256 _numOfInitialValidators,
+		uint256 _maxRotations,
 		bytes memory _txData
 	) external payable {
 		bytes memory consensusCallData = abi.encodeWithSignature(
-			"addTransaction(address,address,uint256,bytes)",
+			"addTransaction(address,address,uint256,uint256,bytes)",
 			msg.sender,
 			address(this),
 			_numOfInitialValidators,
+			_maxRotations,
 			_txData
 		);
 		(bool success, ) = owner().call{ value: msg.value }(consensusCallData);

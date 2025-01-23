@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useAccountsStore } from '@/stores';
 import AccountItem from '@/components/Simulator/AccountItem.vue';
 import { Dropdown } from 'floating-vue';
@@ -6,14 +6,19 @@ import { Wallet } from 'lucide-vue-next';
 import { PlusIcon } from '@heroicons/vue/16/solid';
 import { notify } from '@kyvg/vue3-notification';
 import { useEventTracking } from '@/hooks';
-import { createAccount } from 'genlayer-js';
+import { computed } from 'vue';
+
 const store = useAccountsStore();
 const { trackEvent } = useEventTracking();
 
-const handleCreateNewAccount = async () => {
-  const privateKey = store.generateNewAccount();
+const hasMetaMaskAccount = computed(() =>
+  store.accounts.some((account) => account.type === 'metamask'),
+);
 
-  if (privateKey) {
+const handleCreateNewAccount = async () => {
+  const address = store.generateNewAccount();
+
+  if (address) {
     notify({
       title: 'New Account Created',
       type: 'success',
@@ -27,6 +32,10 @@ const handleCreateNewAccount = async () => {
     });
   }
 };
+
+const connectMetaMask = async () => {
+  await store.fetchMetaMaskAccount();
+};
 </script>
 
 <template>
@@ -39,26 +48,34 @@ const handleCreateNewAccount = async () => {
     <template #popper>
       <div class="divide-y divide-gray-200 dark:divide-gray-800">
         <AccountItem
-          v-for="privateKey in store.privateKeys"
-          :key="privateKey"
-          :privateKey="privateKey"
-          :account="createAccount(privateKey)"
-          :active="privateKey === store.currentPrivateKey"
-          :canDelete="true"
+          v-for="account in store.accounts"
+          :key="account.privateKey"
+          :account="account"
+          :active="account.address === store.selectedAccount?.address"
+          :canDelete="account.type === 'local'"
           v-close-popper
         />
       </div>
 
       <div
-        class="flex w-full border-t border-gray-300 bg-gray-200 p-1 dark:border-gray-600 dark:bg-gray-800"
+        class="flex w-full flex-row gap-1 border-t border-gray-300 bg-gray-200 p-1 dark:border-gray-600 dark:bg-gray-800"
       >
         <Btn
           @click="handleCreateNewAccount"
           secondary
           class="w-full"
           :icon="PlusIcon"
-          >New account</Btn
         >
+          New account
+        </Btn>
+        <Btn
+          v-if="!hasMetaMaskAccount"
+          @click="connectMetaMask"
+          secondary
+          class="w-full"
+        >
+          Connect MetaMask
+        </Btn>
       </div>
     </template>
   </Dropdown>

@@ -20,10 +20,13 @@ async function main() {
     const consensusMain = await hre.ethers.getContractAt("ConsensusMain", consensusMainAddress);
     const consensusData = await hre.ethers.getContractAt("ConsensusData", consensusDataAddress);
 
+    const maxRotations = 2;
+
     const txAddTransactionInput = consensusMain.addTransaction.getFragment(
         ethers.ZeroAddress, // sender (will use msg.sender)
         ethers.ZeroAddress, // recipient (will create ghost)
         3, // number of validators
+        maxRotations, // max rotations
         "0x" // transaction data
     );
 
@@ -39,6 +42,7 @@ async function main() {
         ethers.ZeroAddress,
         ethers.ZeroAddress,
         3,
+        maxRotations,
         "0x"
     );
     const receipt = await tx.wait();
@@ -125,10 +129,10 @@ async function main() {
     console.log("Transaction data after commits:", txData);
 
     // 5. Reveal votes
-    await consensusMain.connect(validator1).revealVote(txId, voteHash1, voteType, nonces[0])
-    await consensusMain.connect(validator2).revealVote(txId, voteHash2, voteType, nonces[1])
-    const revealVoteInput3 = consensusMain.revealVote.getFragment(txId, voteHash3, voteType, nonces[2])
-    const revealReceipt3 = await consensusMain.connect(validator3).revealVote(txId, voteHash3, voteType, nonces[2])
+    await consensusMain.connect(validator1).revealVote(txId, voteHash1, voteType, nonces[0], false)
+    await consensusMain.connect(validator2).revealVote(txId, voteHash2, voteType, nonces[1], false)
+    const revealVoteInput3 = consensusMain.revealVote.getFragment(txId, voteHash3, voteType, nonces[2], false)
+    const revealReceipt3 = await consensusMain.connect(validator3).revealVote(txId, voteHash3, voteType, nonces[2], false)
     const revealReceipt3Receipt = await revealReceipt3.wait()
     txData = await consensusData.getTransactionData(txId);
     console.log("Transaction data after reveals:", txData);
