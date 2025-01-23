@@ -371,16 +371,13 @@ class ConsensusAlgorithm:
         # Create a new event loop for running the appeal window
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        print(" ~ ~ ~ ~ ~ STARTING APPEAL WINDOW LOOP")
         loop.run_until_complete(self._appeal_window())
         loop.close()
-        print(" ~ ~ ~ ~ ~ ENDING APPEAL WINDOW LOOP")
 
     async def _appeal_window(self):
         """
         Handle the appeal window for transactions.
         """
-        print(" ~ ~ ~ ~ ~ FINALITY WINDOW: ", self.finality_window_time)
         while True:
             try:
                 with self.get_session() as session:
@@ -431,45 +428,70 @@ class ConsensusAlgorithm:
 
                             if transaction.status == TransactionStatus.UNDETERMINED:
                                 # Leader appeal
-                                # Appeal data member is used in the frontend for both types of appeals
-                                # Here the type is refined based on the status
-                                transactions_processor.set_transaction_appeal_undetermined(
-                                    transaction.hash, True
-                                )
                                 transactions_processor.set_transaction_appeal(
                                     transaction.hash, False
                                 )
-                                transaction.appeal_undetermined = True
                                 transaction.appealed = False
 
-                                ConsensusAlgorithm.dispatch_transaction_status_update(
-                                    transactions_processor,
-                                    transaction.hash,
-                                    TransactionStatus.PENDING,
-                                    self.msg_handler,
-                                )
+                                if len(
+                                    transaction.consensus_data.validators
+                                ) + 1 == len(chain_snapshot.get_all_validators()):
+                                    self.msg_handler.send_message(
+                                        LogEvent(
+                                            "consensus_event",
+                                            EventType.ERROR,
+                                            EventScope.CONSENSUS,
+                                            "Appeal failed, no validators found to process the appeal",
+                                            {
+                                                "transaction_hash": transaction.hash,
+                                            },
+                                            transaction_hash=transaction.hash,
+                                        )
+                                    )
+                                    transactions_processor.set_transaction_appeal(
+                                        transaction.hash, False
+                                    )
+                                    transaction.appealed = False
+                                    session.commit()
+                                else:
 
-                                # Create a transaction context for the appeal process
-                                context = TransactionContext(
-                                    transaction=transaction,
-                                    transactions_processor=transactions_processor,
-                                    snapshot=chain_snapshot,
-                                    accounts_manager=AccountsManager(session),
-                                    contract_snapshot_factory=lambda contract_address: contract_snapshot_factory(
-                                        contract_address, session, transaction
-                                    ),
-                                    node_factory=node_factory,
-                                    msg_handler=self.msg_handler,
-                                )
+                                    # Appeal data member is used in the frontend for both types of appeals
+                                    # Here the type is refined based on the status
+                                    transactions_processor.set_transaction_appeal_undetermined(
+                                        transaction.hash, True
+                                    )
+                                    transaction.appeal_undetermined = True
 
-                                # Begin state transitions starting from PendingState
-                                state = PendingState(called_from_pending_queue=False)
-                                while True:
-                                    next_state = await state.handle(context)
-                                    if next_state is None:
-                                        break
-                                    state = next_state
-                                session.commit()
+                                    ConsensusAlgorithm.dispatch_transaction_status_update(
+                                        transactions_processor,
+                                        transaction.hash,
+                                        TransactionStatus.PENDING,
+                                        self.msg_handler,
+                                    )
+
+                                    # Create a transaction context for the appeal process
+                                    context = TransactionContext(
+                                        transaction=transaction,
+                                        transactions_processor=transactions_processor,
+                                        snapshot=chain_snapshot,
+                                        accounts_manager=AccountsManager(session),
+                                        contract_snapshot_factory=lambda contract_address: contract_snapshot_factory(
+                                            contract_address, session, transaction
+                                        ),
+                                        node_factory=node_factory,
+                                        msg_handler=self.msg_handler,
+                                    )
+
+                                    # Begin state transitions starting from PendingState
+                                    state = PendingState(
+                                        called_from_pending_queue=False
+                                    )
+                                    while True:
+                                        next_state = await state.handle(context)
+                                        if next_state is None:
+                                            break
+                                        state = next_state
+                                    session.commit()
 
                             else:
                                 # Validator appeal
@@ -499,9 +521,20 @@ class ConsensusAlgorithm:
                                             transaction.appeal_failed,
                                         )
                                     )
-                                except ValueError as e:
+                                except ValueError:
                                     # When no validators are found, then the appeal failed
-                                    print(e, transaction)
+                                    context.msg_handler.send_message(
+                                        LogEvent(
+                                            "consensus_event",
+                                            EventType.ERROR,
+                                            EventScope.CONSENSUS,
+                                            "Appeal failed, no validators found to process the appeal",
+                                            {
+                                                "transaction_hash": context.transaction.hash,
+                                            },
+                                            transaction_hash=context.transaction.hash,
+                                        )
+                                    )
                                     context.transactions_processor.set_transaction_appeal(
                                         context.transaction.hash, False
                                     )
@@ -596,9 +629,7 @@ class ConsensusAlgorithm:
         not_used_validators = list(validator_map.values())
 
         if len(not_used_validators) == 0:
-            raise ValueError(
-                "No validators found for appeal, waiting for next appeal request: "
-            )
+            raise ValueError("No validators found")
 
         nb_current_validators = len(receipt_addresses)
         if appeal_failed == 0:
@@ -784,7 +815,19 @@ class PendingState(TransactionState):
             print(" ~ ~ ~ ~ ~ TRANSACTION ALREADY IN PROCESS: ", context.transaction)
             return None
 
-        print(" ~ ~ ~ ~ ~ EXECUTING TRANSACTION: ", context.transaction)
+        context.msg_handler.send_message(
+            LogEvent(
+                "consensus_event",
+                EventType.INFO,
+                EventScope.CONSENSUS,
+                "Executing transaction",
+                {
+                    "transaction_hash": context.transaction.hash,
+                    "transaction": context.transaction.to_dict(),
+                },
+                transaction_hash=context.transaction.hash,
+            )
+        )
 
         # If transaction is a transfer, execute it
         # TODO: consider when the transfer involves a contract account, bridging, etc.
@@ -802,9 +845,17 @@ class PendingState(TransactionState):
 
         # Check if there are validators available
         if not all_validators:
-            print(
-                "No validators found for transaction, waiting for next round: ",
-                context.transaction,
+            context.msg_handler.send_message(
+                LogEvent(
+                    "consensus_event",
+                    EventType.ERROR,
+                    EventScope.CONSENSUS,
+                    "No validators found to process transaction",
+                    {
+                        "transaction_hash": context.transaction.hash,
+                    },
+                    transaction_hash=context.transaction.hash,
+                )
             )
             return None
 
@@ -1084,11 +1135,17 @@ class RevealingState(TransactionState):
 
             else:
                 # Log the failure to reach consensus and transition to ProposingState
-                print(
-                    "Consensus not reached for transaction, rotating leader: ",
-                    context.transactions_processor.get_transaction_by_hash(
-                        context.transaction.hash
-                    ),
+                context.msg_handler.send_message(
+                    LogEvent(
+                        "consensus_event",
+                        EventType.INFO,
+                        EventScope.CONSENSUS,
+                        "Majority disagreement, rotating the leader",
+                        {
+                            "transaction_hash": context.transaction.hash,
+                        },
+                        transaction_hash=context.transaction.hash,
+                    )
                 )
                 return ProposingState()
 
@@ -1142,11 +1199,14 @@ class AcceptedState(TransactionState):
         # Send a message indicating consensus was reached
         context.msg_handler.send_message(
             LogEvent(
-                "consensus_reached",
+                "consensus_event",
                 EventType.SUCCESS,
                 EventScope.CONSENSUS,
                 "Reached consensus",
-                context.consensus_data.to_dict(),
+                {
+                    "transaction_hash": context.transaction.hash,
+                    "consensus_data": context.consensus_data.to_dict(),
+                },
                 transaction_hash=context.transaction.hash,
             )
         )
@@ -1213,10 +1273,14 @@ class UndeterminedState(TransactionState):
         # Send a message indicating consensus failure
         context.msg_handler.send_message(
             LogEvent(
-                "consensus_failed",
+                "consensus_event",
                 EventType.ERROR,
                 EventScope.CONSENSUS,
                 "Failed to reach consensus",
+                {
+                    "transaction_hash": context.transaction.hash,
+                    "consensus_data": context.consensus_data.to_dict(),
+                },
                 transaction_hash=context.transaction.hash,
             )
         )
@@ -1247,13 +1311,6 @@ class UndeterminedState(TransactionState):
             context.msg_handler,
         )
 
-        # Log the failure to reach consensus for the transaction
-        print(
-            "Consensus not reached for transaction: ",
-            context.transactions_processor.get_transaction_by_hash(
-                context.transaction.hash
-            ),
-        )
         return None
 
 
