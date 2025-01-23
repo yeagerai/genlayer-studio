@@ -37,6 +37,11 @@ class DecodedTransaction:
 @dataclass
 class DecodedMethodCallData:
     calldata: bytes
+
+
+@dataclass
+class DecodedMethodSendData:
+    calldata: bytes
     leader_only: bool = False
 
 
