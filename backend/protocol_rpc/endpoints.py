@@ -605,8 +605,6 @@ def get_gas_estimate(data: Any) -> str:
     gas_price_in_wei = 20 * 10**9
     return hex(gas_price_in_wei)
 
-    return hex(gas_price_in_wei)
-
 
 def get_transaction_receipt(
     transactions_processor: TransactionsProcessor,
