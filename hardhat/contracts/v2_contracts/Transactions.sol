@@ -51,10 +51,11 @@ contract Transactions is
 			0;
 	}
 
-	function getMinAppealBond(
+	function getAppealInfo(
 		bytes32 _tx_id
-	) external view returns (uint256 minAppealBond) {
+	) external view returns (uint256 minAppealBond, bytes32 randomSeed) {
 		minAppealBond = _calculateMinAppealBond(_tx_id);
+		randomSeed = transactions[_tx_id].randomSeed;
 	}
 
 	function addNewTransaction(
@@ -127,6 +128,18 @@ contract Transactions is
 		}
 	}
 
+	function setAppealData(
+		bytes32 _tx_id,
+		address[] memory _validators
+	) external returns (uint256 appealIndex) {
+		transactions[_tx_id].validators = _concatArrays(
+			transactions[_tx_id].validators,
+			_validators
+		);
+		//TODO: Implement appeal logic
+		appealIndex = 1;
+	}
+
 	function _getMajorityVote(
 		bytes32 _tx_id
 	) private view returns (ITransactions.ResultType result) {
@@ -182,6 +195,39 @@ contract Transactions is
 		return transactions[txId].lastVoteTimestamp;
 	}
 
+	function getTransactionActivationInfo(
+		bytes32 txId
+	)
+		external
+		view
+		returns (ITransactions.ActivationInfo memory activationInfo)
+	{
+		activationInfo.recepientAddress = transactions[txId].recipient;
+		activationInfo.numOfInitialValidators = transactions[txId]
+			.numOfInitialValidators;
+		activationInfo.initialActivation =
+			transactions[txId].activationTimestamp == 0;
+		activationInfo.rotationsLeft = transactions[txId].rotationsLeft;
+	}
+
+	function getTransactionResult(
+		bytes32 txId
+	) external view returns (ITransactions.ResultType result) {
+		result = transactions[txId].result;
+	}
+
+	function getTransactionRecipient(
+		bytes32 txId
+	) external view returns (address recipient) {
+		recipient = transactions[txId].recipient;
+	}
+
+	function getTransactionSeed(
+		bytes32 txId
+	) external view returns (bytes32 seed) {
+		seed = transactions[txId].randomSeed;
+	}
+
 	function _calculateMinAppealBond(
 		bytes32 _tx_id
 	) internal view returns (uint256 minAppealBond) {
@@ -189,23 +235,33 @@ contract Transactions is
 		minAppealBond = 0;
 	}
 
-	function setGenConsensus(address _genConsensus) external onlyOwner {
-		genConsensus = _genConsensus;
-		emit GenConsensusSet(_genConsensus);
+	function _concatArrays(
+		address[] memory _array1,
+		address[] memory _array2
+	) internal pure returns (address[] memory) {
+		address[] memory result = new address[](
+			_array1.length + _array2.length
+		);
+		for (uint i = 0; i < _array1.length; i++) {
+			result[i] = _array1[i];
+		}
+		for (uint i = 0; i < _array2.length; i++) {
+			result[_array1.length + i] = _array2[i];
+		}
+		return result;
 	}
 
-	function setRandomSeed(
+	function setActivationData(
 		bytes32 txId,
 		bytes32 randomSeed
 	) external onlyGenConsensus {
+		transactions[txId].activationTimestamp = block.timestamp;
 		transactions[txId].randomSeed = randomSeed;
 	}
 
-	function setActivationTimestamp(
-		bytes32 txId,
-		uint256 timestamp
-	) external onlyGenConsensus {
-		transactions[txId].activationTimestamp = timestamp;
+	function setGenConsensus(address _genConsensus) external onlyOwner {
+		genConsensus = _genConsensus;
+		emit GenConsensusSet(_genConsensus);
 	}
 
 	modifier onlyGenConsensus() {
@@ -213,5 +269,92 @@ contract Transactions is
 			revert CallerNotConsensus();
 		}
 		_;
+	}
+
+	function decreaseRotationsLeft(bytes32 txId) external onlyGenConsensus {
+		transactions[txId].rotationsLeft--;
+	}
+
+	function popLastValidator(bytes32 txId) external onlyGenConsensus {
+		transactions[txId].validators.pop();
+	}
+
+	function addValidator(
+		bytes32 txId,
+		address validator
+	) external onlyGenConsensus {
+		transactions[txId].validators.push(validator);
+	}
+
+	function addConsumedValidator(
+		bytes32 txId,
+		address validator
+	) external onlyGenConsensus {
+		transactions[txId].consumedValidators.push(validator);
+	}
+
+	function setValidators(
+		bytes32 txId,
+		address[] memory validators
+	) external onlyGenConsensus {
+		transactions[txId].validators = validators;
+		transactions[txId].validatorVotesHash = new bytes32[](
+			validators.length
+		);
+		transactions[txId].validatorVotes = new ITransactions.VoteType[](
+			validators.length
+		);
+	}
+
+	function getValidators(
+		bytes32 txId
+	) external view returns (address[] memory) {
+		return transactions[txId].validators;
+	}
+
+	function getValidatorsLen(bytes32 txId) external view returns (uint256) {
+		return transactions[txId].validators.length;
+	}
+
+	function getValidator(
+		bytes32 txId,
+		uint256 index
+	) external view returns (address) {
+		return transactions[txId].validators[index];
+	}
+
+	function resetVotes(bytes32 txId) external onlyGenConsensus {
+		transactions[txId].validatorVotes = new ITransactions.VoteType[](0);
+		transactions[txId].validatorVotesHash = new bytes32[](0);
+		transactions[txId].validators = new address[](0);
+	}
+
+	function getConsumedValidators(
+		bytes32 txId
+	) external view returns (address[] memory) {
+		return transactions[txId].consumedValidators;
+	}
+
+	function getConsumedValidatorsLen(
+		bytes32 txId
+	) external view returns (uint256) {
+		return transactions[txId].consumedValidators.length;
+	}
+
+	function rotateLeader(
+		bytes32 txId,
+		address leader
+	) external onlyGenConsensus {
+		transactions[txId].rotationsLeft--;
+		transactions[txId].consumedValidators.push(leader);
+	}
+
+	function addConsumedValidators(
+		bytes32 txId,
+		address[] memory validators
+	) external onlyGenConsensus {
+		for (uint i = 0; i < validators.length; i++) {
+			transactions[txId].consumedValidators.push(validators[i]);
+		}
 	}
 }
