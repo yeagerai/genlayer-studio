@@ -1,10 +1,31 @@
+from sqlalchemy.orm import Session
+import pytest
+from unittest.mock import patch, MagicMock
+import os
 import math
 from datetime import datetime
 
-from backend.database_handler.transactions_processor import (
-    TransactionsProcessor,
-    TransactionStatus,
-)
+from backend.database_handler.chain_snapshot import ChainSnapshot
+from backend.database_handler.models import Transactions
+from backend.database_handler.transactions_processor import TransactionStatus
+from backend.database_handler.transactions_processor import TransactionsProcessor
+
+
+@pytest.fixture(autouse=True)
+def mock_env_and_web3():
+    with patch.dict(
+        os.environ,
+        {
+            "HARDHAT_PORT": "8545",
+            "HARDHAT_URL": "http://localhost",
+            "HARDHAT_PRIVATE_KEY": "0x0123456789",
+        },
+    ), patch("web3.Web3.HTTPProvider"), patch(
+        "web3.Web3.eth.accounts",
+        new_callable=MagicMock,
+        return_value=["0x0000000000000000000000000000000000000000"],
+    ):
+        yield
 
 
 def test_transactions_processor(transactions_processor: TransactionsProcessor):
@@ -98,3 +119,41 @@ def test_transactions_processor(transactions_processor: TransactionsProcessor):
     assert math.isclose(actual_transaction["value"], value)
     assert actual_transaction["type"] == transaction_type
     assert actual_transaction["created_at"] == created_at
+
+
+def test_get_highest_timestamp(transactions_processor: TransactionsProcessor):
+    # Initially should return 0 when no transactions exist
+    assert transactions_processor.get_highest_timestamp() == 0
+
+    # Create some transactions with different timestamps
+    from_address = "0x9F0e84243496AcFB3Cd99D02eA59673c05901501"
+    to_address = "0xAcec3A6d871C25F591aBd4fC24054e524BBbF794"
+    data = {"key": "value"}
+
+    # First transaction with timestamp 1000
+    tx1_hash = transactions_processor.insert_transaction(
+        from_address, to_address, data, 1.0, 1, 0, True
+    )
+    transactions_processor.session.commit()
+    assert transactions_processor.get_highest_timestamp() == 0
+    transactions_processor.set_transaction_timestamp_awaiting_finalization(
+        tx1_hash, 1000
+    )
+
+    # Second transaction with timestamp 2000
+    tx2_hash = transactions_processor.insert_transaction(
+        from_address, to_address, data, 1.0, 1, 1, True
+    )
+    transactions_processor.set_transaction_timestamp_awaiting_finalization(
+        tx2_hash, 2000
+    )
+
+    # Third transaction with no timestamp (should be ignored)
+    transactions_processor.insert_transaction(
+        from_address, to_address, data, 1.0, 1, 2, True
+    )
+
+    transactions_processor.session.commit()
+
+    # Should return the highest timestamp (2000)
+    assert transactions_processor.get_highest_timestamp() == 2000

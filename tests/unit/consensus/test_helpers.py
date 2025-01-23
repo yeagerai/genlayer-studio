@@ -21,6 +21,7 @@ from backend.node.types import ExecutionMode, ExecutionResultStatus, Receipt, Vo
 from backend.protocol_rpc.message_handler.base import MessageHandler
 
 DEFAULT_FINALITY_WINDOW = 5
+DEFAULT_FINALITY_WINDOW_SLEEP = DEFAULT_FINALITY_WINDOW * 1.2 + 2
 DEFAULT_EXEC_RESULT = b"\x00\x00"  # success(null)
 
 
@@ -58,7 +59,12 @@ class TransactionsProcessorMock:
 
     def set_transaction_appeal(self, transaction_hash: str, appeal: bool):
         transaction = self.get_transaction_by_hash(transaction_hash)
-        transaction["appealed"] = appeal
+        if (
+            (not appeal)
+            or (transaction["status"] == TransactionStatus.ACCEPTED.value)
+            or (transaction["status"] == TransactionStatus.UNDETERMINED.value)
+        ):
+            transaction["appealed"] = appeal
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None

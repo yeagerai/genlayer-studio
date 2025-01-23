@@ -1,7 +1,7 @@
 export const useShortAddress = () => {
   function shorten(address?: string) {
     if (!address) {
-      return '';
+      return '0x';
     }
 
     const maxChars = 4;
