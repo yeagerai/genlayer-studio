@@ -463,12 +463,14 @@ def send_raw_transaction(
     transactions_processor: TransactionsProcessor,
     accounts_manager: AccountsManager,
     transactions_parser: TransactionParser,
+    consensus_service: ConsensusService,
     signed_rollup_transaction: str,
 ) -> str:
     # Decode transaction
     decoded_rollup_transaction = transactions_parser.decode_signed_transaction(
         signed_rollup_transaction
     )
+    print("DECODED ROLLUP TRANSACTION", decoded_rollup_transaction)
 
     # Validate transaction
     if decoded_rollup_transaction is None:
@@ -530,6 +532,7 @@ def send_raw_transaction(
         nonce,
         leader_only,
     )
+    consensus_service.forward_transaction(signed_rollup_transaction)
 
     return transaction_hash
 
@@ -602,7 +605,7 @@ def get_gas_price() -> str:
 
 
 def get_gas_estimate(data: Any) -> str:
-    gas_price_in_wei = 20 * 10**9
+    gas_price_in_wei = 30 * 10**6
     return hex(gas_price_in_wei)
 
 
@@ -820,6 +823,7 @@ def register_all_rpc_endpoints(
             transactions_processor,
             accounts_manager,
             transactions_parser,
+            consensus_service,
         ),
         method_name="eth_sendRawTransaction",
     )

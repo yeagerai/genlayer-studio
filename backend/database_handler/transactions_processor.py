@@ -147,65 +147,6 @@ class TransactionsProcessor:
         )
         ghost_contract_address = None
 
-        if type == TransactionType.DEPLOY_CONTRACT.value:
-            # Hardhat account
-            account = self.web3.eth.accounts[0]
-            private_key = os.environ.get("HARDHAT_PRIVATE_KEY")
-
-            # Ghost contract
-            # Read contract ABI and bytecode from compiled contract
-            try:
-                consensus_service = ConsensusService()
-                ghost_contract = consensus_service.load_contract("GhostContract")
-
-                abi = ghost_contract["abi"]
-                bytecode = ghost_contract["bytecode"]
-                contract = self.web3.eth.contract(abi=abi, bytecode=bytecode)
-
-                # Create the contract instance
-                contract = self.web3.eth.contract(abi=abi, bytecode=bytecode)
-
-                # Build the transaction
-                gas_estimate = self.web3.eth.estimate_gas(
-                    contract.constructor().build_transaction(
-                        {
-                            "from": account,
-                            "nonce": self.web3.eth.get_transaction_count(account),
-                            "gasPrice": 0,
-                        }
-                    )
-                )
-                transaction = contract.constructor().build_transaction(
-                    {
-                        "from": account,
-                        "nonce": self.web3.eth.get_transaction_count(account),
-                        "gas": gas_estimate,
-                        "gasPrice": 0,
-                    }
-                )
-
-                # Sign the transaction
-                signed_tx = self.web3.eth.account.sign_transaction(
-                    transaction, private_key=private_key
-                )
-
-                # Send the transaction
-                tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-
-                # Wait for the transaction receipt
-                receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-                ghost_contract_address = receipt.contractAddress
-
-            except Exception as e:
-                print(f"Error deploying ghost contract: {e}")
-
-        elif type == TransactionType.RUN_CONTRACT.value:
-            genlayer_contract_address = to_address
-            contract_snapshot = ContractSnapshot(
-                genlayer_contract_address, self.session
-            )
-            ghost_contract_address = contract_snapshot.ghost_contract_address
-
         new_transaction = Transactions(
             hash=transaction_hash,
             from_address=from_address,
@@ -237,9 +178,6 @@ class TransactionsProcessor:
         self.session.add(new_transaction)
 
         self.session.flush()  # So that `created_at` gets set
-
-        if type != TransactionType.SEND.value:
-            self.create_rollup_transaction(new_transaction.hash)
 
         return new_transaction.hash
 

@@ -31,16 +31,16 @@ class ConsensusService:
             Optional[dict]: The contract deployment data or None if loading fails
         """
         try:
-            compiled_data = self._load_compiled_contract(contract_name)
+            # compiled_data = self._load_compiled_contract(contract_name)
             deployment_data = self._load_deployment_data(contract_name)
 
-            if not compiled_data or not deployment_data:
-                return None
+            # if not compiled_data or not deployment_data:
+            #     return None
 
             return {
                 "address": deployment_data["address"],
-                "abi": compiled_data["abi"],
-                "bytecode": compiled_data["bytecode"],
+                "abi": deployment_data["abi"],
+                "bytecode": deployment_data["bytecode"],
             }
 
         except Exception as e:
@@ -105,3 +105,13 @@ class ConsensusService:
         except Exception as e:
             print(f"[CONSENSUS_SERVICE]: Error loading deployment data: {str(e)}")
             return None
+
+    def forward_transaction(self, transaction: dict) -> str:
+        """
+        Forward a transaction to the consensus rollup
+        """
+        tx_hash = self.web3.eth.send_raw_transaction(transaction)
+        print("TX HASH", tx_hash)
+        receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+        print("RECEIPT", receipt)
+        return receipt
