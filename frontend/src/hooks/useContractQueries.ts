@@ -10,17 +10,17 @@ import { useDebounceFn } from '@vueuse/core';
 import { notify } from '@kyvg/vue3-notification';
 import { useMockContractData } from './useMockContractData';
 import { useEventTracking, useGenlayer } from '@/hooks';
-import * as calldata from '@/calldata';
 import type {
   Address,
   TransactionHash,
-  ContractSchema,
+  CalldataEncodable,
 } from 'genlayer-js/types';
 
 const schema = ref<any>();
 
 export function useContractQueries() {
   const genlayer = useGenlayer();
+  const genlayerClient = computed(() => genlayer.client.value);
   const accountsStore = useAccountsStore();
   const transactionsStore = useTransactionsStore();
   const contractsStore = useContractsStore();
@@ -68,7 +68,7 @@ export function useContractQueries() {
     }
 
     try {
-      const result = await genlayer.client?.getContractSchemaForCode(
+      const result = await genlayerClient.value?.getContractSchemaForCode(
         contract.value?.content ?? '',
       );
 
@@ -94,22 +94,22 @@ export function useContractQueries() {
 
   async function deployContract(
     args: {
-      args: calldata.CalldataEncodable[];
-      kwargs: { [key: string]: calldata.CalldataEncodable };
+      args: CalldataEncodable[];
+      kwargs: { [key: string]: CalldataEncodable };
     },
     leaderOnly: boolean,
   ) {
     isDeploying.value = true;
 
     try {
-      if (!contract.value || !accountsStore.currentPrivateKey) {
+      if (!contract.value || !accountsStore.selectedAccount) {
         throw new Error('Error Deploying the contract');
       }
 
       const code = contract.value?.content ?? '';
       const code_bytes = new TextEncoder().encode(code);
 
-      const result = await genlayer.client?.deployContract({
+      const result = await genlayerClient.value?.deployContract({
         code: code_bytes as any as string, // FIXME: code should accept both bytes and string in genlayer-js
         args: args.args,
         leaderOnly,
@@ -143,6 +143,7 @@ export function useContractQueries() {
         type: 'error',
         title: 'Error deploying contract',
       });
+      console.error('Error Deploying the contract', error);
       throw new Error('Error Deploying the contract');
     }
   }
@@ -168,7 +169,7 @@ export function useContractQueries() {
       return mockContractSchema;
     }
 
-    const result = await genlayer.client?.getContractSchema(
+    const result = await genlayerClient.value?.getContractSchema(
       deployedContract.value?.address ?? '',
     );
 
@@ -178,13 +179,13 @@ export function useContractQueries() {
   async function callReadMethod(
     method: string,
     args: {
-      args: calldata.CalldataEncodable[];
-      kwargs: { [key: string]: calldata.CalldataEncodable };
+      args: CalldataEncodable[];
+      kwargs: { [key: string]: CalldataEncodable };
     },
     stateStatus: string,
   ) {
     try {
-      const result = await genlayer.client?.readContract({
+      const result = await genlayerClient.value?.readContract({
         address: address.value as Address,
         functionName: method,
         args: args.args,
@@ -205,17 +206,17 @@ export function useContractQueries() {
   }: {
     method: string;
     args: {
-      args: calldata.CalldataEncodable[];
-      kwargs: { [key: string]: calldata.CalldataEncodable };
+      args: CalldataEncodable[];
+      kwargs: { [key: string]: CalldataEncodable };
     };
     leaderOnly: boolean;
   }) {
     try {
-      if (!accountsStore.currentPrivateKey) {
+      if (!accountsStore.selectedAccount) {
         throw new Error('Error writing to contract');
       }
 
-      const result = await genlayer.client?.writeContract({
+      const result = await genlayerClient.value?.writeContract({
         address: address.value as Address,
         functionName: method,
         args: args.args,

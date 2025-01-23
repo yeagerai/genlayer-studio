@@ -37,8 +37,13 @@ class DecodedTransaction:
 @dataclass
 class DecodedMethodCallData:
     calldata: bytes
-    leader_only: bool = False
     state_status: str = "accepted"
+
+
+@dataclass
+class DecodedMethodSendData:
+    calldata: bytes
+    leader_only: bool = False
 
 
 @dataclass

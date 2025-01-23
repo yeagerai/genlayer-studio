@@ -6,12 +6,14 @@ from rlp.exceptions import DeserializationError, SerializationError
 from eth_account import Account
 from eth_account._utils.legacy_transactions import Transaction, vrs_from
 from eth_account._utils.signing import hash_of_signed_transaction
+import eth_utils
 from eth_utils import to_checksum_address
 from hexbytes import HexBytes
 
 from backend.protocol_rpc.types import (
     DecodedDeploymentData,
     DecodedMethodCallData,
+    DecodedMethodSendData,
     DecodedTransaction,
 )
 
@@ -93,27 +95,36 @@ def transaction_has_valid_signature(
     return recovered_address == decoded_tx.from_address
 
 
+def decode_method_send_data(data: str) -> DecodedMethodSendData:
+    data_bytes = HexBytes(data)
+
+    try:
+        data_decoded = rlp.decode(data_bytes, MethodSendTransactionPayload)
+    except rlp.exceptions.DeserializationError as e:
+        print("WARN | falling back to default decode method send data:", e)
+        data_decoded = rlp.decode(data_bytes, MethodSendTransactionPayloadDefault)
+
+    leader_only = getattr(data_decoded, "leader_only", False)
+
+    return DecodedMethodSendData(
+        calldata=data_decoded["calldata"],
+        leader_only=leader_only,
+    )
+
+
 def decode_method_call_data(data: str) -> DecodedMethodCallData:
     data_bytes = HexBytes(data)
 
     try:
         data_decoded = rlp.decode(data_bytes, MethodCallTransactionPayload)
     except rlp.exceptions.DeserializationError as e:
-        print("WARN | falling back to MethodCallTransactionPayloadWithStateStatus:", e)
-        try:
-            data_decoded = rlp.decode(
-                data_bytes, MethodCallTransactionPayloadWithStateStatus
-            )
-        except rlp.exceptions.DeserializationError as e:
-            print("WARN | falling back to default decode method call data:", e)
-            data_decoded = rlp.decode(data_bytes, MethodCallTransactionPayloadDefault)
+        print("WARN | falling back to default decode method call data:", e)
+        data_decoded = rlp.decode(data_bytes, MethodCallTransactionPayloadDefault)
 
-    leader_only = getattr(data_decoded, "leader_only", False)
     state_status = getattr(data_decoded, "state_status", "accepted")
 
     return DecodedMethodCallData(
         calldata=data_decoded["calldata"],
-        leader_only=leader_only,
         state_status=state_status,
     )
 
@@ -153,14 +164,20 @@ class DeploymentContractTransactionPayloadDefault(rlp.Serializable):
     ]
 
 
-class MethodCallTransactionPayload(rlp.Serializable):
+class MethodSendTransactionPayload(rlp.Serializable):
     fields = [
         ("calldata", binary),
         ("leader_only", boolean),
     ]
 
 
-class MethodCallTransactionPayloadWithStateStatus(rlp.Serializable):
+class MethodSendTransactionPayloadDefault(rlp.Serializable):
+    fields = [
+        ("calldata", binary),
+    ]
+
+
+class MethodCallTransactionPayload(rlp.Serializable):
     fields = [
         ("calldata", binary),
         ("state_status", text),

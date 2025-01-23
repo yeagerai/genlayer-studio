@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ContractMethod } from 'genlayer-js/types';
+import { abi } from 'genlayer-js';
 import { ref } from 'vue';
 import { Collapse } from 'vue-collapsed';
 import { notify } from '@kyvg/vue3-notification';
@@ -7,7 +8,6 @@ import { ChevronDownIcon } from '@heroicons/vue/16/solid';
 import { useEventTracking, useContractQueries } from '@/hooks';
 import { unfoldArgsData, type ArgData } from './ContractParams';
 import ContractParams from './ContractParams.vue';
-import * as calldata from '@/calldata';
 
 const { callWriteMethod, callReadMethod, contract } = useContractQueries();
 const { trackEvent } = useEventTracking();
@@ -40,18 +40,14 @@ const handleCallReadMethod = async () => {
     for (let i = 0; i < 2; i++) {
       const result = await callReadMethod(
         props.name,
-        unfoldArgsData({
-          args: calldataArguments.value.args,
-          kwargs: calldataArguments.value.kwargs,
-        }),
+        unfoldArgsData(calldataArguments.value),
         i === 0 ? 'accepted' : 'finalized',
       );
 
-      if (typeof result === 'string') {
-        const val = Uint8Array.from(atob(result), (c) => c.charCodeAt(0));
-        responseMessages[i].value = calldata.toString(calldata.decode(val));
+      if (result !== undefined) {
+        responseMessages[i].value = abi.calldata.toString(result);
       } else {
-        responseMessages[i].value = '<unknown>';
+        responseMessages[i].value = '<genlayer.client is undefined>';
       }
     }
 
