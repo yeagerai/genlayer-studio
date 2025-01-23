@@ -10,7 +10,7 @@ import { CheckCircleIcon, XCircleIcon } from '@heroicons/vue/16/solid';
 import CopyTextButton from '../global/CopyTextButton.vue';
 import { FilterIcon } from 'lucide-vue-next';
 import { GavelIcon } from 'lucide-vue-next';
-import * as calldata from '@/calldata';
+import { abi } from 'genlayer-js';
 
 const uiStore = useUIStore();
 const nodeStore = useNodeStore();
@@ -45,20 +45,17 @@ const shortHash = computed(() => {
   return props.transaction.hash?.slice(0, 6);
 });
 
-const isAppealed = ref(false);
+const appealed = ref(props.transaction.data.appealed);
 
 const handleSetTransactionAppeal = () => {
   transactionsStore.setTransactionAppeal(props.transaction.hash);
-
-  isAppealed.value = true;
+  appealed.value = true;
 };
 
 watch(
-  () => props.transaction.status,
-  (newStatus) => {
-    if (newStatus !== 'ACCEPTED' && newStatus !== 'UNDETERMINED') {
-      isAppealed.value = false;
-    }
+  () => props.transaction.data.appealed,
+  (newVal) => {
+    appealed.value = newVal;
   },
 );
 
@@ -77,7 +74,7 @@ function prettifyTxData(x: any): any {
             k,
             {
               status: 'success',
-              data: calldata.toString(calldata.decode(rest)),
+              data: abi.calldata.toString(abi.calldata.decode(rest)),
             },
           ];
         } else if (val[0] == 1) {
@@ -156,11 +153,14 @@ function prettifyTxData(x: any): any {
       <!-- <TransactionStatusBadge
         as="button"
         @click.stop="handleSetTransactionAppeal"
-        :class="{ '!bg-green-500': isAppealed }"
+        :class="{ '!bg-green-500': appealed }"
         v-if="
-          (transaction.data.leader_only == false) &&
-          (transaction.status == 'ACCEPTED' || transaction.status == 'UNDETERMINED') &&
-          ((Date.now() / 1000) - transaction.data.timestamp_awaiting_finalization <= finalityWindow)
+          transaction.data.leader_only == false &&
+          (transaction.status == 'ACCEPTED' ||
+            transaction.status == 'UNDETERMINED') &&
+          Date.now() / 1000 -
+            transaction.data.timestamp_awaiting_finalization <=
+            finalityWindow
         "
         v-tooltip="'Appeal transaction'"
       >
@@ -234,11 +234,14 @@ function prettifyTxData(x: any): any {
             <!-- <TransactionStatusBadge
               as="button"
               @click.stop="handleSetTransactionAppeal"
-              :class="{ '!bg-green-500': isAppealed }"
+              :class="{ '!bg-green-500': appealed }"
               v-if="
-                (transaction.data.leader_only == false) &&
-                (transaction.status == 'ACCEPTED' || transaction.status == 'UNDETERMINED') &&
-                ((Date.now() / 1000) - transaction.data.timestamp_awaiting_finalization <= finalityWindow)
+                transaction.data.leader_only == false &&
+                (transaction.status == 'ACCEPTED' ||
+                  transaction.status == 'UNDETERMINED') &&
+                Date.now() / 1000 -
+                  transaction.data.timestamp_awaiting_finalization <=
+                  finalityWindow
               "
               v-tooltip="'Appeal transaction'"
             >

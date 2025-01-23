@@ -5,9 +5,15 @@ import "./ITransactions.sol";
 
 interface IQueues {
 	enum QueueType {
+		None,
 		Pending,
 		Accepted,
 		Undetermined
+	}
+
+	struct LastQueueModification {
+		QueueType lastQueueType;
+		uint256 lastQueueTimestamp;
 	}
 
 	function getTransactionQueueType(
@@ -54,10 +60,14 @@ interface IQueues {
 		bytes32 txId
 	) external view returns (bool);
 
+	function getLastQueueModification(
+		bytes32 txId
+	) external view returns (LastQueueModification memory);
+
 	function addTransactionToPendingQueue(
 		address recipient,
 		bytes32 txId
-	) external returns (uint256);
+	) external returns (uint256, bytes32[] memory);
 
 	function activateTransaction(bytes32 txId) external;
 	// function setRecipientRandomSeed(
@@ -68,6 +78,16 @@ interface IQueues {
 	// function getRecipientRandomSeed(
 	// 	address recipient
 	// ) public view returns (bytes32);
+
+	function addTransactionToFinalizedQueue(
+		address recipient,
+		bytes32 txId
+	) external;
+
+	function isAtFinalizedQueueHead(
+		address recipient,
+		bytes32 txId
+	) external view returns (bool);
 
 	function isAtPendingQueueHead(
 		address recipient,
@@ -83,4 +103,9 @@ interface IQueues {
 		address recipient,
 		bytes32 txId
 	) external returns (uint slot);
+
+	function removeTransactionFromPendingQueue(
+		address recipient,
+		bytes32 txId
+	) external;
 }

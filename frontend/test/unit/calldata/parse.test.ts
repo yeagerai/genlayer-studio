@@ -1,30 +1,32 @@
 import { describe, it, expect } from 'vitest';
 
-import * as calldata from '@/calldata';
+import { abi } from 'genlayer-js';
+import { CalldataAddress } from 'genlayer-js/types';
+import { parse as calldataParse } from '@/calldata/parser';
 
 describe('calldata parsing tests', () => {
   it('string escapes', () => {
-    expect(calldata.parse('"\\n"')).toEqual('\n');
-    expect(calldata.parse('"\\r"')).toEqual('\r');
-    expect(calldata.parse('"\\t"')).toEqual('\t');
-    expect(calldata.parse('"\\u00029e3d"')).toEqual('𩸽');
+    expect(calldataParse('"\\n"')).toEqual('\n');
+    expect(calldataParse('"\\r"')).toEqual('\r');
+    expect(calldataParse('"\\t"')).toEqual('\t');
+    expect(calldataParse('"\\u00029e3d"')).toEqual('𩸽');
   });
   it('numbers', () => {
-    expect(calldata.parse('0')).toEqual(0n);
-    expect(calldata.parse('0xff')).toEqual(0xffn);
-    expect(calldata.parse('0o77')).toEqual(0o77n);
+    expect(calldataParse('0')).toEqual(0n);
+    expect(calldataParse('0xff')).toEqual(0xffn);
+    expect(calldataParse('0o77')).toEqual(0o77n);
   });
 
   it('numbers + sign', () => {
-    expect(calldata.parse('+0')).toEqual(0n);
-    expect(calldata.parse('+0xff')).toEqual(0xffn);
-    expect(calldata.parse('+0o77')).toEqual(0o77n);
+    expect(calldataParse('+0')).toEqual(0n);
+    expect(calldataParse('+0xff')).toEqual(0xffn);
+    expect(calldataParse('+0o77')).toEqual(0o77n);
   });
 
   it('numbers - sign', () => {
-    expect(calldata.parse('-0')).toEqual(-0n);
-    expect(calldata.parse('-0xff')).toEqual(-0xffn);
-    expect(calldata.parse('-0o77')).toEqual(-0o77n);
+    expect(calldataParse('-0')).toEqual(-0n);
+    expect(calldataParse('-0xff')).toEqual(-0xffn);
+    expect(calldataParse('-0o77')).toEqual(-0o77n);
   });
 
   it('all types', () => {
@@ -47,12 +49,12 @@ describe('calldata parsing tests', () => {
       str2: 'abc',
       num: 0xf,
       bytes: new Uint8Array([0xde, 0xad]),
-      addr: new calldata.Address(new Uint8Array(new Array(20).map(() => 0))),
+      addr: new CalldataAddress(new Uint8Array(new Array(20).map(() => 0))),
       arr: [-2, -0o7, -0xff00, -0],
     };
 
-    expect(calldata.encode(calldata.parse(asStr))).toEqual(
-      calldata.encode(asLiteral),
+    expect(abi.calldata.encode(calldataParse(asStr))).toEqual(
+      abi.calldata.encode(asLiteral),
     );
   });
 
@@ -70,22 +72,22 @@ describe('calldata parsing tests', () => {
       c: [],
       d: [1],
     };
-    expect(calldata.encode(calldata.parse(asStr))).toEqual(
-      calldata.encode(asLit),
+    expect(abi.calldata.encode(calldataParse(asStr))).toEqual(
+      abi.calldata.encode(asLit),
     );
   });
 
   it('string escapes', () => {
-    expect(calldata.parse('"\\\\"')).toEqual('\\');
-    expect(calldata.parse('"\\n"')).toEqual('\n');
+    expect(calldataParse('"\\\\"')).toEqual('\\');
+    expect(calldataParse('"\\n"')).toEqual('\n');
 
-    expect(() => calldata.parse('"\\a"')).toThrow();
+    expect(() => calldataParse('"\\a"')).toThrow();
   });
 
   it('errors', () => {
-    expect(() => calldata.parse('b#1')).toThrow();
-    expect(() => calldata.parse('0xz')).toThrow();
-    expect(() => calldata.parse('0o8')).toThrow();
-    expect(() => calldata.parse('addr#1234')).toThrow();
+    expect(() => calldataParse('b#1')).toThrow();
+    expect(() => calldataParse('0xz')).toThrow();
+    expect(() => calldataParse('0o8')).toThrow();
+    expect(() => calldataParse('addr#1234')).toThrow();
   });
 });
