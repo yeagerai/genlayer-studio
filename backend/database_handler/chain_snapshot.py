@@ -28,6 +28,7 @@ class ChainSnapshot:
         pending_transactions = (
             self.session.query(Transactions)
             .filter(Transactions.status == TransactionStatus.PENDING)
+            .order_by(Transactions.created_at)
             .all()
         )
         return [

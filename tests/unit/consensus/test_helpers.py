@@ -101,6 +101,37 @@ class TransactionsProcessorMock:
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["appeal_undetermined"] = appeal_undetermined
 
+    def get_newer_transactions(self, transaction_hash: str):
+        return []
+
+    def update_consensus_history(
+        self, transaction_hash: str, current_consensus_results: dict
+    ):
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        if transaction["consensus_history"]:
+            transaction["consensus_history"] += [current_consensus_results]
+        else:
+            transaction["consensus_history"] = [current_consensus_results]
+
+    def update_consensus_history(
+        self,
+        transaction_hash: str,
+        consensus_round: str,
+        leader_result: dict | None,
+        validator_results: list,
+    ):
+        transaction = self.get_transaction_by_hash(transaction_hash)
+
+        current_consensus_results = {
+            "consensus_round": consensus_round,
+            "leader_result": leader_result.to_dict() if leader_result else None,
+            "validator_results": [receipt.to_dict() for receipt in validator_results],
+        }
+        if transaction["consensus_history"]:
+            transaction["consensus_history"] += [current_consensus_results]
+        else:
+            transaction["consensus_history"] = [current_consensus_results]
+
 
 class SnapshotMock:
     def __init__(self, nodes):
@@ -133,6 +164,7 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "timestamp_awaiting_finalization": transaction.timestamp_awaiting_finalization,
         "appeal_failed": transaction.appeal_failed,
         "appeal_undetermined": transaction.appeal_undetermined,
+        "consensus_history": transaction.consensus_history,
         "config_rotation_rounds": transaction.config_rotation_rounds,
     }
 
@@ -192,24 +224,41 @@ async def _appeal_window(
         accepted_undetermined_transactions = (
             transactions_processor.get_accepted_undetermined_transactions()
         )
-        for transaction in accepted_undetermined_transactions:
+        for i, transaction in enumerate(accepted_undetermined_transactions):
             transaction = Transaction.from_dict(transaction)
             if not transaction.appealed:
                 if (transaction.leader_only) or (
                     (int(time.time()) - transaction.timestamp_awaiting_finalization)
                     > DEFAULT_FINALITY_WINDOW
                 ):
-                    context = TransactionContext(
-                        transaction=transaction,
-                        transactions_processor=transactions_processor,
-                        snapshot=SnapshotMock(nodes),
-                        accounts_manager=AccountsManagerMock(),
-                        contract_snapshot_factory=contract_snapshot_factory,
-                        node_factory=node_factory,
-                        msg_handler=msg_handler,
-                    )
-                    state = FinalizingState()
-                    await state.handle(context)
+                    if i == 0:
+                        finalize_current_transaction = True
+                    else:
+                        previous_transaction_hash = accepted_undetermined_transactions[
+                            i - 1
+                        ]["hash"]
+                        previous_transaction = Transaction.from_dict(
+                            transactions_processor.get_transaction_by_hash(
+                                previous_transaction_hash
+                            )
+                        )
+                        if previous_transaction.status == TransactionStatus.FINALIZED:
+                            finalize_current_transaction = True
+                        else:
+                            finalize_current_transaction = False
+
+                    if finalize_current_transaction:
+                        context = TransactionContext(
+                            transaction=transaction,
+                            transactions_processor=transactions_processor,
+                            snapshot=SnapshotMock(nodes),
+                            accounts_manager=AccountsManagerMock(),
+                            contract_snapshot_factory=contract_snapshot_factory,
+                            node_factory=node_factory,
+                            msg_handler=msg_handler,
+                        )
+                        state = FinalizingState()
+                        await state.handle(context)
 
             else:
                 # Handle transactions that are appealed
@@ -250,10 +299,10 @@ async def _appeal_window(
                         next_state = await state.handle(context)
                         if next_state is None:
                             break
+                        elif next_state == "leader_appeal_success":
+                            rollback_transactions(context)
+                            break
                         state = next_state
-
-                    # Create a rollup transaction
-                    transactions_processor.create_rollup_transaction(transaction.hash)
 
                 else:
                     chain_snapshot = SnapshotMock(nodes)
@@ -328,6 +377,17 @@ async def _appeal_window(
                             next_state = await state.handle(context)
                             if next_state is None:
                                 break
+                            elif next_state == "validator_appeal_success":
+                                rollback_transactions(context)
+                                ConsensusAlgorithm.dispatch_transaction_status_update(
+                                    context.transactions_processor,
+                                    context.transaction.hash,
+                                    TransactionStatus.PENDING,
+                                    context.msg_handler,
+                                )
+
+                                # Transaction will be picked up by _crawl_snapshot
+                                break
                             assert (
                                 len(context.validator_nodes)
                                 == nb_validators_processing_appeal
@@ -335,6 +395,23 @@ async def _appeal_window(
                             state = next_state
 
         await asyncio.sleep(1)
+
+
+def rollback_transactions(context: TransactionContext):
+    """
+    Rollback newer transactions.
+    """
+    # Set all transactions with higher created_at to PENDING
+    future_transactions = context.transactions_processor.get_newer_transactions(
+        context.transaction.hash
+    )
+    for future_transaction in future_transactions:
+        ConsensusAlgorithm.dispatch_transaction_status_update(
+            context.transactions_processor,
+            future_transaction["hash"],
+            TransactionStatus.PENDING,
+            context.msg_handler,
+        )
 
 
 def run_async_task_in_thread(

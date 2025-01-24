@@ -1812,7 +1812,7 @@ async def test_exec_undetermined_appeal(managed_thread):
         node_factory=node_factory_supplier,
     )
 
-    await asyncio.sleep(DEFAULT_FINALITY_WINDOW + 5)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW + 7)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
