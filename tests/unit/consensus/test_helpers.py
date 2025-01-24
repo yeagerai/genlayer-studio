@@ -329,7 +329,7 @@ async def _appeal_window(
                         transaction.consensus_data.leader_receipt.node_config["address"]
                     )
                     try:
-                        context.remaining_validators = (
+                        _, context.remaining_validators = (
                             ConsensusAlgorithm.get_extra_validators(
                                 chain_snapshot.get_all_validators(),
                                 transaction.consensus_history,

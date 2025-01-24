@@ -643,7 +643,7 @@ class ConsensusAlgorithm:
                                 )
                                 try:
                                     # Attempt to get extra validators for the appeal process
-                                    context.remaining_validators = (
+                                    _, context.remaining_validators = (
                                         ConsensusAlgorithm.get_extra_validators(
                                             chain_snapshot.get_all_validators(),
                                             transaction.consensus_history,
@@ -770,24 +770,15 @@ class ConsensusAlgorithm:
             appeal_failed (int): Number of times the appeal has failed.
 
         Returns:
+            list: List of current validators.
             list: List of extra validators.
         """
-        # Create a dictionary to map addresses to validator entries
-        validator_map = {
-            validator["address"]: validator for validator in all_validators
-        }
-
-        # List containing addresses found in leader and validator receipts
-        receipt_addresses = [consensus_data.leader_receipt.node_config["address"]] + [
-            receipt.node_config["address"] for receipt in consensus_data.validators
-        ]
-
-        # Get leader and current validators from consensus data receipt addresses
-        current_validators = [
-            validator_map.pop(receipt_address)
-            for receipt_address in receipt_addresses
-            if receipt_address in validator_map
-        ]
+        # Get current validators and a dictionary mapping addresses to validators not used in the consensus process
+        current_validators, validator_map = (
+            ConsensusAlgorithm.get_validators_from_consensus_data(
+                all_validators, consensus_data, False
+            )
+        )
 
         # Remove used leaders from validator_map
         used_leader_addresses = (
@@ -807,7 +798,7 @@ class ConsensusAlgorithm:
                 "No validators found for appeal, waiting for next appeal request: "
             )
 
-        nb_current_validators = len(receipt_addresses)
+        nb_current_validators = len(current_validators) + 1  # including the leader
         if appeal_failed == 0:
             # Calculate extra validators when no appeal has failed
             extra_validators = get_validators_for_transaction(
@@ -819,16 +810,16 @@ class ConsensusAlgorithm:
             extra_validators = get_validators_for_transaction(
                 not_used_validators, n + 1
             )
-            extra_validators = current_validators[n:] + extra_validators
+            extra_validators = current_validators[n - 1 :] + extra_validators
         else:
             # Calculate extra validators when more than one appeal has failed
             n = (nb_current_validators - 3) // (2 * appeal_failed - 1)
             extra_validators = get_validators_for_transaction(
                 not_used_validators, 2 * n
             )
-            extra_validators = current_validators[n:] + extra_validators
+            extra_validators = current_validators[n - 1 :] + extra_validators
 
-        return extra_validators
+        return current_validators, extra_validators
 
     @staticmethod
     def get_validators_from_consensus_data(
@@ -842,26 +833,37 @@ class ConsensusAlgorithm:
             consensus_data (ConsensusData): Data related to the consensus process.
             include_leader (bool): Whether to get the leader in the validator set.
         Returns:
-            list: List of validators involved in the consensus process.
+            list: List of validators involved in the consensus process (can include the leader).
+            dict: Dictionary mapping addresses to validators not used in the consensus process.
         """
-        # Extract addresses of current validators from consensus data
-        current_validators_addresses = {
-            validator.node_config["address"] for validator in consensus_data.validators
+        # Create a dictionary to map addresses to a validator
+        validator_map = {
+            validator["address"]: validator for validator in all_validators
         }
+
+        # Extract address of the leader from consensus data
         if include_leader:
-            current_validators_addresses.add(
-                consensus_data.leader_receipt.node_config["address"]
-            )
-        # Return validators whose addresses are in the current validators addresses
-        return [
-            validator
-            for validator in all_validators
-            if validator["address"] in current_validators_addresses
+            receipt_addresses = [consensus_data.leader_receipt.node_config["address"]]
+        else:
+            receipt_addresses = []
+
+        # Extract addresses of validators from consensus data
+        receipt_addresses += [
+            receipt.node_config["address"] for receipt in consensus_data.validators
         ]
+
+        # Return validators whose addresses are in the receipt addresses
+        validators = [
+            validator_map.pop(receipt_address)
+            for receipt_address in receipt_addresses
+            if receipt_address in validator_map
+        ]
+
+        return validators, validator_map
 
     @staticmethod
     def add_new_validator(
-        all_validators: List[dict], validators: list[dict], leader_addresses: list[dict]
+        all_validators: List[dict], validators: list[dict], leader_addresses: set[str]
     ):
         """
         Add a new validator to the list of validators.
@@ -1007,7 +1009,7 @@ class PendingState(TransactionState):
         # Determine the involved validators based on whether the transaction is appealed
         if context.transaction.appealed:
             # If the transaction is appealed, remove the old leader
-            context.involved_validators = (
+            context.involved_validators, _ = (
                 ConsensusAlgorithm.get_validators_from_consensus_data(
                     all_validators, context.transaction.consensus_data, False
                 )
@@ -1021,14 +1023,13 @@ class PendingState(TransactionState):
 
         elif context.transaction.appeal_undetermined:
             # Add n+2 validators, remove the old leader
-            current_validators = ConsensusAlgorithm.get_validators_from_consensus_data(
-                all_validators, context.transaction.consensus_data, False
-            )
-            extra_validators = ConsensusAlgorithm.get_extra_validators(
-                all_validators,
-                context.transaction.consensus_history,
-                context.transaction.consensus_data,
-                0,
+            current_validators, extra_validators = (
+                ConsensusAlgorithm.get_extra_validators(
+                    all_validators,
+                    context.transaction.consensus_history,
+                    context.transaction.consensus_data,
+                    0,
+                )
             )
             context.involved_validators = current_validators + extra_validators
 
@@ -1036,7 +1037,7 @@ class PendingState(TransactionState):
             # If there was no validator appeal or leader appeal
             if context.transaction.consensus_data:
                 # Transaction was rolled back, so we need to reuse the validators and leader
-                context.involved_validators = (
+                context.involved_validators, _ = (
                     ConsensusAlgorithm.get_validators_from_consensus_data(
                         all_validators, context.transaction.consensus_data, True
                     )
