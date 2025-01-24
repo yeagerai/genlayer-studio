@@ -177,7 +177,6 @@ class TransactionContext:
             votes={}, leader_receipt=None, validators=[]
         )
         self.involved_validators: list[dict] = []
-        self.leaders_used: list[dict] = []
         self.remaining_validators: list = []
         self.num_validators: int = 0
         self.contract_snapshot_supplier: Callable[[], ContractSnapshot] | None = None
@@ -647,6 +646,7 @@ class ConsensusAlgorithm:
                                     context.remaining_validators = (
                                         ConsensusAlgorithm.get_extra_validators(
                                             chain_snapshot.get_all_validators(),
+                                            transaction.consensus_history,
                                             transaction.consensus_data,
                                             transaction.appeal_failed,
                                         )
@@ -731,7 +731,10 @@ class ConsensusAlgorithm:
 
     @staticmethod
     def get_extra_validators(
-        all_validators: List[dict], consensus_data: ConsensusData, appeal_failed: int
+        all_validators: List[dict],
+        consensus_history: list[dict],
+        consensus_data: ConsensusData,
+        appeal_failed: int,
     ):
         """
         Get extra validators for the appeal process according to the following formula:
@@ -762,6 +765,7 @@ class ConsensusAlgorithm:
 
         Args:
             all_validators (List[dict]): List of all validators.
+            consensus_history (list[dict]): List of consensus rounds.
             consensus_data (ConsensusData): Data related to the consensus process.
             appeal_failed (int): Number of times the appeal has failed.
 
@@ -784,6 +788,16 @@ class ConsensusAlgorithm:
             for receipt_address in receipt_addresses
             if receipt_address in validator_map
         ]
+
+        # Remove used leaders from validator_map
+        used_leader_addresses = (
+            ConsensusAlgorithm.get_used_leader_addresses_from_consensus_history(
+                consensus_history
+            )
+        )
+        for used_leader_address in used_leader_addresses:
+            if used_leader_address in validator_map:
+                validator_map.pop(used_leader_address)
 
         # Set not_used_validators to the remaining validators in validator_map
         not_used_validators = list(validator_map.values())
@@ -847,7 +861,7 @@ class ConsensusAlgorithm:
 
     @staticmethod
     def add_new_validator(
-        all_validators: List[dict], validators: list[dict], leaders: list[dict]
+        all_validators: List[dict], validators: list[dict], leader_addresses: list[dict]
     ):
         """
         Add a new validator to the list of validators.
@@ -855,20 +869,20 @@ class ConsensusAlgorithm:
         Args:
             all_validators (List[dict]): List of all validators.
             validators (list[dict]): List of validators.
-            leaders (list[dict]): List of leaders.
+            leader_addresses (set[str]): Set of leader addresses.
 
         Returns:
             list: List of validators.
         """
         # Check if there is a validator to be possibly selected
-        if len(leaders) + len(validators) >= len(all_validators):
+        if len(leader_addresses) + len(validators) >= len(all_validators):
             raise ValueError(
                 "No more validators found to add a new validator, going to undetermined state: "
             )
 
         # Extract a set of addresses of validators and leaders
         addresses = {validator["address"] for validator in validators}
-        addresses.update(leader["address"] for leader in leaders)
+        addresses.update(leader_addresses)
 
         # Get not used validators
         not_used_validators = [
@@ -881,6 +895,27 @@ class ConsensusAlgorithm:
         new_validator = get_validators_for_transaction(not_used_validators, 1)
 
         return new_validator + validators
+
+    @staticmethod
+    def get_used_leader_addresses_from_consensus_history(
+        consensus_history: list[dict], current_leader_receipt: Receipt | None = None
+    ):
+        used_leader_addresses = set()
+        if consensus_history:
+            for consensus_round in consensus_history:
+                leader_receipt = consensus_round["leader_result"]
+                if leader_receipt:
+                    used_leader_addresses.update(
+                        [leader_receipt["node_config"]["address"]]
+                    )
+
+        # consensus_history does not contain the latest consensus_data
+        if current_leader_receipt:
+            used_leader_addresses.update(
+                [current_leader_receipt.node_config["address"]]
+            )
+
+        return used_leader_addresses
 
     def set_finality_window_time(self, time: int):
         self.finality_window_time = time
@@ -990,7 +1025,10 @@ class PendingState(TransactionState):
                 all_validators, context.transaction.consensus_data, False
             )
             extra_validators = ConsensusAlgorithm.get_extra_validators(
-                all_validators, context.transaction.consensus_data, 0
+                all_validators,
+                context.transaction.consensus_history,
+                context.transaction.consensus_data,
+                0,
             )
             context.involved_validators = current_validators + extra_validators
 
@@ -1042,7 +1080,6 @@ class ProposingState(TransactionState):
 
         # Unpack the leader and validators
         [leader, *context.remaining_validators] = context.involved_validators
-        context.leaders_used.append(leader)
 
         # If the transaction is leader-only, clear the validators
         if context.transaction.leader_only:
@@ -1257,12 +1294,20 @@ class RevealingState(TransactionState):
                 return UndeterminedState()
 
             else:
+                used_leader_addresses = (
+                    ConsensusAlgorithm.get_used_leader_addresses_from_consensus_history(
+                        context.transactions_processor.get_transaction_by_hash(
+                            context.transaction.hash
+                        )["consensus_history"],
+                        context.consensus_data.leader_receipt,
+                    )
+                )
                 # Add a new validator to the list of current validators when a rotation happens
                 try:
                     context.involved_validators = ConsensusAlgorithm.add_new_validator(
                         context.snapshot.get_all_validators(),
                         context.remaining_validators,
-                        context.leaders_used,
+                        used_leader_addresses,
                     )
                 except ValueError as e:
                     # No more validators

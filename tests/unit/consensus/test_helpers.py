@@ -332,6 +332,7 @@ async def _appeal_window(
                         context.remaining_validators = (
                             ConsensusAlgorithm.get_extra_validators(
                                 chain_snapshot.get_all_validators(),
+                                transaction.consensus_history,
                                 transaction.consensus_data,
                                 transaction.appeal_failed,
                             )

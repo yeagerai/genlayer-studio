@@ -1565,13 +1565,16 @@ async def test_exec_undetermined_appeal(managed_thread):
     The transaction flow:
         UNDETERMINED -appeal-fail-> UNDETERMINED
         -appeal-success-after-2-rotation-rounds-> ACCEPTED
-        -successful-appeal-> PENDING -> UNDETERMINED -appeal-success-> FINALIZED
+        -successful-appeal-> PENDING -> UNDETERMINED -appeal-fail-> FINALIZED
     """
     transaction = init_dummy_transaction()
     transaction.config_rotation_rounds = 4
 
     nodes = get_nodes_specs(
-        2 * (2 * (2 * (2 * DEFAULT_VALIDATORS_COUNT + 1) + 1) + 1) + 1 + 4
+        2 * (2 * (2 * (2 * DEFAULT_VALIDATORS_COUNT + 2) + 2) + 2)
+        + 2
+        + (4 * (transaction.config_rotation_rounds))
+        + 2
     )
 
     created_nodes = []
@@ -1583,8 +1586,8 @@ async def test_exec_undetermined_appeal(managed_thread):
         Appeal leader succeeds: leader disagrees + 22 validators disagree for 2 rounds then agree for 1 round
 
         Appeal validator succeeds: 25 validators disagree
-        Leader disagrees + 46 validators disagree. -> 47 rounds
-        Appeal leader fails: leader disagrees + 94 validators disagree. -> 95 rounds
+        Leader disagrees + 46 validators disagree for 5 rounds
+        Appeal leader fails: leader disagrees + 94 validators disagree for 5 rounds
         """
         exec_rounds = transaction.config_rotation_rounds + 1
         n_first = DEFAULT_VALIDATORS_COUNT
