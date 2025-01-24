@@ -902,6 +902,16 @@ class ConsensusAlgorithm:
     def get_used_leader_addresses_from_consensus_history(
         consensus_history: list[dict], current_leader_receipt: Receipt | None = None
     ):
+        """
+        Get the used leader addresses from the consensus history.
+
+        Args:
+            consensus_history (list[dict]): List of consensus rounds.
+            current_leader_receipt (Receipt | None): Current leader receipt.
+
+        Returns:
+            set[str]: Set of used leader addresses.
+        """
         used_leader_addresses = set()
         if consensus_history:
             for consensus_round in consensus_history:
@@ -920,6 +930,12 @@ class ConsensusAlgorithm:
         return used_leader_addresses
 
     def set_finality_window_time(self, time: int):
+        """
+        Set the finality window time.
+
+        Args:
+            time (int): The finality window time.
+        """
         self.finality_window_time = time
 
 
