@@ -58,7 +58,7 @@ export const useSetupStores = () => {
     tutorialStore.resetTutorialState();
     nodeStore.getValidatorsData();
     nodeStore.getProvidersData();
-    consensusStore.fetchInitialFinalityWindowTime();
+    consensusStore.fetchFinalityWindowTime();
 
     if (accountsStore.accounts.length < 1) {
       accountsStore.generateNewAccount();

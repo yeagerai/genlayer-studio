@@ -11,9 +11,9 @@ export const useConsensusStore = defineStore('consensusStore', () => {
   if (!webSocketClient.connected) webSocketClient.connect();
 
   // Get the value when the frontend is reloaded
-  webSocketClient.on('connect', fetchInitialFinalityWindowTime);
+  webSocketClient.on('connect', fetchFinalityWindowTime);
 
-  async function fetchInitialFinalityWindowTime() {
+  async function fetchFinalityWindowTime() {
     try {
       finalityWindow.value = await rpcClient.getFinalityWindowTime(); // Assume this RPC method exists
     } catch (error) {
@@ -37,7 +37,7 @@ export const useConsensusStore = defineStore('consensusStore', () => {
   return {
     finalityWindow,
     setFinalityWindowTime,
-    fetchInitialFinalityWindowTime,
+    fetchFinalityWindowTime,
     isLoading,
   };
 });
