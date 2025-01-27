@@ -196,7 +196,6 @@ export class JsonRpcService implements IJsonRpcService {
   }
 
   async setFinalityWindowTime(time: number): Promise<any> {
-    console.log('Setting finality window time:', time, 'Type:', typeof time);
     return this.callRpcMethod<any>(
       'sim_setFinalityWindowTime',
       [time],
