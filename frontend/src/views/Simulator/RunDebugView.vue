@@ -21,7 +21,9 @@ const isDeploymentOpen = ref(!isDeployed.value);
 const finalityWindow = computed({
   get: () => consensusStore.finalityWindow,
   set: (newTime) => {
-    consensusStore.setFinalityWindowTime(newTime);
+    if (isFinalityWindowValid(newTime)) {
+      consensusStore.setFinalityWindowTime(newTime);
+    }
   },
 });
 const isLoading = computed(() => consensusStore.isLoading);
@@ -66,9 +68,8 @@ function isFinalityWindowValid(value: number) {
             <NumberInput
               id="finalityWindow"
               name="finalityWindow"
-              :min="1"
+              :min="0"
               :step="1"
-              :invalid="!isFinalityWindowValid(finalityWindow)"
               v-model.number="finalityWindow"
               required
               testId="input-finalityWindow"

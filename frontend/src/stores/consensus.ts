@@ -10,7 +10,7 @@ export const useConsensusStore = defineStore('consensusStore', () => {
 
   if (!webSocketClient.connected) webSocketClient.connect();
 
-  // Get the value when the frontend is reloaded
+  // Get the value when the frontend or backend is reloaded
   webSocketClient.on('connect', fetchFinalityWindowTime);
 
   async function fetchFinalityWindowTime() {
@@ -23,7 +23,7 @@ export const useConsensusStore = defineStore('consensusStore', () => {
     }
   }
 
-  // Get the value when the backend updates its value from an RPC request or backend reload
+  // Get the value when the backend updates its value from an RPC request
   webSocketClient.on('finality_window_time_updated', (eventData: any) => {
     finalityWindow.value = eventData.data.time;
   });
