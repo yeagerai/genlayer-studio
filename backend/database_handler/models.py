@@ -116,7 +116,10 @@ class Transactions(Base):
         init=False,
     )
     appealed: Mapped[bool] = mapped_column(Boolean, default=False)
-    timestamp_accepted: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
+    appeal_undetermined: Mapped[bool] = mapped_column(Boolean, default=False)
+    timestamp_awaiting_finalization: Mapped[Optional[int]] = mapped_column(
+        BigInteger, default=None
+    )
 
 
 class Validators(Base):
