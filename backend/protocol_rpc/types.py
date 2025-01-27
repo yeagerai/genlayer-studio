@@ -37,6 +37,7 @@ class DecodedTransaction:
 @dataclass
 class DecodedMethodCallData:
     calldata: bytes
+    state_status: str = "accepted"
 
 
 @dataclass

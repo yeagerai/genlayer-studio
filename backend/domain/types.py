@@ -8,6 +8,7 @@ from enum import Enum, IntEnum
 
 from backend.database_handler.models import TransactionStatus
 from backend.database_handler.types import ConsensusData
+from backend.database_handler.contract_snapshot import ContractSnapshot
 
 
 @dataclass()
@@ -83,8 +84,10 @@ class Transaction:
     created_at: str | None = None
     ghost_contract_address: str | None = None
     appealed: bool = False
-    timestamp_accepted: int | None = None
+    timestamp_awaiting_finalization: int | None = None
     appeal_failed: int = 0
+    appeal_undetermined: bool = False
+    contract_snapshot: ContractSnapshot | None = None
 
     def to_dict(self):
         return {
@@ -95,7 +98,9 @@ class Transaction:
             "to_address": self.to_address,
             "input_data": self.input_data,
             "data": self.data,
-            "consensus_data": self.consensus_data,
+            "consensus_data": (
+                self.consensus_data.to_dict() if self.consensus_data else None
+            ),
             "nonce": self.nonce,
             "value": self.value,
             "gaslimit": self.gaslimit,
@@ -106,8 +111,10 @@ class Transaction:
             "created_at": self.created_at,
             "ghost_contract_address": self.ghost_contract_address,
             "appealed": self.appealed,
-            "timestamp_accepted": self.timestamp_accepted,
+            "timestamp_awaiting_finalization": self.timestamp_awaiting_finalization,
             "appeal_failed": self.appeal_failed,
+            "appeal_undetermined": self.appeal_undetermined,
+            "contract_snapshot": self.contract_snapshot.to_dict(),
         }
 
     @classmethod
@@ -131,6 +138,12 @@ class Transaction:
             created_at=input.get("created_at"),
             ghost_contract_address=input.get("ghost_contract_address"),
             appealed=input.get("appealed"),
-            timestamp_accepted=input.get("timestamp_accepted"),
+            timestamp_awaiting_finalization=input.get(
+                "timestamp_awaiting_finalization"
+            ),
             appeal_failed=input.get("appeal_failed", 0),
+            appeal_undetermined=input.get("appeal_undetermined", False),
+            contract_snapshot=ContractSnapshot.from_dict(
+                input.get("contract_snapshot")
+            ),
         )
