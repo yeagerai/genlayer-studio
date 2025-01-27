@@ -4,7 +4,6 @@ import asyncio
 
 from backend.consensus.base import (
     ConsensusAlgorithm,
-    rotate,
     DEFAULT_VALIDATORS_COUNT,
 )
 from backend.database_handler.models import TransactionStatus
@@ -109,15 +108,17 @@ async def test_exec_transaction(managed_thread):
 
 
 @pytest.mark.asyncio
-async def test_exec_transaction_no_consensus():
+async def test_exec_transaction_no_consensus(managed_thread):
     """
     Scenario: all nodes disagree on the transaction execution, leaving the transaction in UNDETERMINED state
     Tests that consensus algorithm correctly rotates the leader when majority of nodes disagree
     """
 
     transaction = init_dummy_transaction()
+    rotation_rounds = 2
+    transaction.config_rotation_rounds = rotation_rounds
 
-    nodes = get_nodes_specs(3)
+    nodes = get_nodes_specs(DEFAULT_VALIDATORS_COUNT + rotation_rounds)
 
     created_nodes = []
 
@@ -129,6 +130,8 @@ async def test_exec_transaction_no_consensus():
     )
 
     msg_handler_mock = Mock(MessageHandler)
+
+    managed_thread(transactions_processor, msg_handler_mock, nodes, node_factory)
 
     await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
         transaction=transaction,
@@ -150,10 +153,22 @@ async def test_exec_transaction_no_consensus():
         or created_nodes[-1],
     )
 
-    assert len(created_nodes) == len(nodes) ** 2
+    assert len(created_nodes) == DEFAULT_VALIDATORS_COUNT * (rotation_rounds + 1)
 
     for node in created_nodes:
         node.exec_transaction.assert_awaited_once_with(transaction)
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
+        == TransactionStatus.UNDETERMINED.value
+    )
+
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
+        == TransactionStatus.FINALIZED.value
+    )
 
     assert transactions_processor.updated_transaction_status_history == {
         "transaction_hash": [
@@ -167,6 +182,78 @@ async def test_exec_transaction_no_consensus():
             TransactionStatus.COMMITTING,
             TransactionStatus.REVEALING,
             TransactionStatus.UNDETERMINED,  # all disagree
+            TransactionStatus.FINALIZED,
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_exec_transaction_rotation_no_validators(managed_thread):
+    """
+    Scenario: all nodes disagree on the transaction execution, leaving the transaction in UNDETERMINED state
+    Tests that consensus algorithm correctly puts the transaction in undetermined state when there are no validators left to rotate
+    """
+    transaction = init_dummy_transaction()
+
+    nodes = get_nodes_specs(DEFAULT_VALIDATORS_COUNT)
+
+    created_nodes = []
+
+    def get_vote():
+        return Vote.DISAGREE
+
+    transactions_processor = TransactionsProcessorMock(
+        [transaction_to_dict(transaction)]
+    )
+
+    msg_handler_mock = Mock(MessageHandler)
+
+    managed_thread(transactions_processor, msg_handler_mock, nodes, node_factory)
+
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+        transaction=transaction,
+        transactions_processor=transactions_processor,
+        snapshot=SnapshotMock(nodes),
+        accounts_manager=AccountsManagerMock(),
+        contract_snapshot_factory=contract_snapshot_factory,
+        node_factory=lambda node, mode, contract_snapshot, receipt, msg_handler, contract_snapshot_factory: created_nodes.append(
+            node_factory(
+                node,
+                mode,
+                contract_snapshot,
+                receipt,
+                msg_handler,
+                contract_snapshot_factory,
+                get_vote(),
+            )
+        )
+        or created_nodes[-1],
+    )
+
+    assert len(created_nodes) == DEFAULT_VALIDATORS_COUNT
+
+    for node in created_nodes:
+        node.exec_transaction.assert_awaited_once_with(transaction)
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
+        == TransactionStatus.UNDETERMINED.value
+    )
+
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
+        == TransactionStatus.FINALIZED.value
+    )
+
+    assert transactions_processor.updated_transaction_status_history == {
+        "transaction_hash": [
+            TransactionStatus.PROPOSING,
+            TransactionStatus.COMMITTING,
+            TransactionStatus.REVEALING,
+            TransactionStatus.UNDETERMINED,
+            TransactionStatus.FINALIZED,
         ]
     }
 
@@ -180,17 +267,15 @@ async def test_exec_transaction_one_disagreement(managed_thread):
 
     transaction = init_dummy_transaction()
 
-    nodes = get_nodes_specs(3)
+    nodes = get_nodes_specs(DEFAULT_VALIDATORS_COUNT + 1)
 
     created_nodes = []
 
     def get_vote():
-        return (
-            Vote.AGREE
-            if ((len(created_nodes) - 1) // len(nodes))
-            == 1  # only agree in the second round
-            else Vote.DISAGREE
-        )
+        if len(created_nodes) < DEFAULT_VALIDATORS_COUNT:
+            return Vote.DISAGREE
+        else:
+            return Vote.AGREE
 
     transactions_processor = TransactionsProcessorMock(
         [transaction_to_dict(transaction)]
@@ -241,24 +326,10 @@ async def test_exec_transaction_one_disagreement(managed_thread):
         ]
     }
 
-    assert len(created_nodes) == len(nodes) * 2
+    assert len(created_nodes) == DEFAULT_VALIDATORS_COUNT * 2
 
     for node in created_nodes:
         node.exec_transaction.assert_awaited_once_with(transaction)
-
-
-def test_rotate():
-    input = [1, 2, 3, 4, 5]
-    iterator = rotate(input)
-
-    assert next(iterator) == [1, 2, 3, 4, 5]
-    assert next(iterator) == [2, 3, 4, 5, 1]
-    assert next(iterator) == [3, 4, 5, 1, 2]
-    assert next(iterator) == [4, 5, 1, 2, 3]
-    assert next(iterator) == [5, 1, 2, 3, 4]
-
-    with pytest.raises(StopIteration):
-        next(iterator)
 
 
 @pytest.mark.asyncio
@@ -327,9 +398,9 @@ async def test_exec_accepted_appeal_fail(managed_thread):
         == TransactionStatus.ACCEPTED.value
     )
 
-    timestamp_accepted_1 = transactions_processor.get_transaction_by_hash(
+    timestamp_awaiting_finalization_1 = transactions_processor.get_transaction_by_hash(
         transaction.hash
-    )["timestamp_accepted"]
+    )["timestamp_awaiting_finalization"]
 
     appeal(transaction, transactions_processor)
 
@@ -360,9 +431,9 @@ async def test_exec_accepted_appeal_fail(managed_thread):
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)[
-            "timestamp_accepted"
+            "timestamp_awaiting_finalization"
         ]
-        == timestamp_accepted_1
+        == timestamp_awaiting_finalization_1
     )
 
 
@@ -431,9 +502,9 @@ async def test_exec_accepted_appeal_no_extra_validators(managed_thread):
         == TransactionStatus.ACCEPTED.value
     )
 
-    timestamp_accepted_1 = transactions_processor.get_transaction_by_hash(
+    timestamp_awaiting_finalization_1 = transactions_processor.get_transaction_by_hash(
         transaction.hash
-    )["timestamp_accepted"]
+    )["timestamp_awaiting_finalization"]
 
     appeal(transaction, transactions_processor)
 
@@ -456,9 +527,9 @@ async def test_exec_accepted_appeal_no_extra_validators(managed_thread):
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)[
-            "timestamp_accepted"
+            "timestamp_awaiting_finalization"
         ]
-        == timestamp_accepted_1
+        == timestamp_awaiting_finalization_1
     )
 
 
@@ -541,9 +612,9 @@ async def test_exec_accepted_appeal_successful(managed_thread):
         == TransactionStatus.ACCEPTED.value
     )
 
-    timestamp_accepted_1 = transactions_processor.get_transaction_by_hash(
+    timestamp_awaiting_finalization_1 = transactions_processor.get_transaction_by_hash(
         transaction.hash
-    )["timestamp_accepted"]
+    )["timestamp_awaiting_finalization"]
 
     appeal(transaction, transactions_processor)
 
@@ -611,9 +682,9 @@ async def test_exec_accepted_appeal_successful(managed_thread):
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)[
-            "timestamp_accepted"
+            "timestamp_awaiting_finalization"
         ]
-        > timestamp_accepted_1
+        > timestamp_awaiting_finalization_1
     )
 
     check_validator_count(
@@ -636,11 +707,13 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(managed_th
     4. Perform all rotation until transaction is undetermined
     The states the transaction goes through are:
         PROPOSING -> COMMITTING -> REVEALING -> ACCEPTED -appeal-> COMMITTING -> REVEALING -appeal-success->
-        PENDING -> (PROPOSING -> COMMITTING -> REVEALING) * 11 -> UNDERTERMINED
+        PENDING -> (PROPOSING -> COMMITTING -> REVEALING) * 3 -> UNDERTERMINED
     """
     transaction = init_dummy_transaction()
 
-    nodes = get_nodes_specs(2 * DEFAULT_VALIDATORS_COUNT + 2)
+    nodes = get_nodes_specs(
+        2 * DEFAULT_VALIDATORS_COUNT + 2 + transaction.config_rotation_rounds
+    )
 
     created_nodes = []
 
@@ -750,7 +823,7 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(managed_th
                 TransactionStatus.COMMITTING,
                 TransactionStatus.REVEALING,
             ]
-            * 11
+            * (transaction.config_rotation_rounds + 1)
         ),
         TransactionStatus.UNDETERMINED,
     ]
@@ -863,9 +936,9 @@ async def test_exec_accepted_appeal_successful_twice(managed_thread):
         "transaction_hash": transaction_status_history
     }
 
-    timestamp_accepted_1 = transactions_processor.get_transaction_by_hash(
+    timestamp_awaiting_finalization_1 = transactions_processor.get_transaction_by_hash(
         transaction.hash
-    )["timestamp_accepted"]
+    )["timestamp_awaiting_finalization"]
 
     appeal(transaction, transactions_processor)
 
@@ -924,10 +997,10 @@ async def test_exec_accepted_appeal_successful_twice(managed_thread):
     expected_nb_created_nodes += 2 * DEFAULT_VALIDATORS_COUNT + 1  # 12 + 11 = 23
     assert len(created_nodes) == expected_nb_created_nodes
 
-    timestamp_accepted_2 = transactions_processor.get_transaction_by_hash(
+    timestamp_awaiting_finalization_2 = transactions_processor.get_transaction_by_hash(
         transaction.hash
-    )["timestamp_accepted"]
-    assert timestamp_accepted_2 > timestamp_accepted_1
+    )["timestamp_awaiting_finalization"]
+    assert timestamp_awaiting_finalization_2 > timestamp_awaiting_finalization_1
 
     check_validator_count(
         transaction, transactions_processor, 2 * DEFAULT_VALIDATORS_COUNT + 1
@@ -1002,9 +1075,9 @@ async def test_exec_accepted_appeal_successful_twice(managed_thread):
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)[
-            "timestamp_accepted"
+            "timestamp_awaiting_finalization"
         ]
-        > timestamp_accepted_2
+        > timestamp_awaiting_finalization_2
     )
 
     check_validator_count(
@@ -1086,9 +1159,9 @@ async def test_exec_accepted_appeal_fail_three_times(managed_thread):
         == TransactionStatus.ACCEPTED.value
     )
 
-    timestamp_accepted_1 = transactions_processor.get_transaction_by_hash(
+    timestamp_awaiting_finalization_1 = transactions_processor.get_transaction_by_hash(
         transaction.hash
-    )["timestamp_accepted"]
+    )["timestamp_awaiting_finalization"]
 
     n = DEFAULT_VALIDATORS_COUNT
     nb_validators_processing_appeal = n
@@ -1122,9 +1195,9 @@ async def test_exec_accepted_appeal_fail_three_times(managed_thread):
 
         assert (
             transactions_processor.get_transaction_by_hash(transaction.hash)[
-                "timestamp_accepted"
+                "timestamp_awaiting_finalization"
             ]
-            == timestamp_accepted_1
+            == timestamp_awaiting_finalization_1
         )
 
         if appeal_failed == 0:
@@ -1293,9 +1366,9 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
     }
 
     # Appeal successful
-    timestamp_accepted_1 = transactions_processor.get_transaction_by_hash(
+    timestamp_awaiting_finalization_1 = transactions_processor.get_transaction_by_hash(
         transaction.hash
-    )["timestamp_accepted"]
+    )["timestamp_awaiting_finalization"]
 
     appeal(transaction, transactions_processor)
 
@@ -1357,11 +1430,11 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
     expected_nb_created_nodes += n_new
     assert len(created_nodes) == expected_nb_created_nodes
 
-    timestamp_accepted_2 = transactions_processor.get_transaction_by_hash(
+    timestamp_awaiting_finalization_2 = transactions_processor.get_transaction_by_hash(
         transaction.hash
-    )["timestamp_accepted"]
+    )["timestamp_awaiting_finalization"]
 
-    assert timestamp_accepted_2 > timestamp_accepted_1
+    assert timestamp_awaiting_finalization_2 > timestamp_awaiting_finalization_1
 
     check_validator_count(transaction, transactions_processor, n_new)
 
@@ -1394,11 +1467,11 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
 
     check_validator_count(transaction, transactions_processor, 2 * n_new + 2)
 
-    timestamp_accepted_3 = transactions_processor.get_transaction_by_hash(
+    timestamp_awaiting_finalization_3 = transactions_processor.get_transaction_by_hash(
         transaction.hash
-    )["timestamp_accepted"]
+    )["timestamp_awaiting_finalization"]
 
-    assert timestamp_accepted_3 == timestamp_accepted_2
+    assert timestamp_awaiting_finalization_3 == timestamp_awaiting_finalization_2
 
     validator_set_addresses_after_appeal_fail = get_validator_addresses(
         transaction, transactions_processor
@@ -1467,11 +1540,11 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
     expected_nb_created_nodes += 3 * n_new + 2
     assert len(created_nodes) == expected_nb_created_nodes
 
-    timestamp_accepted_4 = transactions_processor.get_transaction_by_hash(
+    timestamp_awaiting_finalization_4 = transactions_processor.get_transaction_by_hash(
         transaction.hash
-    )["timestamp_accepted"]
+    )["timestamp_awaiting_finalization"]
 
-    assert timestamp_accepted_4 > timestamp_accepted_3
+    assert timestamp_awaiting_finalization_4 > timestamp_awaiting_finalization_3
 
     check_validator_count(transaction, transactions_processor, 3 * n_new + 2)
 
@@ -1479,3 +1552,289 @@ async def test_exec_accepted_appeal_successful_fail_successful(managed_thread):
 
     assert new_leader_address != old_leader_address
     assert new_leader_address in validator_set_addresses
+
+
+@pytest.mark.asyncio
+async def test_exec_undetermined_appeal(managed_thread):
+    """
+    Test that a transaction can be appealed when it is in the undetermined state. This verifies that:
+    1. The transaction can enter appeal state after being in the undetermined state
+    2. New validators are selected to process the appeal and the old leader is removed
+    3. All possible path regarding undetermined appeals are correctly handled.
+    4. The transaction is finalized after the appeal window
+    The transaction flow:
+        UNDETERMINED -appeal-fail-> UNDETERMINED
+        -appeal-success-after-2-rotation-rounds-> ACCEPTED
+        -successful-appeal-> PENDING -> UNDETERMINED -appeal-success-> FINALIZED
+    """
+    transaction = init_dummy_transaction()
+    transaction.config_rotation_rounds = 4
+
+    nodes = get_nodes_specs(
+        2 * (2 * (2 * (2 * DEFAULT_VALIDATORS_COUNT + 1) + 1) + 1) + 1 + 4
+    )
+
+    created_nodes = []
+
+    def get_vote():
+        """
+        Leader disagrees + 4 validators disagree for 5 rounds
+        Appeal leader fails: leader disagrees + 10 validators disagree for 5 rounds
+        Appeal leader succeeds: leader disagrees + 22 validators disagree for 2 rounds then agree for 1 round
+
+        Appeal validator succeeds: 25 validators disagree
+        Leader disagrees + 46 validators disagree. -> 47 rounds
+        Appeal leader fails: leader disagrees + 94 validators disagree. -> 95 rounds
+        """
+        exec_rounds = transaction.config_rotation_rounds + 1
+        n_first = DEFAULT_VALIDATORS_COUNT
+        n_second = 2 * n_first + 1
+        n_third = 2 * n_second + 1
+        nb_first_agree = (
+            (n_first * exec_rounds) + (n_second * exec_rounds) + (n_third * 2)
+        )
+        if (len(created_nodes) >= nb_first_agree) and (
+            len(created_nodes) < nb_first_agree + n_third
+        ):
+            return Vote.AGREE
+        else:
+            return Vote.DISAGREE
+
+    transactions_processor = TransactionsProcessorMock(
+        [transaction_to_dict(transaction)]
+    )
+
+    msg_handler_mock = Mock(MessageHandler)
+
+    node_factory_supplier = (
+        lambda node, mode, contract_snapshot, receipt, msg_handler, contract_snapshot_factory: created_nodes.append(
+            node_factory(
+                node,
+                mode,
+                contract_snapshot,
+                receipt,
+                msg_handler,
+                contract_snapshot_factory,
+                get_vote(),
+            )
+        )
+        or created_nodes[-1]
+    )
+
+    managed_thread(
+        transactions_processor, msg_handler_mock, nodes, node_factory_supplier
+    )
+
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+        transaction=transaction,
+        transactions_processor=transactions_processor,
+        snapshot=SnapshotMock(nodes),
+        accounts_manager=AccountsManagerMock(),
+        contract_snapshot_factory=contract_snapshot_factory,
+        node_factory=node_factory_supplier,
+    )
+
+    for node in created_nodes:
+        node.exec_transaction.assert_awaited_once_with(transaction)
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
+        == TransactionStatus.UNDETERMINED.value
+    )
+
+    transaction_status_history = [
+        *[
+            TransactionStatus.PROPOSING,
+            TransactionStatus.COMMITTING,
+            TransactionStatus.REVEALING,
+        ]
+        * (transaction.config_rotation_rounds + 1),
+        TransactionStatus.UNDETERMINED,
+    ]
+    assert transactions_processor.updated_transaction_status_history == {
+        "transaction_hash": transaction_status_history
+    }
+
+    nb_validators = DEFAULT_VALIDATORS_COUNT
+    nb_created_nodes = DEFAULT_VALIDATORS_COUNT * (
+        transaction.config_rotation_rounds + 1
+    )
+    check_validator_count(transaction, transactions_processor, nb_validators)
+    assert len(created_nodes) == nb_created_nodes
+
+    appeal(transaction, transactions_processor)
+    await asyncio.sleep(3)
+
+    transaction = Transaction.from_dict(
+        transactions_processor.get_transaction_by_hash(transaction.hash)
+    )
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+        transaction=transaction,
+        transactions_processor=transactions_processor,
+        snapshot=SnapshotMock(nodes),
+        accounts_manager=AccountsManagerMock(),
+        contract_snapshot_factory=contract_snapshot_factory,
+        node_factory=node_factory_supplier,
+    )
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
+        == TransactionStatus.UNDETERMINED.value
+    )
+
+    transaction_status_history += [
+        TransactionStatus.PENDING,
+        *[
+            TransactionStatus.PROPOSING,
+            TransactionStatus.COMMITTING,
+            TransactionStatus.REVEALING,
+        ]
+        * (transaction.config_rotation_rounds + 1),
+        TransactionStatus.UNDETERMINED,
+    ]
+    assert transactions_processor.updated_transaction_status_history == {
+        "transaction_hash": transaction_status_history
+    }
+
+    nb_validators += nb_validators + 1
+    nb_created_nodes += nb_validators * (transaction.config_rotation_rounds + 1)
+    check_validator_count(transaction, transactions_processor, nb_validators)
+    assert len(created_nodes) == nb_created_nodes
+
+    appeal(transaction, transactions_processor)
+    await asyncio.sleep(2)
+
+    transaction = Transaction.from_dict(
+        transactions_processor.get_transaction_by_hash(transaction.hash)
+    )
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+        transaction=transaction,
+        transactions_processor=transactions_processor,
+        snapshot=SnapshotMock(nodes),
+        accounts_manager=AccountsManagerMock(),
+        contract_snapshot_factory=contract_snapshot_factory,
+        node_factory=node_factory_supplier,
+    )
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
+        == TransactionStatus.ACCEPTED.value
+    )
+
+    transaction_status_history += [
+        TransactionStatus.PENDING,
+        *[
+            TransactionStatus.PROPOSING,
+            TransactionStatus.COMMITTING,
+            TransactionStatus.REVEALING,
+        ]
+        * 3,
+        TransactionStatus.ACCEPTED,
+    ]
+    assert transactions_processor.updated_transaction_status_history == {
+        "transaction_hash": transaction_status_history
+    }
+
+    nb_validators += nb_validators + 1
+    nb_created_nodes += nb_validators * 3
+    check_validator_count(transaction, transactions_processor, nb_validators)
+    assert len(created_nodes) == nb_created_nodes
+
+    appeal(transaction, transactions_processor)
+    await asyncio.sleep(2)
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
+        == TransactionStatus.PENDING.value
+    )
+
+    transaction_status_history += [
+        TransactionStatus.COMMITTING,
+        TransactionStatus.REVEALING,
+        TransactionStatus.PENDING,
+    ]
+    assert transactions_processor.updated_transaction_status_history == {
+        "transaction_hash": transaction_status_history
+    }
+
+    nb_created_nodes += nb_validators + 2
+    nb_validators += nb_validators + 2
+    check_validator_count(transaction, transactions_processor, nb_validators)
+    assert len(created_nodes) == nb_created_nodes
+
+    transaction = Transaction.from_dict(
+        transactions_processor.get_transaction_by_hash(transaction.hash)
+    )
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+        transaction=transaction,
+        transactions_processor=transactions_processor,
+        snapshot=SnapshotMock(nodes),
+        accounts_manager=AccountsManagerMock(),
+        contract_snapshot_factory=contract_snapshot_factory,
+        node_factory=node_factory_supplier,
+    )
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
+        == TransactionStatus.UNDETERMINED.value
+    )
+
+    transaction_status_history += [
+        *[
+            TransactionStatus.PROPOSING,
+            TransactionStatus.COMMITTING,
+            TransactionStatus.REVEALING,
+        ]
+        * (transaction.config_rotation_rounds + 1),
+        TransactionStatus.UNDETERMINED,
+    ]
+    assert transactions_processor.updated_transaction_status_history == {
+        "transaction_hash": transaction_status_history
+    }
+
+    nb_validators -= 1
+    nb_created_nodes += nb_validators * (transaction.config_rotation_rounds + 1)
+    check_validator_count(transaction, transactions_processor, nb_validators)
+    assert len(created_nodes) == nb_created_nodes
+
+    appeal(transaction, transactions_processor)
+    await asyncio.sleep(1)
+
+    transaction = Transaction.from_dict(
+        transactions_processor.get_transaction_by_hash(transaction.hash)
+    )
+    await createConsensusAlgorithm(None, msg_handler_mock).exec_transaction(
+        transaction=transaction,
+        transactions_processor=transactions_processor,
+        snapshot=SnapshotMock(nodes),
+        accounts_manager=AccountsManagerMock(),
+        contract_snapshot_factory=contract_snapshot_factory,
+        node_factory=node_factory_supplier,
+    )
+
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW + 7)
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
+        == TransactionStatus.FINALIZED.value
+    )
+
+    transaction_status_history += [
+        TransactionStatus.PENDING,
+        *[
+            TransactionStatus.PROPOSING,
+            TransactionStatus.COMMITTING,
+            TransactionStatus.REVEALING,
+        ]
+        * (transaction.config_rotation_rounds + 1),
+        TransactionStatus.UNDETERMINED,
+        TransactionStatus.FINALIZED,
+    ]
+    assert transactions_processor.updated_transaction_status_history == {
+        "transaction_hash": transaction_status_history
+    }
+
+    nb_validators += nb_validators + 1
+    nb_created_nodes += nb_validators * (transaction.config_rotation_rounds + 1)
+    check_validator_count(transaction, transactions_processor, nb_validators)
+    assert len(created_nodes) == nb_created_nodes
