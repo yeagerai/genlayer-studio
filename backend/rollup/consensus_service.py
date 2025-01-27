@@ -110,8 +110,10 @@ class ConsensusService:
         """
         Forward a transaction to the consensus rollup
         """
-        tx_hash = self.web3.eth.send_raw_transaction(transaction)
-        print("TX HASH", tx_hash)
-        receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-        print("RECEIPT", receipt)
-        return receipt
+        try:
+            tx_hash = self.web3.eth.send_raw_transaction(transaction)
+            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            return receipt
+        except Exception as e:
+            print(f"[CONSENSUS_SERVICE]: Error forwarding transaction: {str(e)}")
+            return None
