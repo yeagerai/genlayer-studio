@@ -4,6 +4,7 @@ import {
   useTransactionsStore,
   useNodeStore,
   useTutorialStore,
+  useConsensusStore,
 } from '@/stores';
 import { useDb, useGenlayer, useTransactionListener } from '@/hooks';
 import { v4 as uuidv4 } from 'uuid';
@@ -14,6 +15,7 @@ export const useSetupStores = () => {
     const accountsStore = useAccountsStore();
     const transactionsStore = useTransactionsStore();
     const nodeStore = useNodeStore();
+    const consensusStore = useConsensusStore();
     const tutorialStore = useTutorialStore();
     const db = useDb();
     const genlayer = useGenlayer();
@@ -56,6 +58,7 @@ export const useSetupStores = () => {
     tutorialStore.resetTutorialState();
     nodeStore.getValidatorsData();
     nodeStore.getProvidersData();
+    consensusStore.fetchInitialFinalityWindowTime();
 
     if (accountsStore.accounts.length < 1) {
       accountsStore.generateNewAccount();

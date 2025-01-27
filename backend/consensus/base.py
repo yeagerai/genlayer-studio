@@ -651,6 +651,18 @@ class ConsensusAlgorithm:
     def set_finality_window_time(self, time: int):
         self.finality_window_time = time
 
+        # Send log event to update the frontend value
+        self.msg_handler.send_message(
+            LogEvent(
+                name="finality_window_time_updated",
+                type=EventType.INFO,
+                scope=EventScope.RPC,
+                message=f"Finality window time updated to {time}",
+                data={"time": time},
+            ),
+            log_to_terminal=False,
+        )
+
 
 class TransactionContext:
     """
