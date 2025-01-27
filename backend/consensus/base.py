@@ -10,6 +10,7 @@ import traceback
 from typing import Callable, Iterator, List
 import time
 from abc import ABC, abstractmethod
+import threading
 
 from sqlalchemy.orm import Session
 from backend.consensus.vrf import get_validators_for_transaction
@@ -85,16 +86,70 @@ def contract_snapshot_factory(
     session: Session,
     transaction: Transaction,
 ):
+    """
+    Factory function to create a ContractSnapshot instance.
+
+    Args:
+        contract_address (str): The address of the contract.
+        session (Session): The database session.
+        transaction (Transaction): The transaction related to the contract.
+
+    Returns:
+        ContractSnapshot: A new ContractSnapshot instance.
+    """
+    # Check if the transaction is a contract deployment and the contract address matches the transaction's to address
     if (
         transaction.type == TransactionType.DEPLOY_CONTRACT
         and contract_address == transaction.to_address
     ):
+        # Create a new ContractSnapshot instance for the new contract
         ret = ContractSnapshot(None, session)
         ret.contract_address = transaction.to_address
         ret.contract_code = transaction.data["contract_code"]
         ret.encoded_state = {}
         return ret
+
+    # Return a ContractSnapshot instance for an existing contract
     return ContractSnapshot(contract_address, session)
+
+
+def chain_snapshot_factory(session: Session):
+    """
+    Factory function to create a ChainSnapshot instance.
+
+    Args:
+        session (Session): The database session.
+
+    Returns:
+        ChainSnapshot: A new ChainSnapshot instance.
+    """
+    return ChainSnapshot(session)
+
+
+def transactions_processor_factory(session: Session):
+    """
+    Factory function to create a TransactionsProcessor instance.
+
+    Args:
+        session (Session): The database session.
+
+    Returns:
+        TransactionsProcessor: A new TransactionsProcessor instance.
+    """
+    return TransactionsProcessor(session)
+
+
+def accounts_manager_factory(session: Session):
+    """
+    Factory function to create an AccountsManager instance.
+
+    Args:
+        session (Session): The database session.
+
+    Returns:
+        AccountsManager: A new AccountsManager instance.
+    """
+    return AccountsManager(session)
 
 
 class ConsensusAlgorithm:
@@ -104,7 +159,9 @@ class ConsensusAlgorithm:
     Attributes:
         get_session (Callable[[], Session]): Function to get a database session.
         msg_handler (MessageHandler): Handler for messaging.
-        queues (dict[str, asyncio.Queue]): Dictionary of queues for transactions.
+        pending_queues (dict[str, asyncio.Queue]): Dictionary of pending_queues for transactions.
+        finality_window_time (int): Time in seconds for the finality window.
+        consensus_sleep_time (int): Time in seconds for the consensus sleep time.
     """
 
     def __init__(
@@ -121,58 +178,168 @@ class ConsensusAlgorithm:
         """
         self.get_session = get_session
         self.msg_handler = msg_handler
-        self.queues: dict[str, asyncio.Queue] = {}
+        self.pending_queues: dict[str, asyncio.Queue] = {}
         self.finality_window_time = int(os.getenv("VITE_FINALITY_WINDOW"))
+        self.consensus_sleep_time = DEFAULT_CONSENSUS_SLEEP_TIME
 
-    def run_crawl_snapshot_loop(self):
+    def run_crawl_snapshot_loop(
+        self,
+        chain_snapshot_factory: Callable[
+            [Session], ChainSnapshot
+        ] = chain_snapshot_factory,
+        transactions_processor_factory: Callable[
+            [Session], TransactionsProcessor
+        ] = transactions_processor_factory,
+        stop_event: threading.Event = threading.Event(),
+    ):
         """
         Run the loop to crawl snapshots.
+
+        Args:
+            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Factory function to create a ChainSnapshot instance.
+            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Factory function to create a TransactionsProcessor instance.
+            stop_event (threading.Event): Event to stop the loop.
         """
         # Create a new event loop for crawling snapshots
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(self._crawl_snapshot())
+        loop.run_until_complete(
+            self._crawl_snapshot(
+                chain_snapshot_factory, transactions_processor_factory, stop_event
+            )
+        )
         loop.close()
 
-    async def _crawl_snapshot(self):
+    async def _crawl_snapshot(
+        self,
+        chain_snapshot_factory: Callable[[Session], ChainSnapshot],
+        transactions_processor_factory: Callable[[Session], TransactionsProcessor],
+        stop_event: threading.Event,
+    ):
         """
         Crawl snapshots and process pending transactions.
+
+        Args:
+            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Factory function to create a ChainSnapshot instance.
+            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Factory function to create a TransactionsProcessor instance.
+            stop_event (threading.Event): Event to stop the loop.
         """
-        while True:
+        while not stop_event.is_set():
             with self.get_session() as session:
-                chain_snapshot = ChainSnapshot(session)
+                chain_snapshot = chain_snapshot_factory(session)
+                transactions_processor = transactions_processor_factory(session)
                 pending_transactions = chain_snapshot.get_pending_transactions()
                 for transaction in pending_transactions:
                     transaction = Transaction.from_dict(transaction)
                     address = transaction.to_address or transaction.from_address
 
-                    if address not in self.queues:
-                        self.queues[address] = asyncio.Queue()
-                    await self.queues[address].put(transaction)
-            await asyncio.sleep(DEFAULT_CONSENSUS_SLEEP_TIME)
+                    if address not in self.pending_queues:
+                        self.pending_queues[address] = asyncio.Queue()
 
-    def run_consensus_loop(self):
+                    await self.pending_queues[address].put(transaction)
+
+                    # Set the transaction as queued so it is not added to the queue again
+                    transactions_processor.set_transaction_queued(
+                        transaction.hash, True
+                    )
+
+            await asyncio.sleep(self.consensus_sleep_time)
+
+    def run_process_pending_transactions_loop(
+        self,
+        chain_snapshot_factory: Callable[
+            [Session], ChainSnapshot
+        ] = chain_snapshot_factory,
+        transactions_processor_factory: Callable[
+            [Session], TransactionsProcessor
+        ] = transactions_processor_factory,
+        accounts_manager_factory: Callable[
+            [Session], AccountsManager
+        ] = accounts_manager_factory,
+        contract_snapshot_factory: Callable[
+            [str, Session, Transaction], ContractSnapshot
+        ] = contract_snapshot_factory,
+        node_factory: Callable[
+            [
+                dict,
+                ExecutionMode,
+                ContractSnapshot,
+                Receipt | None,
+                MessageHandler,
+                Callable[[str], ContractSnapshot],
+            ],
+            Node,
+        ] = node_factory,
+        stop_event: threading.Event = threading.Event(),
+    ):
         """
-        Run the consensus loop.
+        Run the process pending transactions loop.
+
+        Args:
+            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Factory function to create a ChainSnapshot instance.
+            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Factory function to create a TransactionsProcessor instance.
+            accounts_manager_factory (Callable[[Session], AccountsManager]): Factory function to create an AccountsManager instance.
+            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Factory function to create a ContractSnapshot instance.
+            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create a Node instance.
+            stop_event (threading.Event): Event to stop the loop.
         """
-        # Create a new event loop for running consensus
+        # Create a new event loop for running the processing of pending transactions
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(self._run_consensus())
+        loop.run_until_complete(
+            self._process_pending_transactions(
+                chain_snapshot_factory,
+                transactions_processor_factory,
+                accounts_manager_factory,
+                contract_snapshot_factory,
+                node_factory,
+                stop_event,
+            )
+        )
         loop.close()
 
-    async def _run_consensus(self):
+    async def _process_pending_transactions(
+        self,
+        chain_snapshot_factory: Callable[[Session], ChainSnapshot],
+        transactions_processor_factory: Callable[[Session], TransactionsProcessor],
+        accounts_manager_factory: Callable[[Session], AccountsManager],
+        contract_snapshot_factory: Callable[
+            [str, Session, Transaction], ContractSnapshot
+        ],
+        node_factory: Callable[
+            [
+                dict,
+                ExecutionMode,
+                ContractSnapshot,
+                Receipt | None,
+                MessageHandler,
+                Callable[[str], ContractSnapshot],
+            ],
+            Node,
+        ],
+        stop_event: threading.Event,
+    ):
         """
-        Run the consensus process.
+        Process pending transactions.
+
+        Args:
+            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Factory function to create a ChainSnapshot instance.
+            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Factory function to create a TransactionsProcessor instance.
+            accounts_manager_factory (Callable[[Session], AccountsManager]): Factory function to create an AccountsManager instance.
+            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Factory function to create a ContractSnapshot instance.
+            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create a Node instance.
+            stop_event (threading.Event): Event to stop the loop.
         """
-        # Set a new event loop for the consensus process
+        # Set a new event loop for the processing of pending transactions
         asyncio.set_event_loop(asyncio.new_event_loop())
         # Note: ollama uses GPU resources and webrequest aka selenium uses RAM
         # TODO: Consider using async sessions to avoid blocking the current thread
-        while True:
+        while not stop_event.is_set():
             try:
                 async with asyncio.TaskGroup() as tg:
-                    for queue in [q for q in self.queues.values() if not q.empty()]:
+                    for queue in [
+                        q for q in self.pending_queues.values() if not q.empty()
+                    ]:
                         # Sessions cannot be shared between coroutines; create a new session for each coroutine
                         # Reference: https://docs.sqlalchemy.org/en/20/orm/session_basics.html#is-the-session-thread-safe-is-asyncsession-safe-to-share-in-concurrent-tasks
                         transaction: Transaction = await queue.get()
@@ -181,16 +348,19 @@ class ConsensusAlgorithm:
                             async def exec_transaction_with_session_handling(
                                 session: Session, transaction: Transaction
                             ):
+                                transactions_processor = transactions_processor_factory(
+                                    session
+                                )
                                 await self.exec_transaction(
                                     transaction,
-                                    TransactionsProcessor(session),
-                                    ChainSnapshot(session),
-                                    AccountsManager(session),
+                                    transactions_processor,
+                                    chain_snapshot_factory(session),
+                                    accounts_manager_factory(session),
                                     lambda contract_address: contract_snapshot_factory(
                                         contract_address, session, transaction
                                     ),
+                                    node_factory,
                                 )
-                                session.commit()
 
                             tg.create_task(
                                 exec_transaction_with_session_handling(
@@ -201,7 +371,7 @@ class ConsensusAlgorithm:
             except Exception as e:
                 print("Error running consensus", e)
                 print(traceback.format_exc())
-            await asyncio.sleep(DEFAULT_CONSENSUS_SLEEP_TIME)
+            await asyncio.sleep(self.consensus_sleep_time)
 
     async def exec_transaction(
         self,
@@ -220,7 +390,7 @@ class ConsensusAlgorithm:
                 Callable[[str], ContractSnapshot],
             ],
             Node,
-        ] = node_factory,
+        ],
     ):
         """
         Execute a transaction.
@@ -233,8 +403,6 @@ class ConsensusAlgorithm:
             contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
             node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
         """
-        msg_handler = self.msg_handler
-
         # Create initial state context for the transaction
         context = TransactionContext(
             transaction=transaction,
@@ -243,7 +411,7 @@ class ConsensusAlgorithm:
             accounts_manager=accounts_manager,
             contract_snapshot_factory=contract_snapshot_factory,
             node_factory=node_factory,
-            msg_handler=msg_handler,
+            msg_handler=self.msg_handler,
         )
 
         # Begin state transitions starting from PendingState
@@ -253,6 +421,9 @@ class ConsensusAlgorithm:
             if next_state is None:
                 break
             state = next_state
+
+        # Transaction will be in the accepted or undetermined state and will be picked up by the appeal_window thread
+        transactions_processor.set_transaction_queued(transaction.hash, False)
 
     @staticmethod
     def dispatch_transaction_status_update(
@@ -349,129 +520,409 @@ class ConsensusAlgorithm:
             msg_handler,
         )
 
-    def run_appeal_window_loop(self):
+    def run_appeal_window_loop(
+        self,
+        chain_snapshot_factory: Callable[
+            [Session], ChainSnapshot
+        ] = chain_snapshot_factory,
+        transactions_processor_factory: Callable[
+            [Session], TransactionsProcessor
+        ] = transactions_processor_factory,
+        accounts_manager_factory: Callable[
+            [Session], AccountsManager
+        ] = accounts_manager_factory,
+        contract_snapshot_factory: Callable[
+            [str, Session, Transaction], ContractSnapshot
+        ] = contract_snapshot_factory,
+        node_factory: Callable[
+            [
+                dict,
+                ExecutionMode,
+                ContractSnapshot,
+                Receipt | None,
+                MessageHandler,
+                Callable[[str], ContractSnapshot],
+            ],
+            Node,
+        ] = node_factory,
+        stop_event: threading.Event = threading.Event(),
+    ):
         """
         Run the loop to handle the appeal window.
+
+        Args:
+            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Factory function to create a ChainSnapshot instance.
+            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Factory function to create a TransactionsProcessor instance.
+            accounts_manager_factory (Callable[[Session], AccountsManager]): Factory function to create an AccountsManager instance.
+            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Factory function to create a ContractSnapshot instance.
+            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create a Node instance.
+            stop_event (threading.Event): Event to stop the loop.
         """
         # Create a new event loop for running the appeal window
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        print(" ~ ~ ~ ~ ~ STARTING APPEAL WINDOW LOOP")
-        loop.run_until_complete(self._appeal_window())
+        print(
+            f" ~ ~ ~ ~ ~ STARTING APPEAL WINDOW LOOP with {self.finality_window_time} seconds"
+        )
+        loop.run_until_complete(
+            self._appeal_window(
+                chain_snapshot_factory,
+                transactions_processor_factory,
+                accounts_manager_factory,
+                contract_snapshot_factory,
+                node_factory,
+                stop_event,
+            )
+        )
         loop.close()
         print(" ~ ~ ~ ~ ~ ENDING APPEAL WINDOW LOOP")
 
-    async def _appeal_window(self):
+    async def _appeal_window(
+        self,
+        chain_snapshot_factory: Callable[[Session], ChainSnapshot],
+        transactions_processor_factory: Callable[[Session], TransactionsProcessor],
+        accounts_manager_factory: Callable[[Session], AccountsManager],
+        contract_snapshot_factory: Callable[
+            [str, Session, Transaction], ContractSnapshot
+        ],
+        node_factory: Callable[
+            [
+                dict,
+                ExecutionMode,
+                ContractSnapshot,
+                Receipt | None,
+                MessageHandler,
+                Callable[[str], ContractSnapshot],
+            ],
+            Node,
+        ],
+        stop_event: threading.Event,
+    ):
         """
         Handle the appeal window for transactions.
+
+        Args:
+            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Factory function to create a ChainSnapshot instance.
+            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Factory function to create a TransactionsProcessor instance.
+            accounts_manager_factory (Callable[[Session], AccountsManager]): Factory function to create an AccountsManager instance.
+            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Factory function to create a ContractSnapshot instance.
+            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create a Node instance.
+            stop_event (threading.Event): Event to stop the loop.
         """
-        print(" ~ ~ ~ ~ ~ FINALITY WINDOW: ", self.finality_window_time)
-        while True:
+        # Set a new event loop for the appeal window
+        asyncio.set_event_loop(asyncio.new_event_loop())
+
+        while not stop_event.is_set():
             try:
-                with self.get_session() as session:
-                    chain_snapshot = ChainSnapshot(session)
+                async with asyncio.TaskGroup() as tg:
+                    with self.get_session() as session:
+                        # Get the accepted and undetermined transactions per contract address
+                        chain_snapshot = chain_snapshot_factory(session)
+                        accepted_undetermined_transactions = (
+                            chain_snapshot.get_accepted_undetermined_transactions()
+                        )
 
-                    # Retrieve accepted transactions from the chain snapshot
-                    accepted_transactions = (
-                        chain_snapshot.get_accepted_transactions()
-                    )  # TODO: also get undetermined transactions
-                    for transaction in accepted_transactions:
-                        transaction = Transaction.from_dict(transaction)
+                        # Iterate over the contracts
+                        for (
+                            accepted_undetermined_queue
+                        ) in accepted_undetermined_transactions.values():
 
-                        # Check if the transaction is appealed
-                        if not transaction.appealed:
+                            # Create a new session for each task so tasks can be run in parallel
+                            with self.get_session() as task_session:
 
-                            # Check if the transaction has exceeded the finality window
-                            if (
-                                int(time.time()) - transaction.timestamp_accepted
-                            ) > self.finality_window_time:
+                                async def exec_appeal_window_with_session_handling(
+                                    task_session: Session,
+                                    accepted_undetermined_queue: list[dict],
+                                ):
+                                    transactions_processor = (
+                                        transactions_processor_factory(task_session)
+                                    )
 
-                                # Create a transaction context for finalizing the transaction
-                                context = TransactionContext(
-                                    transaction=transaction,
-                                    transactions_processor=TransactionsProcessor(
-                                        session
-                                    ),
-                                    snapshot=chain_snapshot,
-                                    accounts_manager=AccountsManager(session),
-                                    contract_snapshot_factory=lambda contract_address: contract_snapshot_factory(
-                                        contract_address, session, transaction
-                                    ),
-                                    node_factory=node_factory,
-                                    msg_handler=self.msg_handler,
-                                )
+                                    # Go through the whole queue to check for appeals and finalizations
+                                    for transaction in accepted_undetermined_queue:
+                                        transaction = Transaction.from_dict(transaction)
 
-                                # Transition to the FinalizingState
-                                state = FinalizingState()
-                                await state.handle(context)
-                                session.commit()
+                                        # Check if the transaction is appealed
+                                        if not transaction.appealed:
 
-                        else:
+                                            # Check if the transaction has exceeded the finality window or if it is a leader only transaction
+                                            if (transaction.leader_only) or (
+                                                (
+                                                    int(time.time())
+                                                    - transaction.timestamp_awaiting_finalization
+                                                )
+                                                > self.finality_window_time
+                                            ):
+                                                # Handle transactions that need to be finalized
+                                                await self.process_finalization(
+                                                    transaction,
+                                                    transactions_processor,
+                                                    chain_snapshot,
+                                                    accounts_manager_factory(
+                                                        task_session
+                                                    ),
+                                                    lambda contract_address: contract_snapshot_factory(
+                                                        contract_address,
+                                                        task_session,
+                                                        transaction,
+                                                    ),
+                                                    node_factory,
+                                                )
 
-                            # Handle transactions that are appealed
-                            transactions_processor = TransactionsProcessor(session)
+                                        else:
+                                            # Handle transactions that are appealed
+                                            if (
+                                                transaction.status
+                                                == TransactionStatus.UNDETERMINED
+                                            ):
+                                                # Leader appeal
+                                                await self.process_leader_appeal(
+                                                    transaction,
+                                                    transactions_processor,
+                                                    chain_snapshot,
+                                                    accounts_manager_factory(
+                                                        task_session
+                                                    ),
+                                                    lambda contract_address: contract_snapshot_factory(
+                                                        contract_address,
+                                                        task_session,
+                                                        transaction,
+                                                    ),
+                                                    node_factory,
+                                                )
 
-                            # Create a transaction context for the appeal process
-                            context = TransactionContext(
-                                transaction=transaction,
-                                transactions_processor=transactions_processor,
-                                snapshot=chain_snapshot,
-                                accounts_manager=AccountsManager(session),
-                                contract_snapshot_factory=lambda contract_address: contract_snapshot_factory(
-                                    contract_address, session, transaction
-                                ),
-                                node_factory=node_factory,
-                                msg_handler=self.msg_handler,
-                            )
+                                            else:
+                                                # Validator appeal
+                                                await self.process_validator_appeal(
+                                                    transaction,
+                                                    transactions_processor,
+                                                    chain_snapshot,
+                                                    accounts_manager_factory(
+                                                        task_session
+                                                    ),
+                                                    lambda contract_address: contract_snapshot_factory(
+                                                        contract_address,
+                                                        task_session,
+                                                        transaction,
+                                                    ),
+                                                    node_factory,
+                                                )
 
-                            # Set the leader receipt in the context
-                            context.consensus_data.leader_receipt = (
-                                transaction.consensus_data.leader_receipt
-                            )
-                            try:
-                                # Attempt to get extra validators for the appeal process
-                                context.remaining_validators = (
-                                    ConsensusAlgorithm.get_extra_validators(
-                                        chain_snapshot,
-                                        transaction.consensus_data,
-                                        transaction.appeal_failed,
+                                tg.create_task(
+                                    exec_appeal_window_with_session_handling(
+                                        task_session, accepted_undetermined_queue
                                     )
                                 )
-                            except ValueError as e:
-                                # When no validators are found, then the appeal failed
-                                print(e, transaction)
-                                context.transactions_processor.set_transaction_appeal(
-                                    context.transaction.hash, False
-                                )
-                                context.transaction.appealed = False
-                                session.commit()
-                            else:
-                                # Set up the context for the committing state
-                                context.num_validators = len(
-                                    context.remaining_validators
-                                )
-                                context.votes = {}
-                                context.contract_snapshot_supplier = (
-                                    lambda: context.contract_snapshot_factory(
-                                        context.transaction.to_address
-                                    )
-                                )
-
-                                # Begin state transitions starting from CommittingState
-                                state = CommittingState()
-                                while True:
-                                    next_state = await state.handle(context)
-                                    if next_state is None:
-                                        break
-                                    state = next_state
-                                session.commit()
 
             except Exception as e:
-                print("Error running appeal window", e)
+                print("Error running consensus", e)
                 print(traceback.format_exc())
+            await asyncio.sleep(self.consensus_sleep_time)
 
-            # Sleep for a short duration before the next iteration
-            await asyncio.sleep(1)
+    async def process_finalization(
+        self,
+        transaction: Transaction,
+        transactions_processor: TransactionsProcessor,
+        snapshot: ChainSnapshot,
+        accounts_manager: AccountsManager,
+        contract_snapshot_factory: Callable[[str], ContractSnapshot],
+        node_factory: Callable[
+            [
+                dict,
+                ExecutionMode,
+                ContractSnapshot,
+                Receipt | None,
+                MessageHandler,
+                Callable[[str], ContractSnapshot],
+            ],
+            Node,
+        ],
+    ):
+        """
+        Process the finalization of a transaction.
+
+        Args:
+            transaction (Transaction): The transaction to finalize.
+            transactions_processor (TransactionsProcessor): Instance responsible for handling transaction operations within the database.
+            snapshot (ChainSnapshot): Snapshot of the chain state.
+            accounts_manager (AccountsManager): Manager for accounts.
+            contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
+            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
+        """
+        # Set the transaction to queued/processing
+        transactions_processor.set_transaction_queued(transaction.hash, True)
+
+        # Create a transaction context for finalizing the transaction
+        context = TransactionContext(
+            transaction=transaction,
+            transactions_processor=transactions_processor,
+            snapshot=snapshot,
+            accounts_manager=accounts_manager,
+            contract_snapshot_factory=contract_snapshot_factory,
+            node_factory=node_factory,
+            msg_handler=self.msg_handler,
+        )
+
+        # Transition to the FinalizingState
+        state = FinalizingState()
+        await state.handle(context)
+
+        # Process the transaction is done
+        transactions_processor.set_transaction_queued(transaction.hash, False)
+
+    async def process_leader_appeal(
+        self,
+        transaction: Transaction,
+        transactions_processor: TransactionsProcessor,
+        snapshot: ChainSnapshot,
+        accounts_manager: AccountsManager,
+        contract_snapshot_factory: Callable[[str], ContractSnapshot],
+        node_factory: Callable[
+            [
+                dict,
+                ExecutionMode,
+                ContractSnapshot,
+                Receipt | None,
+                MessageHandler,
+                Callable[[str], ContractSnapshot],
+            ],
+            Node,
+        ],
+    ):
+        """
+        Process the leader appeal of a transaction.
+
+        Args:
+            transaction (Transaction): The transaction to appeal.
+            transactions_processor (TransactionsProcessor): Instance responsible for handling transaction operations within the database.
+            snapshot (ChainSnapshot): Snapshot of the chain state.
+            accounts_manager (AccountsManager): Manager for accounts.
+            contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
+            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
+        """
+        # Set the transaction to queued/processing
+        transactions_processor.set_transaction_queued(transaction.hash, True)
+
+        # Create a transaction context for the appeal
+        context = TransactionContext(
+            transaction=transaction,
+            transactions_processor=transactions_processor,
+            snapshot=snapshot,
+            accounts_manager=accounts_manager,
+            contract_snapshot_factory=contract_snapshot_factory,
+            node_factory=node_factory,
+            msg_handler=self.msg_handler,
+        )
+
+        # Appeal data member is used in the frontend for both types of appeals
+        # Here the type is refined based on the status
+        transactions_processor.set_transaction_appeal_undetermined(
+            transaction.hash, True
+        )
+        transactions_processor.set_transaction_appeal(transaction.hash, False)
+        transaction.appeal_undetermined = True
+        transaction.appealed = False
+
+        ConsensusAlgorithm.dispatch_transaction_status_update(
+            transactions_processor,
+            transaction.hash,
+            TransactionStatus.PENDING,
+            self.msg_handler,
+        )
+
+        # Begin state transitions starting from PendingState
+        state = PendingState()
+        while True:
+            next_state = await state.handle(context)
+            if next_state is None:
+                break
+            state = next_state
+
+        # Process the transaction is done
+        transactions_processor.set_transaction_queued(transaction.hash, False)
+
+    async def process_validator_appeal(
+        self,
+        transaction: Transaction,
+        transactions_processor: TransactionsProcessor,
+        snapshot: ChainSnapshot,
+        accounts_manager: AccountsManager,
+        contract_snapshot_factory: Callable[[str], ContractSnapshot],
+        node_factory: Callable[
+            [
+                dict,
+                ExecutionMode,
+                ContractSnapshot,
+                Receipt | None,
+                MessageHandler,
+                Callable[[str], ContractSnapshot],
+            ],
+            Node,
+        ],
+    ):
+        """
+        Process the validator appeal of a transaction.
+
+        Args:
+            transaction (Transaction): The transaction to appeal.
+            transactions_processor (TransactionsProcessor): Instance responsible for handling transaction operations within the database.
+            snapshot (ChainSnapshot): Snapshot of the chain state.
+            accounts_manager (AccountsManager): Manager for accounts.
+            contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
+            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
+        """
+        # Set the transaction to queued/processing
+        transactions_processor.set_transaction_queued(transaction.hash, True)
+
+        # Create a transaction context for the appeal
+        context = TransactionContext(
+            transaction=transaction,
+            transactions_processor=transactions_processor,
+            snapshot=snapshot,
+            accounts_manager=accounts_manager,
+            contract_snapshot_factory=contract_snapshot_factory,
+            node_factory=node_factory,
+            msg_handler=self.msg_handler,
+        )
+
+        # Set the leader receipt in the context
+        context.consensus_data.leader_receipt = (
+            transaction.consensus_data.leader_receipt
+        )
+        try:
+            # Attempt to get extra validators for the appeal process
+            context.remaining_validators = ConsensusAlgorithm.get_extra_validators(
+                snapshot,
+                transaction.consensus_data,
+                transaction.appeal_failed,
+            )
+        except ValueError as e:
+            # When no validators are found, then the appeal failed
+            print(e, transaction)
+            context.transactions_processor.set_transaction_appeal(
+                context.transaction.hash, False
+            )
+            context.transaction.appealed = False
+        else:
+            # Set up the context for the committing state
+            context.num_validators = len(context.remaining_validators)
+            context.votes = {}
+            context.contract_snapshot_supplier = (
+                lambda: context.contract_snapshot_factory(
+                    context.transaction.to_address
+                )
+            )
+
+            # Begin state transitions starting from CommittingState
+            state = CommittingState()
+            while True:
+                next_state = await state.handle(context)
+                if next_state is None:
+                    break
+                state = next_state
+
+        # Process the transaction is done
+        transactions_processor.set_transaction_queued(transaction.hash, False)
 
     @staticmethod
     def get_extra_validators(
@@ -694,17 +1145,12 @@ class PendingState(TransactionState):
         Returns:
             TransactionState | None: The ProposingState or None if the transaction is already in process, when it is a transaction or when there are no validators.
         """
-        if (
+        # Transactions that are put back to pending are processed again, so we need to get the latest data of the transaction
+        context.transaction = Transaction.from_dict(
             context.transactions_processor.get_transaction_by_hash(
                 context.transaction.hash
-            )["status"]
-            != TransactionStatus.PENDING.value
-        ):
-            # This is a patch for a TOCTOU problem we have https://github.com/yeagerai/genlayer-simulator/issues/387
-            # Problem: Pending transactions are checked by `_crawl_snapshot`, which appends them to queues. These queues are consumed by `_run_consensus`, which processes the transactions. This means that a transaction can be processed multiple times, since `_crawl_snapshot` can append the same transaction to the queue multiple times.
-            # Partial solution: This patch checks if the transaction is still pending before processing it. This is not the best solution, but we'll probably refactor the whole consensus algorithm in the short term.
-            print(" ~ ~ ~ ~ ~ TRANSACTION ALREADY IN PROCESS: ", context.transaction)
-            return None
+            )
+        )
 
         print(" ~ ~ ~ ~ ~ EXECUTING TRANSACTION: ", context.transaction)
 
@@ -736,11 +1182,23 @@ class PendingState(TransactionState):
             involved_validators = ConsensusAlgorithm.get_validators_from_consensus_data(
                 all_validators, context.transaction.consensus_data
             )
+
             # Reset the transaction appeal status
             context.transactions_processor.set_transaction_appeal(
                 context.transaction.hash, False
             )
             context.transaction.appealed = False
+
+        elif context.transaction.appeal_undetermined:
+            # Add n+2 validators, remove the old leader
+            current_validators = ConsensusAlgorithm.get_validators_from_consensus_data(
+                all_validators, context.transaction.consensus_data
+            )
+            extra_validators = ConsensusAlgorithm.get_extra_validators(
+                context.snapshot, context.transaction.consensus_data, 0
+            )
+            involved_validators = current_validators + extra_validators
+
         else:
             # If not appealed, get the default number of validators for the transaction
             involved_validators = get_validators_for_transaction(
@@ -996,7 +1454,9 @@ class RevealingState(TransactionState):
                 # Log the failure to reach consensus and transition to ProposingState
                 print(
                     "Consensus not reached for transaction, rotating leader: ",
-                    context.transaction,
+                    context.transactions_processor.get_transaction_by_hash(
+                        context.transaction.hash
+                    ),
                 )
                 return ProposingState()
 
@@ -1016,9 +1476,9 @@ class AcceptedState(TransactionState):
         Returns:
             None: The transaction is accepted.
         """
+        # When appeal fails, the appeal window is not reset
         if not context.transaction.appealed:
-            # When appeal fails, the appeal window is not reset
-            context.transactions_processor.set_transaction_timestamp_accepted(
+            context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
                 context.transaction.hash
             )
 
@@ -1028,17 +1488,23 @@ class AcceptedState(TransactionState):
         )
         context.transaction.appealed = False
 
+        # Set the transaction appeal undetermined status to false
+        context.transactions_processor.set_transaction_appeal_undetermined(
+            context.transaction.hash, False
+        )
+        context.transaction.appeal_undetermined = False
+
+        # Set the transaction result
+        context.transactions_processor.set_transaction_result(
+            context.transaction.hash, context.consensus_data.to_dict()
+        )
+
         # Update the transaction status to ACCEPTED
         ConsensusAlgorithm.dispatch_transaction_status_update(
             context.transactions_processor,
             context.transaction.hash,
             TransactionStatus.ACCEPTED,
             context.msg_handler,
-        )
-
-        # Set the transaction result
-        context.transactions_processor.set_transaction_result(
-            context.transaction.hash, context.consensus_data.to_dict()
         )
 
         # Send a message indicating consensus was reached
@@ -1060,7 +1526,11 @@ class AcceptedState(TransactionState):
         # Get the contract snapshot for the transaction's target address
         leaders_contract_snapshot = context.contract_snapshot_supplier()
 
+        # Do not deploy the contract if the execution failed
         if leader_receipt.execution_result == ExecutionResultStatus.SUCCESS:
+            # Get the contract snapshot for the transaction's target address
+            leaders_contract_snapshot = context.contract_snapshot_supplier()
+
             # Register contract if it is a new contract
             if context.transaction.type == TransactionType.DEPLOY_CONTRACT:
                 new_contract = {
@@ -1108,9 +1578,6 @@ class UndeterminedState(TransactionState):
         Returns:
             None: The transaction remains in an undetermined state.
         """
-        # Log the failure to reach consensus for the transaction
-        print("Consensus not reached for transaction: ", context.transaction)
-
         # Send a message indicating consensus failure
         context.msg_handler.send_message(
             LogEvent(
@@ -1122,7 +1589,25 @@ class UndeterminedState(TransactionState):
             )
         )
 
-        # Update the transaction status to UNDETERMINED
+        # When appeal fails, the appeal window is not reset
+        if not context.transaction.appeal_undetermined:
+            context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
+                context.transaction.hash
+            )
+
+        # Set the transaction appeal undetermined status to false
+        context.transactions_processor.set_transaction_appeal_undetermined(
+            context.transaction.hash, False
+        )
+        context.transaction.appeal_undetermined = False
+
+        # Set the transaction result with the current consensus data
+        context.transactions_processor.set_transaction_result(
+            context.transaction.hash,
+            context.consensus_data.to_dict(),
+        )
+
+        # Update the transaction status to undetermined
         ConsensusAlgorithm.dispatch_transaction_status_update(
             context.transactions_processor,
             context.transaction.hash,
@@ -1130,10 +1615,12 @@ class UndeterminedState(TransactionState):
             context.msg_handler,
         )
 
-        # Set the transaction result with the current consensus data
-        context.transactions_processor.set_transaction_result(
-            context.transaction.hash,
-            context.consensus_data.to_dict(),
+        # Log the failure to reach consensus for the transaction
+        print(
+            "Consensus not reached for transaction: ",
+            context.transactions_processor.get_transaction_by_hash(
+                context.transaction.hash
+            ),
         )
         return None
 
@@ -1161,61 +1648,64 @@ class FinalizingState(TransactionState):
             context.msg_handler,
         )
 
-        # Insert pending transactions generated by contract-to-contract calls
-        pending_transactions = (
-            context.transaction.consensus_data.leader_receipt.pending_transactions
-        )
-        for pending_transaction in pending_transactions:
-            nonce = context.transactions_processor.get_transaction_count(
-                context.transaction.to_address
+        if context.transaction.status != TransactionStatus.UNDETERMINED:
+            # Insert pending transactions generated by contract-to-contract calls
+            pending_transactions = (
+                context.transaction.consensus_data.leader_receipt.pending_transactions
             )
-            data: dict
-            transaction_type: TransactionType
-            if pending_transaction.is_deploy():
-                transaction_type = TransactionType.DEPLOY_CONTRACT
-                new_contract_address: str
-                if pending_transaction.salt_nonce == 0:
-                    # NOTE: this address is random, which doesn't 100% align with consensus spec
-                    new_contract_address = (
-                        context.accounts_manager.create_new_account().address
-                    )
-                else:
-                    from eth_utils.crypto import keccak
-                    from backend.node.types import Address
-                    from backend.node.base import SIMULATOR_CHAIN_ID
+            for pending_transaction in pending_transactions:
+                nonce = context.transactions_processor.get_transaction_count(
+                    context.transaction.to_address
+                )
+                data: dict
+                transaction_type: TransactionType
+                if pending_transaction.is_deploy():
+                    transaction_type = TransactionType.DEPLOY_CONTRACT
+                    new_contract_address: str
+                    if pending_transaction.salt_nonce == 0:
+                        # NOTE: this address is random, which doesn't 100% align with consensus spec
+                        new_contract_address = (
+                            context.accounts_manager.create_new_account().address
+                        )
+                    else:
+                        from eth_utils.crypto import keccak
+                        from backend.node.types import Address
+                        from backend.node.base import SIMULATOR_CHAIN_ID
 
-                    arr = bytearray()
-                    arr.append(1)
-                    arr.extend(Address(context.transaction.to_address).as_bytes)
-                    arr.extend(
-                        pending_transaction.salt_nonce.to_bytes(32, "big", signed=False)
-                    )
-                    arr.extend(SIMULATOR_CHAIN_ID.to_bytes(32, "big", signed=False))
-                    new_contract_address = Address(keccak(arr)[:20]).as_hex
-                    context.accounts_manager.create_new_account_with_address(
-                        new_contract_address
-                    )
-                pending_transaction.address = new_contract_address
-                data = {
-                    "contract_address": new_contract_address,
-                    "contract_code": pending_transaction.code,
-                    "calldata": pending_transaction.calldata,
-                }
-            else:
-                transaction_type = TransactionType.RUN_CONTRACT
-                data = {
-                    "calldata": pending_transaction.calldata,
-                }
-            context.transactions_processor.insert_transaction(
-                context.transaction.to_address,  # new calls are done by the contract
-                pending_transaction.address,
-                data,
-                value=0,  # we only handle EOA transfers at the moment, so no value gets transferred
-                type=transaction_type.value,
-                nonce=nonce,
-                leader_only=context.transaction.leader_only,  # Cascade
-                triggered_by_hash=context.transaction.hash,
-            )
+                        arr = bytearray()
+                        arr.append(1)
+                        arr.extend(Address(context.transaction.to_address).as_bytes)
+                        arr.extend(
+                            pending_transaction.salt_nonce.to_bytes(
+                                32, "big", signed=False
+                            )
+                        )
+                        arr.extend(SIMULATOR_CHAIN_ID.to_bytes(32, "big", signed=False))
+                        new_contract_address = Address(keccak(arr)[:20]).as_hex
+                        context.accounts_manager.create_new_account_with_address(
+                            new_contract_address
+                        )
+                    pending_transaction.address = new_contract_address
+                    data = {
+                        "contract_address": new_contract_address,
+                        "contract_code": pending_transaction.code,
+                        "calldata": pending_transaction.calldata,
+                    }
+                else:
+                    transaction_type = TransactionType.RUN_CONTRACT
+                    data = {
+                        "calldata": pending_transaction.calldata,
+                    }
+                context.transactions_processor.insert_transaction(
+                    context.transaction.to_address,  # new calls are done by the contract
+                    pending_transaction.address,
+                    data,
+                    value=0,  # we only handle EOA transfers at the moment, so no value gets transferred
+                    type=transaction_type.value,
+                    nonce=nonce,
+                    leader_only=context.transaction.leader_only,  # Cascade
+                    triggered_by_hash=context.transaction.hash,
+                )
 
 
 def rotate(nodes: list) -> Iterator[list]:

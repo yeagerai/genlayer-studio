@@ -136,13 +136,17 @@ def test_get_highest_timestamp(transactions_processor: TransactionsProcessor):
     )
     transactions_processor.session.commit()
     assert transactions_processor.get_highest_timestamp() == 0
-    transactions_processor.set_transaction_timestamp_accepted(tx1_hash, 1000)
+    transactions_processor.set_transaction_timestamp_awaiting_finalization(
+        tx1_hash, 1000
+    )
 
     # Second transaction with timestamp 2000
     tx2_hash = transactions_processor.insert_transaction(
         from_address, to_address, data, 1.0, 1, 1, True
     )
-    transactions_processor.set_transaction_timestamp_accepted(tx2_hash, 2000)
+    transactions_processor.set_transaction_timestamp_awaiting_finalization(
+        tx2_hash, 2000
+    )
 
     # Third transaction with no timestamp (should be ignored)
     transactions_processor.insert_transaction(

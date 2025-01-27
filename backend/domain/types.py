@@ -83,8 +83,10 @@ class Transaction:
     created_at: str | None = None
     ghost_contract_address: str | None = None
     appealed: bool = False
-    timestamp_accepted: int | None = None
+    timestamp_awaiting_finalization: int | None = None
     appeal_failed: int = 0
+    appeal_undetermined: bool = False
+    queued: bool | None = False
 
     def to_dict(self):
         return {
@@ -106,8 +108,10 @@ class Transaction:
             "created_at": self.created_at,
             "ghost_contract_address": self.ghost_contract_address,
             "appealed": self.appealed,
-            "timestamp_accepted": self.timestamp_accepted,
+            "timestamp_awaiting_finalization": self.timestamp_awaiting_finalization,
             "appeal_failed": self.appeal_failed,
+            "appeal_undetermined": self.appeal_undetermined,
+            "queued": self.queued,
         }
 
     @classmethod
@@ -131,6 +135,10 @@ class Transaction:
             created_at=input.get("created_at"),
             ghost_contract_address=input.get("ghost_contract_address"),
             appealed=input.get("appealed"),
-            timestamp_accepted=input.get("timestamp_accepted"),
+            timestamp_awaiting_finalization=input.get(
+                "timestamp_awaiting_finalization"
+            ),
             appeal_failed=input.get("appeal_failed", 0),
+            appeal_undetermined=input.get("appeal_undetermined", False),
+            queued=input.get("queued", False),
         )
