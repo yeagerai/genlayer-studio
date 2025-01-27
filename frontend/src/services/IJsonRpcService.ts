@@ -33,4 +33,5 @@ export interface IJsonRpcService {
   getTransactionCount(address: GetTransactionCountRequest): Promise<number>;
   setTransactionAppeal(tx_address: string): Promise<any>;
   setFinalityWindowTime(time: number): Promise<any>;
+  getFinalityWindowTime(): Promise<number>;
 }

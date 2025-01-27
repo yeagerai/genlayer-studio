@@ -566,6 +566,10 @@ def set_finality_window_time(consensus: ConsensusAlgorithm, time: int) -> None:
     consensus.set_finality_window_time(time)
 
 
+def get_finality_window_time(consensus: ConsensusAlgorithm) -> int:
+    return consensus.finality_window_time
+
+
 def get_chain_id() -> str:
     return hex(SIMULATOR_CHAIN_ID)
 
@@ -830,6 +834,10 @@ def register_all_rpc_endpoints(
     register_rpc_endpoint(
         partial(set_finality_window_time, consensus),
         method_name="sim_setFinalityWindowTime",
+    )
+    register_rpc_endpoint(
+        partial(get_finality_window_time, consensus),
+        method_name="sim_getFinalityWindowTime",
     )
     register_rpc_endpoint(
         partial(get_contract, consensus_service),

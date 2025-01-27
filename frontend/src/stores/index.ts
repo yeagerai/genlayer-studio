@@ -4,3 +4,4 @@ export * from './node';
 export * from './ui';
 export * from './tutorial';
 export * from './transactions';
+export * from './consensus';
