@@ -15,6 +15,8 @@ from backend.domain.types import TransactionType
 from web3 import Web3
 from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
+from backend.protocol_rpc.message_handler.base import MessageHandler
+from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
 
 
 class TransactionAddressFilter(Enum):
@@ -61,8 +63,9 @@ class TransactionsProcessor:
             ],
             "ghost_contract_address": transaction_data.ghost_contract_address,
             "appealed": transaction_data.appealed,
-            "timestamp_accepted": transaction_data.timestamp_accepted,
+            "timestamp_awaiting_finalization": transaction_data.timestamp_awaiting_finalization,
             "appeal_failed": transaction_data.appeal_failed,
+            "appeal_undetermined": transaction_data.appeal_undetermined,
         }
 
     @staticmethod
@@ -227,8 +230,9 @@ class TransactionsProcessor:
             ),
             ghost_contract_address=ghost_contract_address,
             appealed=False,
-            timestamp_accepted=None,
+            timestamp_awaiting_finalization=None,
             appeal_failed=0,
+            appeal_undetermined=False,
         )
 
         self.session.add(new_transaction)
@@ -344,25 +348,50 @@ class TransactionsProcessor:
             self._parse_transaction_data(transaction) for transaction in transactions
         ]
 
-    def set_transaction_appeal(self, transaction_hash: str, appeal: bool):
-        transaction = (
-            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
-        )
-        if (transaction.status == TransactionStatus.ACCEPTED.value) or (
-            transaction.status == TransactionStatus.UNDETERMINED.value
-        ):
-            transaction.appealed = appeal
-
-    def set_transaction_timestamp_accepted(
-        self, transaction_hash: str, timestamp_accepted: int = None
+    def set_transaction_appeal(
+        self,
+        transaction_hash: str,
+        appeal: bool,
+        msg_handler: MessageHandler | None = None,
     ):
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
-        if timestamp_accepted:
-            transaction.timestamp_accepted = timestamp_accepted
+        # You can only appeal the transaction if it is in accepted or undetermined state
+        # Setting it to false is always allowed
+        if (
+            (not appeal)
+            or (transaction.status == TransactionStatus.ACCEPTED)
+            or (transaction.status == TransactionStatus.UNDETERMINED)
+        ):
+            transaction.appealed = appeal
+            self.session.commit()
+            if msg_handler:
+                msg_handler.send_message(
+                    log_event=LogEvent(
+                        "transaction_appeal_updated",
+                        EventType.INFO,
+                        EventScope.CONSENSUS,
+                        "Set transaction appealed",
+                        {
+                            "hash": str(transaction_hash),
+                        },
+                    ),
+                    log_to_terminal=False,
+                )
+
+    def set_transaction_timestamp_awaiting_finalization(
+        self, transaction_hash: str, timestamp_awaiting_finalization: int = None
+    ):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        if timestamp_awaiting_finalization:
+            transaction.timestamp_awaiting_finalization = (
+                timestamp_awaiting_finalization
+            )
         else:
-            transaction.timestamp_accepted = int(time.time())
+            transaction.timestamp_awaiting_finalization = int(time.time())
 
     def set_transaction_appeal_failed(self, transaction_hash: str, appeal_failed: int):
         if appeal_failed < 0:
@@ -372,23 +401,31 @@ class TransactionsProcessor:
         )
         transaction.appeal_failed = appeal_failed
 
+    def set_transaction_appeal_undetermined(
+        self, transaction_hash: str, appeal_undetermined: bool
+    ):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.appeal_undetermined = appeal_undetermined
+
     def get_highest_timestamp(self) -> int:
         transaction = (
             self.session.query(Transactions)
-            .filter(Transactions.timestamp_accepted.isnot(None))
-            .order_by(desc(Transactions.timestamp_accepted))
+            .filter(Transactions.timestamp_awaiting_finalization.isnot(None))
+            .order_by(desc(Transactions.timestamp_awaiting_finalization))
             .first()
         )
         if transaction is None:
             return 0
-        return transaction.timestamp_accepted
+        return transaction.timestamp_awaiting_finalization
 
     def get_transactions_for_block(
         self, block_number: int, include_full_tx: bool
     ) -> dict:
         transactions = (
             self.session.query(Transactions)
-            .filter(Transactions.timestamp_accepted == block_number)
+            .filter(Transactions.timestamp_awaiting_finalization == block_number)
             .all()
         )
 
@@ -397,7 +434,7 @@ class TransactionsProcessor:
 
         block_hash = transactions[0].hash
         parent_hash = "0x" + "0" * 64  # Placeholder for parent block hash
-        timestamp = transactions[0].timestamp_accepted or int(time.time())
+        timestamp = transactions[0].timestamp_awaiting_finalization or int(time.time())
 
         if include_full_tx:
             transaction_data = [self._parse_transaction_data(tx) for tx in transactions]
