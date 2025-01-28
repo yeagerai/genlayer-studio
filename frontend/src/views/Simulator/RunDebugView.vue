@@ -102,7 +102,10 @@ const isFinalityWindowValid = computed(() => {
           id="tutorial-write-methods"
           :leaderOnly="leaderOnly"
         />
-        <TransactionsList id="tutorial-tx-response" />
+        <TransactionsList
+          id="tutorial-tx-response"
+          :finalityWindow="finalityWindow"
+        />
       </template>
     </template>
 
