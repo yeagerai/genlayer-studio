@@ -7,21 +7,21 @@ module.exports = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 200
+        runs: 200,
       },
-      viaIR: true
-    }
+      viaIR: true,
+    },
   },
   networks: {
     hardhat: {
       mining: {
         auto: true,
-        interval: 0
+        interval: 0,
       },
-      chainId: 31337,
+      chainId: 61_999,
       gasPrice: 0,
       initialBaseFeePerGas: 0,
-      blockGasLimit: 30000000,
+      blockGasLimit: 20000000000,
       ignition: {
         blockPollingInterval: 1_000,
         timeBeforeBumpingFees: 3 * 60 * 1_000,
@@ -31,6 +31,5 @@ module.exports = {
         deploymentDir: "deployments/localhost",
       },
     },
-
-  }
+  },
 };

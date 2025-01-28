@@ -16,6 +16,8 @@ from web3 import Web3
 from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
 
+from backend.rollup.consensus_service import ConsensusService
+
 
 class TransactionAddressFilter(Enum):
     ALL = "all"
@@ -145,64 +147,6 @@ class TransactionsProcessor:
         )
         ghost_contract_address = None
 
-        if type == TransactionType.DEPLOY_CONTRACT.value:
-            # Hardhat account
-            account = self.web3.eth.accounts[0]
-            private_key = os.environ.get("HARDHAT_PRIVATE_KEY")
-
-            # Ghost contract
-            # Read contract ABI and bytecode from compiled contract
-            # contract_file = os.path.join(
-            #     os.getcwd(),
-            #     "app/hardhat/artifacts/contracts/GhostContract.sol/GhostContract.json",
-            # )
-
-            # with open(contract_file, "r") as f:
-            #     contract_json = json.loads(f.read())
-            #     abi = contract_json["abi"]
-            #     bytecode = contract_json["bytecode"]
-
-            # # Create the contract instance
-            # contract = self.web3.eth.contract(abi=abi, bytecode=bytecode)
-
-            # # Build the transaction
-            # gas_estimate = self.web3.eth.estimate_gas(
-            #     contract.constructor().build_transaction(
-            #         {
-            #             "from": account,
-            #             "nonce": self.web3.eth.get_transaction_count(account),
-            #             "gasPrice": 0,
-            #         }
-            #     )
-            # )
-            # transaction = contract.constructor().build_transaction(
-            #     {
-            #         "from": account,
-            #         "nonce": self.web3.eth.get_transaction_count(account),
-            #         "gas": gas_estimate,
-            #         "gasPrice": 0,
-            #     }
-            # )
-
-            # # Sign the transaction
-            # signed_tx = self.web3.eth.account.sign_transaction(
-            #     transaction, private_key=private_key
-            # )
-
-            # # Send the transaction
-            # tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-
-            # # Wait for the transaction receipt
-            # receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            # ghost_contract_address = receipt.contractAddress
-
-        elif type == TransactionType.RUN_CONTRACT.value:
-            genlayer_contract_address = to_address
-            # contract_snapshot = ContractSnapshot(
-            #     genlayer_contract_address, self.session
-            # )
-            # ghost_contract_address = contract_snapshot.ghost_contract_address
-
         new_transaction = Transactions(
             hash=transaction_hash,
             from_address=from_address,
@@ -234,9 +178,6 @@ class TransactionsProcessor:
         self.session.add(new_transaction)
 
         self.session.flush()  # So that `created_at` gets set
-
-        if type != TransactionType.SEND.value:
-            self.create_rollup_transaction(new_transaction.hash)
 
         return new_transaction.hash
 
@@ -280,36 +221,40 @@ class TransactionsProcessor:
         account = self.web3.eth.accounts[0]
         private_key = os.environ.get("HARDHAT_PRIVATE_KEY")
 
-        # gas_estimate = self.web3.eth.estimate_gas(
-        #     {
-        #         "from": account,
-        #         "to": transaction.ghost_contract_address,
-        #         "value": transaction.value,
-        #         "data": rollup_input_data,
-        #     }
-        # )
+        try:
+            gas_estimate = self.web3.eth.estimate_gas(
+                {
+                    "from": account,
+                    "to": transaction.ghost_contract_address,
+                    "value": transaction.value,
+                    "data": rollup_input_data,
+                }
+            )
 
-        # transaction = {
-        #     "from": account,
-        #     "to": transaction.ghost_contract_address,
-        #     "value": transaction.value,
-        #     "data": rollup_input_data,
-        #     "nonce": self.web3.eth.get_transaction_count(account),
-        #     "gas": gas_estimate,
-        #     "gasPrice": 0,
-        # }
+            transaction = {
+                "from": account,
+                "to": transaction.ghost_contract_address,
+                "value": transaction.value,
+                "data": rollup_input_data,
+                "nonce": self.web3.eth.get_transaction_count(account),
+                "gas": gas_estimate,
+                "gasPrice": 0,
+            }
 
-        # # Sign and send the transaction
-        # signed_tx = self.web3.eth.account.sign_transaction(
-        #     transaction, private_key=private_key
-        # )
-        # tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            # Sign and send the transaction
+            signed_tx = self.web3.eth.account.sign_transaction(
+                transaction, private_key=private_key
+            )
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
-        # # Wait for transaction to be actually mined and get the receipt
-        # receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            # Wait for transaction to be actually mined and get the receipt
+            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
-        # # Get full transaction details including input data
-        # transaction = self.web3.eth.get_transaction(tx_hash)
+            # Get full transaction details including input data
+            transaction = self.web3.eth.get_transaction(tx_hash)
+
+        except Exception as e:
+            print(f"Error creating rollup transaction: {e}")
 
     def get_transaction_count(self, address: str) -> int:
         count = (
