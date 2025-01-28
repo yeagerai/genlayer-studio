@@ -4,8 +4,7 @@ import rlp
 from rlp.sedes import text, binary
 from rlp.exceptions import DeserializationError, SerializationError
 from eth_account import Account
-from eth_account._utils.legacy_transactions import Transaction, vrs_from
-from eth_account._utils.signing import hash_of_signed_transaction
+from eth_account._utils.legacy_transactions import Transaction
 import eth_utils
 from eth_utils import to_checksum_address
 from hexbytes import HexBytes
