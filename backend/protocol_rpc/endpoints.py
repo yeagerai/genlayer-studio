@@ -497,7 +497,9 @@ def send_raw_transaction(
     )
 
     transaction_data = {}
-    leader_only = genlayer_transaction.data.leader_only
+    leader_only = False
+    if genlayer_transaction.type != TransactionType.SEND:
+        leader_only = genlayer_transaction.data.leader_only
 
     if genlayer_transaction.type == TransactionType.DEPLOY_CONTRACT:
         if value > 0:
@@ -511,7 +513,7 @@ def send_raw_transaction(
             "calldata": genlayer_transaction.data.calldata,
         }
         to_address = new_contract_address
-    else:
+    elif genlayer_transaction.type == TransactionType.RUN_CONTRACT:
         # Contract Call
         if not accounts_manager.is_valid_address(to_address):
             raise InvalidAddressError(

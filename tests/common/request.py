@@ -118,7 +118,9 @@ def deploy_intelligent_contract(
 def send_raw_transaction(signed_transaction: str):
     payload_data = payload("eth_sendRawTransaction", signed_transaction)
     raw_response = post_request_localhost(payload_data)
+    print("RAW RESPONSE", raw_response.json())
     call_method_response = raw_response.json()
+    print("CALL METHOD RESPONSE", call_method_response)
     transaction_hash = call_method_response["result"]
 
     transaction_response = wait_for_transaction(transaction_hash)

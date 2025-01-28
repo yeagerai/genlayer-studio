@@ -191,6 +191,14 @@ class TransactionParser:
     def get_genlayer_transaction(
         self, rollup_transaction: DecodedRollupTransaction
     ) -> DecodedGenlayerTransaction:
+        if rollup_transaction.data is None or rollup_transaction.data.args is None:
+            return DecodedGenlayerTransaction(
+                type=TransactionType.SEND,
+                from_address=rollup_transaction.from_address,
+                to_address=rollup_transaction.to_address,
+                data=None,
+            )
+
         sender = rollup_transaction.data.args.sender
         recipient = rollup_transaction.data.args.recipient
         type = self._get_genlayer_transaction_type(recipient)
@@ -205,7 +213,9 @@ class TransactionParser:
                     data.contract_code if hasattr(data, "contract_code") else None
                 ),
                 calldata=data.calldata,
-                leader_only=data.leader_only if hasattr(data, "leader_only") else False,
+                leader_only=(
+                    data.leader_only if hasattr(data, "leader_only") else False
+                ),
             ),
         )
 
