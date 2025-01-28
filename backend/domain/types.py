@@ -9,6 +9,8 @@ from enum import Enum, IntEnum
 from backend.database_handler.models import TransactionStatus
 from backend.database_handler.types import ConsensusData
 
+MAX_ROTATIONS = 3
+
 
 @dataclass()
 class LLMProvider:
@@ -83,8 +85,11 @@ class Transaction:
     created_at: str | None = None
     ghost_contract_address: str | None = None
     appealed: bool = False
-    timestamp_accepted: int | None = None
+    timestamp_awaiting_finalization: int | None = None
     appeal_failed: int = 0
+    appeal_undetermined: bool = False
+    consensus_history: list | None = None
+    config_rotation_rounds: int | None = MAX_ROTATIONS
 
     def to_dict(self):
         return {
@@ -106,8 +111,11 @@ class Transaction:
             "created_at": self.created_at,
             "ghost_contract_address": self.ghost_contract_address,
             "appealed": self.appealed,
-            "timestamp_accepted": self.timestamp_accepted,
+            "timestamp_awaiting_finalization": self.timestamp_awaiting_finalization,
             "appeal_failed": self.appeal_failed,
+            "appeal_undetermined": self.appeal_undetermined,
+            "consensus_history": self.consensus_history,
+            "config_rotation_rounds": self.config_rotation_rounds,
         }
 
     @classmethod
@@ -131,6 +139,11 @@ class Transaction:
             created_at=input.get("created_at"),
             ghost_contract_address=input.get("ghost_contract_address"),
             appealed=input.get("appealed"),
-            timestamp_accepted=input.get("timestamp_accepted"),
+            timestamp_awaiting_finalization=input.get(
+                "timestamp_awaiting_finalization"
+            ),
             appeal_failed=input.get("appeal_failed", 0),
+            appeal_undetermined=input.get("appeal_undetermined", False),
+            consensus_history=input.get("consensus_history"),
+            config_rotation_rounds=input.get("config_rotation_rounds"),
         )
