@@ -4,7 +4,7 @@ import rlp
 
 from .models import Transactions
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, desc
 
 from .models import TransactionStatus
 from eth_utils import to_bytes, keccak, is_address
@@ -15,6 +15,8 @@ from backend.domain.types import TransactionType
 from web3 import Web3
 from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
+
+from backend.rollup.consensus_service import ConsensusService
 
 
 class TransactionAddressFilter(Enum):
@@ -133,73 +135,17 @@ class TransactionsProcessor:
     ) -> str:
         current_nonce = self.get_transaction_count(from_address)
 
-        if nonce != current_nonce:
-            raise Exception(
-                f"Unexpected nonce. Provided: {nonce}, expected: {current_nonce}"
-            )
+        # Follow up: https://github.com/MetaMask/metamask-extension/issues/29787
+        # to uncomment this check
+        # if nonce != current_nonce:
+        #     raise Exception(
+        #         f"Unexpected nonce. Provided: {nonce}, expected: {current_nonce}"
+        #     )
 
         transaction_hash = self._generate_transaction_hash(
-            from_address, to_address, data, value, type, nonce
+            from_address, to_address, data, value, type, current_nonce
         )
         ghost_contract_address = None
-
-        if type == TransactionType.DEPLOY_CONTRACT.value:
-            # Hardhat account
-            account = self.web3.eth.accounts[0]
-            private_key = os.environ.get("HARDHAT_PRIVATE_KEY")
-
-            # Ghost contract
-            # Read contract ABI and bytecode from compiled contract
-            # contract_file = os.path.join(
-            #     os.getcwd(),
-            #     "app/hardhat/artifacts/contracts/GhostContract.sol/GhostContract.json",
-            # )
-
-            # with open(contract_file, "r") as f:
-            #     contract_json = json.loads(f.read())
-            #     abi = contract_json["abi"]
-            #     bytecode = contract_json["bytecode"]
-
-            # # Create the contract instance
-            # contract = self.web3.eth.contract(abi=abi, bytecode=bytecode)
-
-            # # Build the transaction
-            # gas_estimate = self.web3.eth.estimate_gas(
-            #     contract.constructor().build_transaction(
-            #         {
-            #             "from": account,
-            #             "nonce": self.web3.eth.get_transaction_count(account),
-            #             "gasPrice": 0,
-            #         }
-            #     )
-            # )
-            # transaction = contract.constructor().build_transaction(
-            #     {
-            #         "from": account,
-            #         "nonce": self.web3.eth.get_transaction_count(account),
-            #         "gas": gas_estimate,
-            #         "gasPrice": 0,
-            #     }
-            # )
-
-            # # Sign the transaction
-            # signed_tx = self.web3.eth.account.sign_transaction(
-            #     transaction, private_key=private_key
-            # )
-
-            # # Send the transaction
-            # tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-
-            # # Wait for the transaction receipt
-            # receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            # ghost_contract_address = receipt.contractAddress
-
-        elif type == TransactionType.RUN_CONTRACT.value:
-            genlayer_contract_address = to_address
-            # contract_snapshot = ContractSnapshot(
-            #     genlayer_contract_address, self.session
-            # )
-            # ghost_contract_address = contract_snapshot.ghost_contract_address
 
         new_transaction = Transactions(
             hash=transaction_hash,
@@ -232,9 +178,6 @@ class TransactionsProcessor:
         self.session.add(new_transaction)
 
         self.session.flush()  # So that `created_at` gets set
-
-        if type != TransactionType.SEND.value:
-            self.create_rollup_transaction(new_transaction.hash)
 
         return new_transaction.hash
 
@@ -278,36 +221,40 @@ class TransactionsProcessor:
         account = self.web3.eth.accounts[0]
         private_key = os.environ.get("HARDHAT_PRIVATE_KEY")
 
-        # gas_estimate = self.web3.eth.estimate_gas(
-        #     {
-        #         "from": account,
-        #         "to": transaction.ghost_contract_address,
-        #         "value": transaction.value,
-        #         "data": rollup_input_data,
-        #     }
-        # )
+        try:
+            gas_estimate = self.web3.eth.estimate_gas(
+                {
+                    "from": account,
+                    "to": transaction.ghost_contract_address,
+                    "value": transaction.value,
+                    "data": rollup_input_data,
+                }
+            )
 
-        # transaction = {
-        #     "from": account,
-        #     "to": transaction.ghost_contract_address,
-        #     "value": transaction.value,
-        #     "data": rollup_input_data,
-        #     "nonce": self.web3.eth.get_transaction_count(account),
-        #     "gas": gas_estimate,
-        #     "gasPrice": 0,
-        # }
+            transaction = {
+                "from": account,
+                "to": transaction.ghost_contract_address,
+                "value": transaction.value,
+                "data": rollup_input_data,
+                "nonce": self.web3.eth.get_transaction_count(account),
+                "gas": gas_estimate,
+                "gasPrice": 0,
+            }
 
-        # # Sign and send the transaction
-        # signed_tx = self.web3.eth.account.sign_transaction(
-        #     transaction, private_key=private_key
-        # )
-        # tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            # Sign and send the transaction
+            signed_tx = self.web3.eth.account.sign_transaction(
+                transaction, private_key=private_key
+            )
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
-        # # Wait for transaction to be actually mined and get the receipt
-        # receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            # Wait for transaction to be actually mined and get the receipt
+            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
-        # # Get full transaction details including input data
-        # transaction = self.web3.eth.get_transaction(tx_hash)
+            # Get full transaction details including input data
+            transaction = self.web3.eth.get_transaction(tx_hash)
+
+        except Exception as e:
+            print(f"Error creating rollup transaction: {e}")
 
     def get_transaction_count(self, address: str) -> int:
         count = (
@@ -346,7 +293,10 @@ class TransactionsProcessor:
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
-        transaction.appealed = appeal
+        if (transaction.status == TransactionStatus.ACCEPTED.value) or (
+            transaction.status == TransactionStatus.UNDETERMINED.value
+        ):
+            transaction.appealed = appeal
 
     def set_transaction_timestamp_accepted(
         self, transaction_hash: str, timestamp_accepted: int = None
@@ -366,3 +316,52 @@ class TransactionsProcessor:
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.appeal_failed = appeal_failed
+
+    def get_highest_timestamp(self) -> int:
+        transaction = (
+            self.session.query(Transactions)
+            .filter(Transactions.timestamp_accepted.isnot(None))
+            .order_by(desc(Transactions.timestamp_accepted))
+            .first()
+        )
+        if transaction is None:
+            return 0
+        return transaction.timestamp_accepted
+
+    def get_transactions_for_block(
+        self, block_number: int, include_full_tx: bool
+    ) -> dict:
+        transactions = (
+            self.session.query(Transactions)
+            .filter(Transactions.timestamp_accepted == block_number)
+            .all()
+        )
+
+        if not transactions:
+            return None
+
+        block_hash = transactions[0].hash
+        parent_hash = "0x" + "0" * 64  # Placeholder for parent block hash
+        timestamp = transactions[0].timestamp_accepted or int(time.time())
+
+        if include_full_tx:
+            transaction_data = [self._parse_transaction_data(tx) for tx in transactions]
+        else:
+            transaction_data = [tx.hash for tx in transactions]
+
+        block_details = {
+            "number": hex(block_number),
+            "hash": block_hash,
+            "parentHash": parent_hash,
+            "nonce": "0x" + "0" * 16,
+            "transactions": transaction_data,
+            "timestamp": hex(int(timestamp)),
+            "miner": "0x" + "0" * 40,
+            "difficulty": "0x1",
+            "gasUsed": "0x0",
+            "gasLimit": "0x0",
+            "size": "0x0",
+            "extraData": "0x",
+        }
+
+        return block_details

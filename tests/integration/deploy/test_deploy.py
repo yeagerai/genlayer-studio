@@ -5,7 +5,7 @@ import base64
 
 from tests.common.request import (
     deploy_intelligent_contract,
-    send_transaction,
+    write_intelligent_contract,
     payload,
     post_request_localhost,
 )
@@ -37,7 +37,9 @@ def test_deploy(setup_validators, from_account):
 
     # we need to wait for deployment, to do so let's put one more transaction to the queue
     # then it (likely?) will be ordered after subsequent deploy_contract
-    wait_response = send_transaction(from_account, contract_address, "wait", [])
+    wait_response = write_intelligent_contract(
+        from_account, contract_address, "wait", []
+    )
     assert has_success_status(wait_response)
 
     res = call_contract_method(contract_address, from_account, "test", [])
