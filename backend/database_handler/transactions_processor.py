@@ -337,12 +337,13 @@ class TransactionsProcessor:
             .all()
         )
 
-        if not transactions:
-            return None
-
-        block_hash = transactions[0].hash
+        block_hash = "0x" + "0" * 64
         parent_hash = "0x" + "0" * 64  # Placeholder for parent block hash
-        timestamp = transactions[0].timestamp_accepted or int(time.time())
+        timestamp = (
+            transactions[0].timestamp_accepted
+            if len(transactions) > 0
+            else int(time.time())
+        )
 
         if include_full_tx:
             transaction_data = [self._parse_transaction_data(tx) for tx in transactions]
