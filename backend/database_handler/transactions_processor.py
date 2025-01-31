@@ -15,6 +15,7 @@ from backend.domain.types import TransactionType
 from web3 import Web3
 from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
+from sqlalchemy.orm.attributes import flag_modified
 
 
 class TransactionAddressFilter(Enum):
@@ -64,6 +65,8 @@ class TransactionsProcessor:
             "timestamp_awaiting_finalization": transaction_data.timestamp_awaiting_finalization,
             "appeal_failed": transaction_data.appeal_failed,
             "appeal_undetermined": transaction_data.appeal_undetermined,
+            "timestamp_appeal": transaction_data.timestamp_appeal,
+            "appeal_processing_time": transaction_data.appeal_processing_time,
         }
 
     @staticmethod
@@ -231,6 +234,8 @@ class TransactionsProcessor:
             timestamp_awaiting_finalization=None,
             appeal_failed=0,
             appeal_undetermined=False,
+            timestamp_appeal=None,
+            appeal_processing_time=0,
         )
 
         self.session.add(new_transaction)
@@ -352,11 +357,13 @@ class TransactionsProcessor:
         )
         # You can only appeal the transaction if it is in accepted or undetermined state
         # Setting it to false is always allowed
-        if (
-            (not appeal)
-            or (transaction.status == TransactionStatus.ACCEPTED)
-            or (transaction.status == TransactionStatus.UNDETERMINED)
-        ):
+        if appeal:
+            if (transaction.status == TransactionStatus.ACCEPTED) or (
+                transaction.status == TransactionStatus.UNDETERMINED
+            ):
+                transaction.appealed = appeal
+                self.set_transaction_timestamp_appeal(transaction, int(time.time()))
+        else:
             transaction.appealed = appeal
 
     def set_transaction_timestamp_awaiting_finalization(
@@ -436,3 +443,29 @@ class TransactionsProcessor:
         }
 
         return block_details
+
+    def set_transaction_timestamp_appeal(
+        self, transaction: Transactions | str, timestamp_appeal: int
+    ):
+        if isinstance(transaction, str):  # hash
+            transaction = (
+                self.session.query(Transactions).filter_by(hash=transaction).one()
+            )
+        transaction.timestamp_appeal = timestamp_appeal
+
+    def set_transaction_appeal_processing_time(
+        self, transaction_hash: str, appeal_processing_time: int | None = None
+    ):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        if appeal_processing_time == 0:
+            transaction.appeal_processing_time = 0
+        else:
+            if appeal_processing_time is None:
+                appeal_processing_time = (
+                    round(time.time()) - transaction.timestamp_appeal
+                )
+            transaction.appeal_processing_time += appeal_processing_time
+        flag_modified(transaction, "appeal_processing_time")
+        self.session.commit()

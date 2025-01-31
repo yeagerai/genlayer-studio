@@ -401,6 +401,7 @@ class ConsensusAlgorithm:
                                 (
                                     int(time.time())
                                     - transaction.timestamp_awaiting_finalization
+                                    - transaction.appeal_processing_time
                                 )
                                 > self.finality_window_time
                             ):
@@ -506,6 +507,9 @@ class ConsensusAlgorithm:
                                         context.transaction.hash, False
                                     )
                                     context.transaction.appealed = False
+                                    context.transactions_processor.set_transaction_appeal_processing_time(
+                                        context.transaction.hash
+                                    )
                                     session.commit()
                                 else:
                                     # Set up the context for the committing state
@@ -1071,6 +1075,15 @@ class RevealingState(TransactionState):
                     context.transaction.hash,
                     0,
                 )
+
+                # Reset the appeal processing time
+                context.transactions_processor.set_transaction_appeal_processing_time(
+                    context.transaction.hash, 0
+                )
+                context.transactions_processor.set_transaction_timestamp_appeal(
+                    context.transaction.hash, None
+                )
+
                 # TODO: put all the transactions that came after this one back in the pending queue
                 return None  # Transaction will be picked up by _crawl_snapshot
 
@@ -1121,10 +1134,18 @@ class AcceptedState(TransactionState):
         context.transaction.appealed = False
 
         # Set the transaction appeal undetermined status to false
-        context.transactions_processor.set_transaction_appeal_undetermined(
-            context.transaction.hash, False
-        )
-        context.transaction.appeal_undetermined = False
+        if context.transaction.appeal_undetermined:
+            context.transactions_processor.set_transaction_appeal_undetermined(
+                context.transaction.hash, False
+            )
+            context.transaction.appeal_undetermined = False
+            context.transactions_processor.set_transaction_appeal_processing_time(
+                context.transaction.hash, 0
+            )
+            context.transactions_processor.set_transaction_timestamp_appeal(
+                context.transaction.hash, None
+            )
+            context.transaction.timestamp_appeal = None
 
         # Set the transaction result
         context.transactions_processor.set_transaction_result(
@@ -1192,6 +1213,12 @@ class AcceptedState(TransactionState):
                     leader_receipt.contract_state
                 )
 
+        # Increment the appeal processing time when the transaction was appealed
+        if context.transaction.timestamp_appeal is not None:
+            context.transactions_processor.set_transaction_appeal_processing_time(
+                context.transaction.hash
+            )
+
         return None
 
 
@@ -1254,6 +1281,13 @@ class UndeterminedState(TransactionState):
                 context.transaction.hash
             ),
         )
+
+        # Increment the appeal processing time when the transaction was appealed
+        if context.transaction.timestamp_appeal is not None:
+            context.transactions_processor.set_transaction_appeal_processing_time(
+                context.transaction.hash
+            )
+
         return None
 
 

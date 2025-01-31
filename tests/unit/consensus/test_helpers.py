@@ -59,11 +59,13 @@ class TransactionsProcessorMock:
 
     def set_transaction_appeal(self, transaction_hash: str, appeal: bool):
         transaction = self.get_transaction_by_hash(transaction_hash)
-        if (
-            (not appeal)
-            or (transaction["status"] == TransactionStatus.ACCEPTED.value)
-            or (transaction["status"] == TransactionStatus.UNDETERMINED.value)
-        ):
+        if appeal:
+            if (transaction["status"] == TransactionStatus.ACCEPTED.value) or (
+                transaction["status"] == TransactionStatus.UNDETERMINED.value
+            ):
+                transaction["appealed"] = appeal
+                self.set_transaction_timestamp_appeal(transaction, int(time.time()))
+        else:
             transaction["appealed"] = appeal
 
     def set_transaction_timestamp_awaiting_finalization(
@@ -101,6 +103,27 @@ class TransactionsProcessorMock:
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["appeal_undetermined"] = appeal_undetermined
 
+    def set_transaction_timestamp_appeal(
+        self, transaction: dict | str, timestamp_appeal: int
+    ):
+        if isinstance(transaction, str):  # hash
+            transaction = self.get_transaction_by_hash(transaction)
+        transaction["timestamp_appeal"] = timestamp_appeal
+
+    def set_transaction_appeal_processing_time(
+        self, transaction_hash: str, appeal_processing_time: int | None = None
+    ):
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        if appeal_processing_time == 0:
+            transaction["appeal_processing_time"] = 0
+        else:
+            if appeal_processing_time is None:
+                appeal_processing_time = (
+                    round(time.time()) - transaction["timestamp_appeal"]
+                )
+            print("bla", appeal_processing_time)
+            transaction["appeal_processing_time"] += appeal_processing_time
+
 
 class SnapshotMock:
     def __init__(self, nodes):
@@ -133,6 +156,8 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "timestamp_awaiting_finalization": transaction.timestamp_awaiting_finalization,
         "appeal_failed": transaction.appeal_failed,
         "appeal_undetermined": transaction.appeal_undetermined,
+        "timestamp_appeal": transaction.timestamp_appeal,
+        "appeal_processing_time": transaction.appeal_processing_time,
     }
 
 
@@ -195,7 +220,11 @@ async def _appeal_window(
             transaction = Transaction.from_dict(transaction)
             if not transaction.appealed:
                 if (transaction.leader_only) or (
-                    (int(time.time()) - transaction.timestamp_awaiting_finalization)
+                    (
+                        int(time.time())
+                        - transaction.timestamp_awaiting_finalization
+                        - transaction.appeal_processing_time
+                    )
                     > DEFAULT_FINALITY_WINDOW
                 ):
                     context = TransactionContext(
@@ -292,6 +321,9 @@ async def _appeal_window(
                             context.transaction.hash, False
                         )
                         context.transaction.appealed = False
+                        context.transactions_processor.set_transaction_appeal_processing_time(
+                            context.transaction.hash
+                        )
                     else:
                         if transaction.appeal_failed == 0:
                             n = nb_current_validators

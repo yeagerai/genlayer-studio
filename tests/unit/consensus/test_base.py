@@ -380,6 +380,13 @@ async def test_exec_accepted_appeal_fail(managed_thread):
         == timestamp_awaiting_finalization_1
     )
 
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)[
+            "appeal_processing_time"
+        ]
+        > 0
+    )
+
 
 @pytest.mark.asyncio
 async def test_exec_accepted_appeal_no_extra_validators(managed_thread):
@@ -474,6 +481,13 @@ async def test_exec_accepted_appeal_no_extra_validators(managed_thread):
             "timestamp_awaiting_finalization"
         ]
         == timestamp_awaiting_finalization_1
+    )
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)[
+            "appeal_processing_time"
+        ]
+        > 0
     )
 
 
@@ -639,6 +653,13 @@ async def test_exec_accepted_appeal_successful(managed_thread):
 
     assert new_leader_address != old_leader_address
     assert new_leader_address in validator_set_addresses
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)[
+            "appeal_processing_time"
+        ]
+        == 0
+    )
 
 
 @pytest.mark.asyncio
@@ -1120,6 +1141,12 @@ async def test_exec_accepted_appeal_fail_three_times(managed_thread):
     )
     leader_address = get_leader_address(transaction, transactions_processor)
 
+    appeal_processing_time_temp = transactions_processor.get_transaction_by_hash(
+        transaction.hash
+    )["appeal_processing_time"]
+    assert appeal_processing_time_temp == 0
+    timestamp_appeal_temp = 0
+
     for appeal_failed in range(3):
         assert (
             transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -1134,6 +1161,18 @@ async def test_exec_accepted_appeal_fail_three_times(managed_thread):
             transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
             == TransactionStatus.ACCEPTED.value
         )
+
+        appeal_processing_time_new = transactions_processor.get_transaction_by_hash(
+            transaction.hash
+        )["appeal_processing_time"]
+        assert appeal_processing_time_new > appeal_processing_time_temp
+        appeal_processing_time_temp = appeal_processing_time_new
+
+        timestamp_appeal_new = transactions_processor.get_transaction_by_hash(
+            transaction.hash
+        )["timestamp_appeal"]
+        assert timestamp_appeal_new > timestamp_appeal_temp
+        timestamp_appeal_temp = timestamp_appeal_new
 
         assert (
             transactions_processor.get_transaction_by_hash(transaction.hash)[
@@ -1637,6 +1676,19 @@ async def test_exec_undetermined_appeal(managed_thread):
     check_validator_count(transaction, transactions_processor, nb_validators)
     assert len(created_nodes) == nb_created_nodes
 
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)[
+            "appeal_processing_time"
+        ]
+        > 0
+    )
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)[
+            "timestamp_appeal"
+        ]
+        is not None
+    )
+
     appeal(transaction, transactions_processor)
     await asyncio.sleep(1)
 
@@ -1675,6 +1727,19 @@ async def test_exec_undetermined_appeal(managed_thread):
     nb_created_nodes += nb_validators * 3
     check_validator_count(transaction, transactions_processor, nb_validators)
     assert len(created_nodes) == nb_created_nodes
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)[
+            "appeal_processing_time"
+        ]
+        == 0
+    )
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)[
+            "timestamp_appeal"
+        ]
+        is None
+    )
 
     appeal(transaction, transactions_processor)
     await asyncio.sleep(2)
@@ -1774,3 +1839,16 @@ async def test_exec_undetermined_appeal(managed_thread):
     nb_created_nodes += nb_validators**2
     check_validator_count(transaction, transactions_processor, nb_validators)
     assert len(created_nodes) == nb_created_nodes
+
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)[
+            "appeal_processing_time"
+        ]
+        > 0
+    )
+    assert (
+        transactions_processor.get_transaction_by_hash(transaction.hash)[
+            "timestamp_appeal"
+        ]
+        is not None
+    )
