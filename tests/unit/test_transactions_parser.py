@@ -1,12 +1,20 @@
 import pytest
+from unittest.mock import Mock
 from backend.protocol_rpc.transactions_parser import (
-    decode_method_send_data,
+    TransactionParser,
     DecodedMethodSendData,
-    decode_deployment_data,
     DecodedDeploymentData,
 )
 from rlp import encode
 import backend.node.genvm.origin.calldata as calldata
+
+
+@pytest.fixture
+def transaction_parser():
+    # Create a mock ConsensusService
+    consensus_service = Mock()
+    consensus_service.web3 = Mock()
+    return TransactionParser(consensus_service)
 
 
 @pytest.mark.parametrize(
@@ -37,9 +45,9 @@ import backend.node.genvm.origin.calldata as calldata
         ),
     ],
 )
-def test_decode_method_send_data(data, expected_result):
+def test_decode_method_send_data(transaction_parser, data, expected_result):
     encoded = encode([calldata.encode(data[0]), *data[1:]])
-    assert decode_method_send_data(encoded) == expected_result
+    assert transaction_parser.decode_method_send_data(encoded.hex()) == expected_result
 
 
 @pytest.mark.parametrize(
@@ -79,6 +87,6 @@ def test_decode_method_send_data(data, expected_result):
         ),
     ],
 )
-def test_decode_deployment_data(data, expected_result):
+def test_decode_deployment_data(transaction_parser, data, expected_result):
     encoded = encode([data[0], calldata.encode(data[1]), *data[2:]])
-    assert decode_deployment_data(encoded) == expected_result
+    assert transaction_parser.decode_deployment_data(encoded.hex()) == expected_result
