@@ -18,6 +18,7 @@ const transactionsStore = useTransactionsStore();
 
 const props = defineProps<{
   transaction: TransactionItem;
+  finalityWindow: number;
 }>();
 
 const isDetailsModalOpen = ref(false);
@@ -44,20 +45,17 @@ const shortHash = computed(() => {
   return props.transaction.hash?.slice(0, 6);
 });
 
-const isAppealed = ref(false);
+const appealed = ref(props.transaction.data.appealed);
 
 const handleSetTransactionAppeal = () => {
   transactionsStore.setTransactionAppeal(props.transaction.hash);
-
-  isAppealed.value = true;
+  appealed.value = true;
 };
 
 watch(
-  () => props.transaction.status,
-  (newStatus) => {
-    if (newStatus !== 'ACCEPTED') {
-      isAppealed.value = false;
-    }
+  () => props.transaction.data.appealed,
+  (newVal) => {
+    appealed.value = newVal;
   },
 );
 
@@ -155,8 +153,15 @@ function prettifyTxData(x: any): any {
       <!-- <TransactionStatusBadge
         as="button"
         @click.stop="handleSetTransactionAppeal"
-        :class="{ '!bg-green-500': isAppealed }"
-        v-if="transaction.status == 'ACCEPTED'"
+        :class="{ '!bg-green-500': appealed }"
+        v-if="
+          transaction.data.leader_only == false &&
+          (transaction.status == 'ACCEPTED' ||
+            transaction.status == 'UNDETERMINED') &&
+          Date.now() / 1000 -
+            transaction.data.timestamp_awaiting_finalization <=
+            finalityWindow
+        "
         v-tooltip="'Appeal transaction'"
       >
         <div class="flex items-center gap-1">
@@ -226,6 +231,25 @@ function prettifyTxData(x: any): any {
             >
               {{ transaction.status }}
             </TransactionStatusBadge>
+            <!-- <TransactionStatusBadge
+              as="button"
+              @click.stop="handleSetTransactionAppeal"
+              :class="{ '!bg-green-500': appealed }"
+              v-if="
+                transaction.data.leader_only == false &&
+                (transaction.status == 'ACCEPTED' ||
+                  transaction.status == 'UNDETERMINED') &&
+                Date.now() / 1000 -
+                  transaction.data.timestamp_awaiting_finalization <=
+                  finalityWindow
+              "
+              v-tooltip="'Appeal transaction'"
+            >
+              <div class="flex items-center gap-1">
+                APPEAL
+                <GavelIcon class="h-3 w-3" />
+              </div>
+            </TransactionStatusBadge> -->
           </p>
         </div>
 
