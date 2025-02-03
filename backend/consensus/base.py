@@ -414,6 +414,9 @@ class ConsensusAlgorithm:
 
                             # Handle transactions that are appealed
                             transactions_processor = TransactionsProcessor(session)
+                            transactions_processor.set_transaction_appeal_round(
+                                transaction.hash, transaction.appeal_round + 1
+                            )
 
                             # Create a transaction context for the appeal process
                             context = TransactionContext(

@@ -20,6 +20,8 @@ const isDeploymentOpen = ref(!isDeployed.value);
 const finalityWindow = ref(Number(import.meta.env.VITE_FINALITY_WINDOW));
 const { canUpdateFinalityWindow } = useConfig();
 
+const maxAppealRound = ref(Number(import.meta.env.VITE_MAX_APPEALS));
+
 // Hide constructors by default when contract is already deployed
 const setConstructorVisibility = () => {
   isDeploymentOpen.value = !isDeployed.value;
@@ -38,6 +40,10 @@ watch(finalityWindow, (newTime) => {
 
 const isFinalityWindowValid = computed(() => {
   return Number.isInteger(finalityWindow.value) && finalityWindow.value >= 0;
+});
+
+const isMaxAppealRoundValid = computed(() => {
+  return Number.isInteger(maxAppealRound.value) && maxAppealRound.value >= 0;
 });
 </script>
 
@@ -70,7 +76,7 @@ const isFinalityWindowValid = computed(() => {
             required
             testId="input-finalityWindow"
             :disabled="false"
-            class="w-20"
+            class="h-6 w-20"
             tiny
           />
         </div>
@@ -79,6 +85,31 @@ const isFinalityWindowValid = computed(() => {
           >Please enter a positive integer.</FieldError
         >
       </div>
+
+      <!-- <div class="p-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <label for="maxAppealRound" class="text-xs"
+            >Max Appeal Rounds</label
+          >
+          <NumberInput
+            id="maxAppealRound"
+            name="maxAppealRound"
+            :min="0"
+            :step="1"
+            :invalid="!isMaxAppealRoundValid"
+            v-model.number="maxAppealRound"
+            required
+            testId="input-maxAppealRound"
+            :disabled="false"
+            class="w-12 h-6"
+            tiny
+          />
+        </div>
+
+        <FieldError v-if="!isMaxAppealRoundValid"
+          >Please enter a positive integer.</FieldError
+        >
+      </div> -->
 
       <ContractInfo
         :showNewDeploymentButton="!isDeploymentOpen"
