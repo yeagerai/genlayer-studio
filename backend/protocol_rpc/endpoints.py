@@ -555,7 +555,10 @@ def get_transactions_for_address(
 def set_transaction_appeal(
     transactions_processor: TransactionsProcessor, transaction_hash: str
 ) -> None:
-    transactions_processor.set_transaction_appeal(transaction_hash, True)
+    try:
+        transactions_processor.set_transaction_appeal(transaction_hash, True)
+    except ValueError as e:
+        raise JSONRPCError(str(e))
 
 
 @check_forbidden_method_in_hosted_studio

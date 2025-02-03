@@ -58,7 +58,18 @@ class TransactionsProcessorMock:
 
     def set_transaction_appeal(self, transaction_hash: str, appeal: bool):
         transaction = self.get_transaction_by_hash(transaction_hash)
-        transaction["appealed"] = appeal
+        if appeal:
+            if (transaction["status"] == TransactionStatus.ACCEPTED.value) or (
+                transaction["status"] == TransactionStatus.UNDETERMINED.value
+            ):
+                if transaction["appeal_round"] < transaction["config_appeal_rounds"]:
+                    transaction["appealed"] = True
+                else:
+                    raise ValueError(
+                        "Transaction has already been appealed the maximum number of times"
+                    )
+        else:
+            transaction["appealed"] = False
 
     def set_transaction_timestamp_accepted(
         self, transaction_hash: str, timestamp_accepted: int = None
@@ -84,6 +95,12 @@ class TransactionsProcessorMock:
             raise ValueError("appeal_failed must be a non-negative integer")
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["appeal_failed"] = appeal_failed
+
+    def set_transaction_appeal_round(self, transaction_hash: str, appeal_round: int):
+        if appeal_round < 0:
+            raise ValueError("appeal_round must be a non-negative integer")
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        transaction["appeal_round"] = appeal_round
 
 
 class SnapshotMock:
@@ -116,6 +133,8 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "appealed": transaction.appealed,
         "timestamp_accepted": transaction.timestamp_accepted,
         "appeal_failed": transaction.appeal_failed,
+        "config_appeal_rounds": transaction.config_appeal_rounds,
+        "appeal_round": transaction.appeal_round,
     }
 
 
@@ -190,6 +209,9 @@ async def _appeal_window(
                     state = FinalizingState()
                     await state.handle(context)
             else:
+                transactions_processor.set_transaction_appeal_round(
+                    transaction.hash, transaction.appeal_round + 1
+                )
                 chain_snapshot = SnapshotMock(nodes)
                 context = TransactionContext(
                     transaction=transaction,
