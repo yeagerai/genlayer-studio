@@ -16,6 +16,7 @@ from backend.protocol_rpc.configuration import GlobalConfiguration
 from backend.protocol_rpc.message_handler.base import MessageHandler
 from backend.protocol_rpc.endpoints import register_all_rpc_endpoints
 from backend.protocol_rpc.validators_init import initialize_validators
+from backend.protocol_rpc.transactions_parser import TransactionParser
 from dotenv import load_dotenv
 
 from backend.database_handler.transactions_processor import TransactionsProcessor
@@ -23,6 +24,7 @@ from backend.database_handler.validators_registry import ValidatorsRegistry
 from backend.database_handler.accounts_manager import AccountsManager
 from backend.consensus.base import ConsensusAlgorithm
 from backend.database_handler.models import Base
+from backend.rollup.consensus_service import ConsensusService
 
 
 def get_db_name(database: str) -> str:
@@ -59,7 +61,8 @@ def create_app():
     accounts_manager = AccountsManager(sqlalchemy_db.session)
     validators_registry = ValidatorsRegistry(sqlalchemy_db.session)
     llm_provider_registry = LLMProviderRegistry(sqlalchemy_db.session)
-
+    consensus_service = ConsensusService()
+    transactions_parser = TransactionParser(consensus_service)
     # Initialize validators from environment configuration in a thread
     initialize_validators_db_session = Session(engine, expire_on_commit=False)
     initialize_validators(
@@ -84,6 +87,8 @@ def create_app():
         consensus,
         llm_provider_registry,
         sqlalchemy_db,
+        consensus_service,
+        transactions_parser,
     )
 
 
@@ -100,6 +105,8 @@ load_dotenv()
     consensus,
     llm_provider_registry,
     sqlalchemy_db,
+    consensus_service,
+    transactions_parser,
 ) = create_app()
 register_all_rpc_endpoints(
     jsonrpc,
@@ -110,6 +117,8 @@ register_all_rpc_endpoints(
     validators_registry,
     llm_provider_registry,
     consensus,
+    consensus_service,
+    transactions_parser,
 )
 
 

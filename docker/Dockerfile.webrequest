@@ -19,11 +19,14 @@ RUN mkdir -p "${base}/${path}" && \
     cd "${base}/${selpath}" && \
     wget -q https://storage.googleapis.com/chrome-for-testing-public/128.0.6613.119/linux64/chrome-linux64.zip && \
     wget -q https://storage.googleapis.com/chrome-for-testing-public/128.0.6613.119/linux64/chromedriver-linux64.zip && \
+    unzip chromedriver-linux64.zip && \
+    unzip chrome-linux64.zip && \
+    rm chromedriver-linux64.zip chrome-linux64.zip && \
     wget -q https://github.com/SeleniumHQ/selenium/releases/download/selenium-4.24.0/selenium-server-4.24.0.jar && \
     true
 
 ENV PYTHONPATH="${base}/${path}"
-ENV PATH=":${PATH}"
+ENV PATH="${PATH}:${base}:${base}/${selpath}/chromedriver-linux64/:${base}/${selpath}/chrome-linux64/"
 RUN chown -R appuser:appuser $base
 
 USER appuser

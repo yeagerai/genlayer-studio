@@ -7,3 +7,9 @@ class ResultCode(IntEnum):
     NONE = 2
     ERROR = 3
     CONTRACT_ERROR = 4
+
+
+class StorageType(IntEnum):
+    DEFAULT = 0
+    LATEST_FINAL = 1
+    LATEST_NON_FINAL = 2

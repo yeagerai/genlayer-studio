@@ -6,3 +6,4 @@ requests==2.32.3
 numpy==1.26.4
 eth-account==0.13.1
 python-dotenv==1.0.1
+web3==7.5.0
