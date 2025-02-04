@@ -1,34 +1,43 @@
 FROM node:22.12-alpine3.19
 
-# Create non-root user
-RUN addgroup -S hardhat-group && adduser -S hardhat-user -G hardhat-group
 WORKDIR /app
 
 # Install necessary packages and set up the environment
-RUN apk add --no-cache curl g++ make netcat-openbsd python3 && \
-    # Copy and install npm packages
-    mkdir -p /app && \
-    chown -R hardhat-user:hardhat-group /app
+RUN apk add --no-cache curl g++ make netcat-openbsd python3
 
 COPY ./hardhat/package*.json ./
 RUN npm install --ignore-scripts
 
 COPY ./hardhat .
 
-# Set up directories and permissions
-RUN mkdir -p /app/artifacts/build-info && \
+# Download compiler
+RUN npx hardhat compile || true
+
+# Create directories and set permissions
+RUN mkdir -p /app/deployments/localhost && \
+    mkdir -p /app/deployments/hardhat && \
+    mkdir -p /app/artifacts/build-info && \
     mkdir -p /app/artifacts/contracts && \
-    chown -R hardhat-user:hardhat-group /app && \
-    chmod -R 755 /app/artifacts && \
-    # Create start script
-    echo -e '#!/bin/sh\necho "Compiling contracts..."\nnpx hardhat compile --force\necho "Starting Hardhat node..."\nexec ./node_modules/.bin/hardhat node --network hardhat' > /app/start.sh && \
-    chmod +x /app/start.sh
+    mkdir -p /app/cache && \
+    mkdir -p /app/ignition/deployments && \
+    mkdir -p /app/scripts && \
+    mkdir -p /app/test && \
+    chmod -R 777 /app
 
 ENV PATH="/app/node_modules/.bin:${PATH}"
 
-EXPOSE 8545
+# Add the start script
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'echo "Checking and compiling contracts if needed..."' >> /app/start.sh && \
+    echo 'npx hardhat compile' >> /app/start.sh && \
+    echo 'echo "Starting Hardhat node..."' >> /app/start.sh && \
+    echo 'npx hardhat node --hostname 0.0.0.0 & sleep 5' >> /app/start.sh && \
+    echo 'echo "Deploying contracts with Ignition..."' >> /app/start.sh && \
+    echo 'npx hardhat run scripts/deploy.js --network localhost' >> /app/start.sh && \
+    echo 'npx hardhat test' >> /app/start.sh && \
+    echo 'wait' >> /app/start.sh && \
+    chmod +x /app/start.sh
 
-# Switch to non-root user
-USER hardhat-user
+EXPOSE 8545
 
 CMD ["/app/start.sh"]

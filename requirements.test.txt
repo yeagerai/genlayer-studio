@@ -1,4 +1,6 @@
 eth-account==0.13.4
+eth-abi==5.2.0
+web3==7.7.0
 psycopg2==2.9.10
 pytest==8.3.4
 pytest-xdist==3.6.1

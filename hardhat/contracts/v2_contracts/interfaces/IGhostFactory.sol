@@ -12,4 +12,8 @@ interface IGhostFactory {
 	/// @param contractAddress The address to check
 	/// @return bool True if the address is a ghost contract
 	function isGhost(address contractAddress) external view returns (bool);
+
+	/// @notice Returns the latest ghost contract address
+	/// @return The address of the latest ghost contract
+	function latestGhost() external view returns (address);
 }

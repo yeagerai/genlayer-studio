@@ -4,12 +4,25 @@ pragma solidity ^0.8.20;
 import "./ITransactions.sol";
 
 interface IQueues {
-	function addTransactionToPendingQueue(
-		address recipient,
-		bytes32 txId
-	) external returns (uint256);
+	enum QueueType {
+		None,
+		Pending,
+		Accepted,
+		Undetermined
+	}
 
-	function activateTransaction(bytes32 txId) external;
+	struct LastQueueModification {
+		QueueType lastQueueType;
+		uint256 lastQueueTimestamp;
+	}
+
+	function getTransactionQueueType(
+		bytes32 txId
+	) external view returns (QueueType);
+
+	function getTransactionQueuePosition(
+		bytes32 txId
+	) external view returns (uint);
 
 	function getTransactionActivator(
 		bytes32 txId
@@ -46,4 +59,53 @@ interface IQueues {
 	function isAcceptanceTimeoutExpired(
 		bytes32 txId
 	) external view returns (bool);
+
+	function getLastQueueModification(
+		bytes32 txId
+	) external view returns (LastQueueModification memory);
+
+	function addTransactionToPendingQueue(
+		address recipient,
+		bytes32 txId
+	) external returns (uint256, bytes32[] memory);
+
+	function activateTransaction(bytes32 txId) external;
+	// function setRecipientRandomSeed(
+	// 	address recipient,
+	// 	bytes32 randomSeed
+	// ) public;
+
+	// function getRecipientRandomSeed(
+	// 	address recipient
+	// ) public view returns (bytes32);
+
+	function addTransactionToFinalizedQueue(
+		address recipient,
+		bytes32 txId
+	) external;
+
+	function isAtFinalizedQueueHead(
+		address recipient,
+		bytes32 txId
+	) external view returns (bool);
+
+	function isAtPendingQueueHead(
+		address recipient,
+		bytes32 txId
+	) external view returns (bool);
+
+	function addTransactionToAcceptedQueue(
+		address recipient,
+		bytes32 txId
+	) external returns (uint slot);
+
+	function addTransactionToUndeterminedQueue(
+		address recipient,
+		bytes32 txId
+	) external returns (uint slot);
+
+	function removeTransactionFromPendingQueue(
+		address recipient,
+		bytes32 txId
+	) external;
 }
