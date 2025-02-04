@@ -4,10 +4,10 @@ on:
   workflow_call:
     inputs:
       oha-version:
-        description: 'Version of oha CLI to use for load testing'
+        description: "Version of oha CLI to use for load testing"
         required: false
         type: string
-        default: 'v1.4.5'
+        default: "v1.4.5"
 
 jobs:
   load-test:

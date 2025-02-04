@@ -23,7 +23,7 @@ services:
     # ports:
     #   - 5678:5678
     environment:
-    # Uncomment for debugging
+      # Uncomment for debugging
       # WAIT_FOR_DEBUGGER: true
       POSTGRES_URL: postgresql+psycopg2://postgres:postgres@postgrestest:5432/postgres
     depends_on:

@@ -1,22 +1,22 @@
 {
-    "version": 1,
-    "formatters": {
-        "default": {
-            "format": "[%(asctime)s] %(levelname)s | %(module)s >>> %(message)s",
-            "datefmt": "%B %d, %Y %H:%M:%S %Z"
-        },
-        "simple": {
-            "format": "%(levelname)s | %(message)s"
-        }
+  "version": 1,
+  "formatters": {
+    "default": {
+      "format": "[%(asctime)s] %(levelname)s | %(module)s >>> %(message)s",
+      "datefmt": "%B %d, %Y %H:%M:%S %Z"
     },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "simple"
-        }
-    },
-    "root": {
-        "level": "INFO",
-        "handlers": ["console"]
+    "simple": {
+      "format": "%(levelname)s | %(message)s"
     }
+  },
+  "handlers": {
+    "console": {
+      "class": "logging.StreamHandler",
+      "formatter": "simple"
+    }
+  },
+  "root": {
+    "level": "INFO",
+    "handlers": ["console"]
+  }
 }

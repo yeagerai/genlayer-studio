@@ -3,6 +3,7 @@
 Place your TLS (Transport Layer Security) certificates and private keys for NGINX in this directory. These files are essential for enabling HTTPS, ensuring secure communication, and authenticating server identity. Make sure to use the correct certificate/private key pair for the domain you are running the studio on.
 
 ## Required Files
+
 Ensure the following files are correctly placed in the specified directory (`/etc/nginx/ssl`):
 
 - **Server certificate**: `genlayer.com.crt`
@@ -10,12 +11,14 @@ Ensure the following files are correctly placed in the specified directory (`/et
 - **Client certificate**: `cloudflare.crt`
 
 ## File Permissions
+
 Permissions should follow these guidelines:
 
 - **Certificates** (`.crt` or `.pem`): `chmod 644`
 - **Private keys** (`.key`): `chmod 600`
 
 ## Configuration Alignment
+
 Verify that the NGINX configuration matches the expected file names and locations:
 
 ```nginx

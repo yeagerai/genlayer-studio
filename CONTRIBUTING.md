@@ -35,27 +35,28 @@ Have ideas for new features or use cases? We're eager to hear them! But first:
 
 - **1.3. Setup the Studio locally**: launch the Studio's frontend and backend by running the docker compose command (Please note that you must have docker, node, and npm installed)
 
-   ```sh
-   $ cp .env.example .env
-   $ docker compose up
-   ```
+  ```sh
+  $ cp .env.example .env
+  $ docker compose up
+  ```
 
 #### 2. Submit your solution
+
 - **2.1. Install [pre-commit](https://pre-commit.com) hooks**: this is used for linting, testing, and enforcing conventions.
 
-   ```sh
-   (.venv) $ pre-commit install
-   ```
+  ```sh
+  (.venv) $ pre-commit install
+  ```
 
-   To look into the configuration details, check the `.pre-commit-config.yaml` file.
+  To look into the configuration details, check the `.pre-commit-config.yaml` file.
 
-   Some of the configurations applied are:
+  Some of the configurations applied are:
 
-   - Python Black formatter
-   - Python pytest for unit tests
-   - ESLint for frontend code
-   - Prettier for frontend code
-   - [Conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) for commit messages
+  - Python Black formatter
+  - Python pytest for unit tests
+  - ESLint for frontend code
+  - Prettier for frontend code
+  - [Conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) for commit messages
 
 - **2.2. Black Formatter on Save File**: Configure IDE extensions to format your code with [Black](https://github.com/psf/black) before submitting it.
 - **2.3. Code solution**: implement the solution in the code.
@@ -66,22 +67,25 @@ Have ideas for new features or use cases? We're eager to hear them! But first:
 - **2.8. Approval and Merge**: After approval from the reviewers, you can merge your PR with a squash and merge type of action.
 
 #### 3. Other considerations
+
 - **3.1. Small fixes don't require creating an issue**: significantly small issues can be submitted through a valid Pull Request without needing to create an issue.
 - **3.2. Run the frontend in dev mode**: to run the frontend separately from the backend and with hot reload enabled, first launch the backend without the frontend:
 
-   ```sh
-   $ docker compose upjsonrpc webrequest ollama database-migration postgres
-   ```
-   Then launch the frontend in dev mode:
-   ```sh
-   $ cd frontend
-   $ npm install
-   $ npm run dev
-   ```
+  ```sh
+  $ docker compose upjsonrpc webrequest ollama database-migration postgres
+  ```
+
+  Then launch the frontend in dev mode:
+
+  ```sh
+  $ cd frontend
+  $ npm install
+  $ npm run dev
+  ```
+
 ### Improving Documentation
 
 To contribute to our docs, visit our [Documentation Repository](https://github.com/yeagerai/genlayer-docs) to create new issues or contribute to existing issues.
-
 
 ## Community
 

@@ -13,27 +13,38 @@ async function completeConsensusFlow(
   activator,
   validators,
   proposedReceipt = "0x1234",
-  nonces
+  nonces,
 ) {
   // 1. Activate transaction
   const currentSeed = await consensusMain.recipientRandomSeed(ghostAddress);
-  const vrfProofActivate = await generateSignature(activator, BigInt(currentSeed));
-  const activateTx = await consensusMain.connect(activator).activateTransaction(txId, vrfProofActivate);
+  const vrfProofActivate = await generateSignature(
+    activator,
+    BigInt(currentSeed),
+  );
+  const activateTx = await consensusMain
+    .connect(activator)
+    .activateTransaction(txId, vrfProofActivate);
   const activationReceipt = await activateTx.wait();
   if (!activationReceipt) throw new Error("Transaction activation failed");
 
   // Get leader from activation event
   const activationEvent = activationReceipt.logs?.find(
-    (log) => consensusMain.interface.parseLog(log)?.name === "TransactionActivated"
+    (log) =>
+      consensusMain.interface.parseLog(log)?.name === "TransactionActivated",
   );
   if (!activationEvent) throw new Error("TransactionActivated event not found");
   const leader = validators.find(
-    (v) => v.address === consensusMain.interface.parseLog(activationEvent).args[1]
+    (v) =>
+      v.address === consensusMain.interface.parseLog(activationEvent).args[1],
   );
 
   // 2. Leader proposes receipt
-  const currentSeedForProposal = await consensusMain.recipientRandomSeed(ghostAddress);
-  const vrfProofPropose = await generateSignature(leader, BigInt(currentSeedForProposal));
+  const currentSeedForProposal =
+    await consensusMain.recipientRandomSeed(ghostAddress);
+  const vrfProofPropose = await generateSignature(
+    leader,
+    BigInt(currentSeedForProposal),
+  );
   const proposeReceipt = await consensusMain
     .connect(leader)
     .proposeReceipt(txId, proposedReceipt, [], vrfProofPropose);
@@ -45,18 +56,22 @@ async function completeConsensusFlow(
   for (let i = 0; i < validators.length; i++) {
     const voteHash = ethers.solidityPackedKeccak256(
       ["address", "uint8", "uint256"],
-      [validators[i].address, voteType, nonces[i]]
+      [validators[i].address, voteType, nonces[i]],
     );
-    await consensusMain.connect(validators[i]).commitVote(txId, voteHash, false);
+    await consensusMain
+      .connect(validators[i])
+      .commitVote(txId, voteHash, false);
   }
 
   // 4. Reveal votes
   for (let i = 0; i < validators.length; i++) {
     const voteHash = ethers.solidityPackedKeccak256(
       ["address", "uint8", "uint256"],
-      [validators[i].address, voteType, nonces[i]]
+      [validators[i].address, voteType, nonces[i]],
     );
-    await consensusMain.connect(validators[i]).revealVote(txId, voteHash, voteType, nonces[i], false);
+    await consensusMain
+      .connect(validators[i])
+      .revealVote(txId, voteHash, voteType, nonces[i], false);
   }
 
   // 5. Finalize transaction
@@ -68,13 +83,18 @@ async function main() {
   console.log("Starting ghost deployment and call flow...");
 
   // Get signers
-  const [owner, validator1, validator2, validator3] = await hre.ethers.getSigners();
+  const [owner, validator1, validator2, validator3] =
+    await hre.ethers.getSigners();
   const validators = [validator1, validator2, validator3];
 
   // Get contract instances
-  const consensusMainAddress = require("../deployments/localhost/ConsensusMain.json").address;
+  const consensusMainAddress =
+    require("../deployments/localhost/ConsensusMain.json").address;
   console.log("🚀 ~ main ~ consensusMainAddress:", consensusMainAddress);
-  const consensusMain = await hre.ethers.getContractAt("ConsensusMain", consensusMainAddress);
+  const consensusMain = await hre.ethers.getContractAt(
+    "ConsensusMain",
+    consensusMainAddress,
+  );
 
   const maxRotations = 2;
 
@@ -85,17 +105,19 @@ async function main() {
     ethers.ZeroAddress,
     3,
     maxRotations,
-    "0x"
+    "0x",
   );
   const deployReceipt = await deployTx.wait();
 
   const deployEvent = deployReceipt.logs?.find(
-    (log) => consensusMain.interface.parseLog(log)?.name === "NewTransaction"
+    (log) => consensusMain.interface.parseLog(log)?.name === "NewTransaction",
   );
   const deployParsedLog = consensusMain.interface.parseLog(deployEvent);
   const deployTxId = deployParsedLog.args[0];
   const ghostAddress = deployParsedLog.args[1];
-  const deployActivator = validators.find((v) => v.address === deployParsedLog.args[2]);
+  const deployActivator = validators.find(
+    (v) => v.address === deployParsedLog.args[2],
+  );
 
   console.log("- Deploy Transaction ID:", deployTxId);
   console.log("- Ghost Address:", ghostAddress);
@@ -110,7 +132,7 @@ async function main() {
     deployActivator,
     validators,
     "0x123456",
-    [123, 456, 789] // deployNonces
+    [123, 456, 789], // deployNonces
   );
   console.log("- Ghost deployment status:", deployStatus.toString());
 
@@ -126,16 +148,18 @@ async function main() {
   const dummyCallTx = await ghost.addTransaction(
     3,
     maxRotations,
-    ethers.keccak256(ethers.toUtf8Bytes("dummyFunction()"))
+    ethers.keccak256(ethers.toUtf8Bytes("dummyFunction()")),
   );
   const dummyCallReceipt = await dummyCallTx.wait();
 
   const dummyCallEvent = dummyCallReceipt.logs?.find(
-    (log) => consensusMain.interface.parseLog(log)?.name === "NewTransaction"
+    (log) => consensusMain.interface.parseLog(log)?.name === "NewTransaction",
   );
   const dummyCallParsedLog = consensusMain.interface.parseLog(dummyCallEvent);
   const dummyCallTxId = dummyCallParsedLog.args[0];
-  const dummyCallActivator = validators.find((v) => v.address === dummyCallParsedLog.args[2]);
+  const dummyCallActivator = validators.find(
+    (v) => v.address === dummyCallParsedLog.args[2],
+  );
 
   console.log("- Dummy Call Transaction ID:", dummyCallTxId);
   console.log("- Dummy Call Activator:", dummyCallActivator.address);
@@ -149,14 +173,16 @@ async function main() {
     dummyCallActivator,
     validators,
     "0x123456",
-    [123, 456, 789] // deployNonces
+    [123, 456, 789], // deployNonces
   );
   console.log("- Dummy call status:", dummyCallStatus.toString());
 
   if (deployStatus.toString() === "6" && dummyCallStatus.toString() === "6") {
     console.log("\n¡Ghost deployment and dummy call completed successfully! ✓");
   } else {
-    throw new Error(`Unexpected final status: Deploy=${deployStatus}, DummyCall=${dummyCallStatus}`);
+    throw new Error(
+      `Unexpected final status: Deploy=${deployStatus}, DummyCall=${dummyCallStatus}`,
+    );
   }
 }
 

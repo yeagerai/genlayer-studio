@@ -1,6 +1,6 @@
 services:
   nginx:
-    profiles: ["studio"]  # For hosted studio, turned off by default
+    profiles: ["studio"] # For hosted studio, turned off by default
     build:
       context: ./
       dockerfile: ./docker/Dockerfile.nginx
@@ -8,7 +8,7 @@ services:
       - NET_BIND_SERVICE
     ports:
       - "80:80"
-      - "443:443"   # For the frontend
+      - "443:443" # For the frontend
       - "8443:8443" # For the jsonrpc
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
@@ -174,7 +174,7 @@ services:
         max-file: "3"
     # If you want your db to persist in dev
     volumes:
-     - "./data/postgres:/var/lib/postgresql/data"
+      - "./data/postgres:/var/lib/postgresql/data"
 
   database-migration:
     build:
@@ -211,7 +211,19 @@ services:
       - HARDHAT_NETWORK=hardhat
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-X", "POST", "-H", "Content-Type: application/json", "--fail", "http://localhost:8545", "-d", '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}']
+      test:
+        [
+          "CMD",
+          "curl",
+          "-X",
+          "POST",
+          "-H",
+          "Content-Type: application/json",
+          "--fail",
+          "http://localhost:8545",
+          "-d",
+          '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}',
+        ]
       interval: 60s
       timeout: 30s
       retries: 5
