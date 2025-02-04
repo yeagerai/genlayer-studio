@@ -1,7 +1,10 @@
 # tests/e2e/test_storage.py
+
+import eth_utils
+
 from tests.common.request import (
     deploy_intelligent_contract,
-    send_transaction,
+    write_intelligent_contract,
     payload,
     post_request_localhost,
 )
@@ -29,7 +32,10 @@ def test_log_indexer(setup_validators, from_account):
     # Get contract schema
     contract_code = open("examples/contracts/log_indexer.py", "r").read()
     result_schema = post_request_localhost(
-        payload("gen_getContractSchemaForCode", contract_code)
+        payload(
+            "gen_getContractSchemaForCode",
+            eth_utils.hexadecimal.encode_hex(contract_code),
+        )
     ).json()
     assert has_success_status(result_schema)
     assert_dict_exact(result_schema, log_indexer_contract_schema)
@@ -52,7 +58,7 @@ def test_log_indexer(setup_validators, from_account):
     # ########################################
     # ############## Add log 0 ###############
     # ########################################
-    transaction_response_add_log_0 = send_transaction(
+    transaction_response_add_log_0 = write_intelligent_contract(
         from_account,
         contract_address,
         "add_log",
@@ -74,7 +80,7 @@ def test_log_indexer(setup_validators, from_account):
     # ########################################
     # ############## Add log 1 ###############
     # ########################################
-    transaction_response_add_log_1 = send_transaction(
+    transaction_response_add_log_1 = write_intelligent_contract(
         from_account,
         contract_address,
         "add_log",
@@ -94,7 +100,7 @@ def test_log_indexer(setup_validators, from_account):
     # ########################################
     # ########### Update log 0 ##############
     # ########################################
-    transaction_response_update_log_0 = send_transaction(
+    transaction_response_update_log_0 = write_intelligent_contract(
         from_account,
         contract_address,
         "update_log",
@@ -115,7 +121,7 @@ def test_log_indexer(setup_validators, from_account):
     # ########################################
     # ########### Remove log 0 ##############
     # ########################################
-    transaction_response_remove_log_0 = send_transaction(
+    transaction_response_remove_log_0 = write_intelligent_contract(
         from_account,
         contract_address,
         "remove_log",
@@ -138,7 +144,7 @@ def test_log_indexer(setup_validators, from_account):
     # ########################################
 
     # Add third log
-    transaction_response_add_log_2 = send_transaction(
+    transaction_response_add_log_2 = write_intelligent_contract(
         from_account,
         contract_address,
         "add_log",
