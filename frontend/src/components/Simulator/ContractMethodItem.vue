@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ContractMethod } from 'genlayer-js/types';
+import { abi } from 'genlayer-js';
 import { ref } from 'vue';
 import { Collapse } from 'vue-collapsed';
 import { notify } from '@kyvg/vue3-notification';
@@ -7,7 +8,6 @@ import { ChevronDownIcon } from '@heroicons/vue/16/solid';
 import { useEventTracking, useContractQueries } from '@/hooks';
 import { unfoldArgsData, type ArgData } from './ContractParams';
 import ContractParams from './ContractParams.vue';
-import * as calldata from '@/calldata';
 
 const { callWriteMethod, callReadMethod, contract } = useContractQueries();
 const { trackEvent } = useEventTracking();
@@ -21,29 +21,45 @@ const props = defineProps<{
 
 const isExpanded = ref(false);
 const isCalling = ref(false);
-const responseMessage = ref('');
+const responseMessage = ref();
 
 const calldataArguments = ref<ArgData>({ args: [], kwargs: {} });
 
+const formatResponseIfNeeded = (response: string): string => {
+  // Check if the string looks like a malformed JSON (starts with { and ends with })
+  if (response.startsWith('{') && response.endsWith('}')) {
+    try {
+      // Try to parse it as-is first
+      return JSON.stringify(JSON.parse(response), null, 2);
+    } catch {
+      // If parsing fails, try to add commas between properties
+      const fixedResponse = response.replace(/"\s*"(?=[^:]*:)/g, '","');
+      try {
+        // Validate the fixed string can be parsed as JSON
+        return JSON.stringify(JSON.parse(fixedResponse), null, 2);
+      } catch {
+        // If still can't parse, return original
+        return response;
+      }
+    }
+  }
+  return response;
+};
+
 const handleCallReadMethod = async () => {
-  responseMessage.value = '';
   isCalling.value = true;
 
   try {
     const result = await callReadMethod(
       props.name,
-      unfoldArgsData({
-        args: calldataArguments.value.args,
-        kwargs: calldataArguments.value.kwargs,
-      }),
+      unfoldArgsData(calldataArguments.value),
     );
 
-    let repr: string;
-    if (typeof result === 'string') {
-      const val = Uint8Array.from(atob(result), (c) => c.charCodeAt(0));
-      responseMessage.value = calldata.toString(calldata.decode(val));
+    if (result !== undefined) {
+      const resultString = abi.calldata.toString(result);
+      responseMessage.value = formatResponseIfNeeded(resultString);
     } else {
-      responseMessage.value = '<unknown>';
+      responseMessage.value = '<genlayer.client is undefined>';
     }
 
     trackEvent('called_read_method', {
@@ -151,7 +167,7 @@ const handleCallWriteMethod = async () => {
           <div class="mb-1 text-xs font-medium">Response:</div>
           <div
             :data-testid="`method-response-${name}`"
-            class="w-full rounded bg-white p-1 font-mono text-xs dark:bg-slate-600"
+            class="w-full whitespace-pre-wrap rounded bg-white p-1 font-mono text-xs dark:bg-slate-600"
           >
             {{ responseMessage }}
           </div>

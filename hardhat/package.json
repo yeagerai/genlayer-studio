@@ -15,10 +15,14 @@
     "@typechain/hardhat": "^9.0.0",
     "ethers": "^6.4.0",
     "hardhat": "^2.22.1",
-    "hardhat-gas-reporter": "^2.0.0",
+    "hardhat-gas-reporter": "^1.0.8",
     "solidity-coverage": "^0.8.0"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ignition": "^0.15.8",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.8"
   }
 }

@@ -78,7 +78,8 @@ services:
     volumes:
       - ./.env:/app/.env
       - ./backend:/app/backend
-      - ./hardhat/artifacts:/app/hardhat/artifacts
+      - hardhat_artifacts:/app/hardhat/artifacts
+      - hardhat_deployments:/app/hardhat/deployments
     depends_on:
       hardhat:
         condition: service_healthy
@@ -89,7 +90,7 @@ services:
     expose:
       - "${RPCPORT}"
     healthcheck:
-      test: ["CMD", "python", "backend/healthcheck.py", "--port", "${RPCPORT}"]
+      test: ["CMD", "python3", "backend/healthcheck.py", "--port", "${RPCPORT}"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -201,16 +202,23 @@ services:
       - ./hardhat/scripts:/app/scripts
       - ./hardhat/test:/app/test
       - ./hardhat/hardhat.config.js:/app/hardhat.config.js
+      - ./hardhat/deploy:/app/deploy
       - hardhat_artifacts:/app/artifacts
+      - hardhat_cache:/app/cache
+      - hardhat_deployments:/app/deployments
+      - ignition_deployments:/app/ignition/deployments
     environment:
       - HARDHAT_NETWORK=hardhat
+    restart: always
     healthcheck:
       test: ["CMD", "curl", "-X", "POST", "-H", "Content-Type: application/json", "--fail", "http://localhost:8545", "-d", '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}']
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 60s
 
 volumes:
   hardhat_artifacts:
-
+  hardhat_cache:
+  hardhat_deployments:
+  ignition_deployments:

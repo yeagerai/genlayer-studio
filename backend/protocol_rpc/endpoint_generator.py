@@ -36,14 +36,19 @@ def _decode_exception(x: Exception) -> typing.Any:
     def unfold(x: typing.Any):
         if isinstance(x, tuple):
             return list(x)
-        if isinstance(x, Exception):
+        if isinstance(x, BaseException):
             import traceback
 
-            return {
+            res = {
                 "kind": "exception",
                 "args": x.args,
                 "traceback": traceback.format_exception(x),
             }
+            if x.__cause__ is not None:
+                res["cause"] = x.__cause__
+            if x.__context__ is not None:
+                res["context"] = x.__context__
+            return res
         if isinstance(x, collections.abc.Buffer):
             return base64.b64encode(x).decode("ascii")
         if dataclasses.is_dataclass(x) and not isinstance(x, type):

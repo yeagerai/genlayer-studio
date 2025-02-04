@@ -1,5 +1,8 @@
 from enum import Enum
 from dataclasses import dataclass, field
+from backend.domain.types import TransactionType
+
+ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 
 class EndpointResultStatus(Enum):
@@ -25,10 +28,25 @@ class EndpointResult:
 
 
 @dataclass
-class DecodedTransaction:
+class DecodedRollupTransactionDataArgs:
+    sender: str
+    recipient: str
+    num_of_initial_validators: int
+    max_rotations: int
+    data: str
+
+
+@dataclass
+class DecodedRollupTransactionData:
+    function_name: str
+    args: DecodedRollupTransactionDataArgs
+
+
+@dataclass
+class DecodedRollupTransaction:
     from_address: str
     to_address: str
-    data: str  # hex encoded
+    data: DecodedRollupTransactionData
     type: str
     nonce: int
     value: int
@@ -37,11 +55,31 @@ class DecodedTransaction:
 @dataclass
 class DecodedMethodCallData:
     calldata: bytes
+
+
+@dataclass
+class DecodedMethodSendData:
+    calldata: bytes
     leader_only: bool = False
 
 
 @dataclass
 class DecodedDeploymentData:
-    contract_code: str
+    contract_code: bytes
     calldata: bytes
     leader_only: bool = False
+
+
+@dataclass
+class DecodedGenlayerTransactionData:
+    contract_code: str
+    calldata: str
+    leader_only: bool = False
+
+
+@dataclass
+class DecodedGenlayerTransaction:
+    from_address: str
+    to_address: str
+    data: DecodedGenlayerTransactionData
+    type: TransactionType

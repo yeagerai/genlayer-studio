@@ -24,13 +24,15 @@ contract GhostBlueprint is Initializable, OwnableUpgradeable {
 
 	function addTransaction(
 		uint256 _numOfInitialValidators,
+		uint256 _maxRotations,
 		bytes memory _txData
 	) external payable {
 		bytes memory consensusCallData = abi.encodeWithSignature(
-			"addTransaction(address,address,uint256,bytes)",
+			"addTransaction(address,address,uint256,uint256,bytes)",
 			msg.sender,
 			address(this),
 			_numOfInitialValidators,
+			_maxRotations,
 			_txData
 		);
 		(bool success, ) = owner().call{ value: msg.value }(consensusCallData);
@@ -40,22 +42,19 @@ contract GhostBlueprint is Initializable, OwnableUpgradeable {
 	function handleOp(
 		address to,
 		bytes32 msgId,
+		uint expectedNonce,
 		bytes calldata data
 	) external payable onlyOwner {
-		(uint expectedNonce, bytes memory callData) = abi.decode(
-			data,
-			(uint256, bytes)
-		);
 		require(nonce == expectedNonce, "Invalid nonce");
 		if (msg.value > 0) {
-			(bool success, ) = to.call{ value: msg.value }(callData);
+			(bool success, ) = to.call{ value: msg.value }(data);
 			require(success, "Transaction failed");
 		} else {
-			(bool success, ) = to.call(callData);
+			(bool success, ) = to.call(data);
 			require(success, "Transaction failed");
 		}
 
-		emit TransactionExecuted(to, msgId, callData);
+		emit TransactionExecuted(to, msgId, data);
 		// Increment nonce to prevent replay attacks
 		nonce += 1;
 	}

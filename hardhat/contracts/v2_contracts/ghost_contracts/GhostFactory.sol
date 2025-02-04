@@ -18,6 +18,9 @@ contract GhostFactory is
 	address public ghostManager;
 	address public genConsensus;
 
+	mapping(address => bool) public ghostContracts;
+	address public latestGhost;
+
 	error CallerNotConsensus();
 
 	receive() external payable {}
@@ -39,6 +42,8 @@ contract GhostFactory is
 		);
 		emit GhostCreated(address(beacon));
 		GhostBlueprint(payable(address(beacon))).transferOwnership(msg.sender);
+		latestGhost = address(beacon);
+		ghostContracts[address(beacon)] = true;
 		return address(beacon);
 	}
 
@@ -52,6 +57,10 @@ contract GhostFactory is
 
 	function setGhostBlueprint(address _ghostBlueprint) external onlyOwner {
 		ghostBlueprint = _ghostBlueprint;
+	}
+
+	function isGhost(address _ghost) external view returns (bool) {
+		return ghostContracts[_ghost];
 	}
 
 	function upgradeBeacon(address newImplementation) external onlyOwner {
