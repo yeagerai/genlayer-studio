@@ -1,10 +1,10 @@
 # tests/e2e/test_storage.py
 
-import json
+import eth_utils
 
 from tests.common.request import (
     deploy_intelligent_contract,
-    send_transaction,
+    write_intelligent_contract,
     payload,
     post_request_localhost,
     call_contract_method,
@@ -27,7 +27,10 @@ def test_football_prediction_market(setup_validators, from_account):
     # Get contract schema
     contract_code = open("examples/contracts/football_prediction_market.py", "r").read()
     result_schema = post_request_localhost(
-        payload("gen_getContractSchemaForCode", contract_code)
+        payload(
+            "gen_getContractSchemaForCode",
+            eth_utils.hexadecimal.encode_hex(contract_code),
+        )
     ).json()
     assert has_success_status(result_schema)
     assert_dict_exact(result_schema, football_prediction_market_contract_schema)
@@ -43,7 +46,7 @@ def test_football_prediction_market(setup_validators, from_account):
     ########################################
     ############# RESOLVE match ############
     ########################################
-    transaction_response_call_1 = send_transaction(
+    transaction_response_call_1 = write_intelligent_contract(
         from_account,
         contract_address,
         "resolve",
