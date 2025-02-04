@@ -87,6 +87,7 @@ async def status(x: str) -> dict:
 async def llm_genvm_module_call(
     encoded_model: str,
     prompt: str,
+    mode: str,
 ) -> dict:
     obj = json.loads(encoded_model)
     plugin = obj["plugin"]

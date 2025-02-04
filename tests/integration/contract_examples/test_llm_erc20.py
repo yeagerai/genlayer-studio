@@ -1,9 +1,10 @@
 # tests/e2e/test_storage.py
-import json
+import eth_utils
+
 from backend.node.types import Address
 from tests.common.request import (
     deploy_intelligent_contract,
-    send_transaction,
+    write_intelligent_contract,
     payload,
     post_request_localhost,
 )
@@ -35,7 +36,10 @@ def test_llm_erc20(setup_validators):
     # Get contract schema
     contract_code = open("examples/contracts/llm_erc20.py", "r").read()
     result_schema = post_request_localhost(
-        payload("gen_getContractSchemaForCode", contract_code)
+        payload(
+            "gen_getContractSchemaForCode",
+            eth_utils.hexadecimal.encode_hex(contract_code),
+        )
     ).json()
     assert has_success_status(result_schema)
     assert_dict_exact(result_schema, llm_erc20_contract_schema)
@@ -58,7 +62,7 @@ def test_llm_erc20(setup_validators):
     ########################################
     #### TRANSFER from User A to User B ####
     ########################################
-    transaction_response_call_1 = send_transaction(
+    transaction_response_call_1 = write_intelligent_contract(
         from_account_a,
         contract_address,
         "transfer",

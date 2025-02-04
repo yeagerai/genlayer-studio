@@ -52,7 +52,7 @@ class ExecutionResult:
     pending_transactions: list[PendingTransaction]
     stdout: str
     stderr: str
-    genvm_log: str
+    genvm_log: list
 
 
 def encode_result_to_bytes(result: ExecutionReturn | ExecutionError) -> bytes:
@@ -92,6 +92,7 @@ class IGenVM(typing.Protocol):
         leader_results: None | dict[int, bytes],
         config: str,
         date: datetime.datetime | None,
+        chain_id: int,
     ) -> ExecutionResult: ...
 
     async def get_contract_schema(self, contract_code: bytes) -> ExecutionResult: ...
@@ -133,20 +134,29 @@ class GenVMHost(IGenVM):
         from_address: Address,
         contract_address: Address,
         calldata_raw: bytes,
-        is_init: bool = False,
+        is_init: bool,
+        readonly: bool,
         leader_results: None | dict[int, bytes],
         config: str,
         date: datetime.datetime | None,
+        chain_id: int,
     ) -> ExecutionResult:
-        assert date.tzinfo is not None
         message = {
             "is_init": is_init,
             "contract_account": contract_address.as_b64,
             "sender_account": from_address.as_b64,
+            "origin_account": from_address.as_b64,  # FIXME: no origin in simulator #751
             "value": None,
+            "chain_id": str(
+                chain_id
+            ),  # NOTE: it can overflow u64 so better to wrap it into a string
         }
         if date is not None:
+            assert date.tzinfo is not None
             message["datetime"] = date.isoformat()
+        perms = "rc"  # read/call
+        if not readonly:
+            perms += "ws"  # write/send
         return await _run_genvm_host(
             functools.partial(
                 _Host,
@@ -154,7 +164,7 @@ class GenVMHost(IGenVM):
                 state_proxy=state,
                 leader_results=leader_results,
             ),
-            ["--message", json.dumps(message)],
+            ["--message", json.dumps(message), "--permissions", perms],
             config,
         )
 
@@ -164,8 +174,9 @@ class GenVMHost(IGenVM):
             "is_init": False,
             "contract_account": NO_ADDR,
             "sender_account": NO_ADDR,
+            "origin_account": NO_ADDR,
             "value": None,
-            "gas": 2**64 - 1,
+            "chain_id": "0",
         }
         return await _run_genvm_host(
             functools.partial(
@@ -174,9 +185,19 @@ class GenVMHost(IGenVM):
                 state_proxy=_StateProxyNone(Address(NO_ADDR), contract_code),
                 leader_results=None,
             ),
-            ["--message", json.dumps(message)],
+            ["--message", json.dumps(message), "--permissions", ""],
             None,
         )
+
+
+def _decode_genvm_log(log: str) -> list:
+    decoded: list = []
+    for log_line in log.splitlines():
+        try:
+            decoded.append(json.loads(log_line))
+        except Exception:
+            decoded.append(log_line)
+    return decoded
 
 
 # Class that has logic for handling all genvm host methods and accumulating results
@@ -210,7 +231,7 @@ class _Host(genvmhost.IHost):
             pending_transactions=self._pending_transactions,
             stdout=res.stdout,
             stderr=res.stderr,
-            genvm_log=res.genvm_log,
+            genvm_log=_decode_genvm_log(res.genvm_log),
             result=self._result,
         )
 
@@ -227,9 +248,13 @@ class _Host(genvmhost.IHost):
     async def get_code(self, addr: bytes, /) -> bytes:
         return self._state_proxy.get_code(Address(addr))
 
+    def has_result(self) -> bool:
+        return self._result is not None
+
     async def storage_read(
-        self, account: bytes, slot: bytes, index: int, le: int, /
+        self, type: StorageType, account: bytes, slot: bytes, index: int, le: int, /
     ) -> bytes:
+        assert type != StorageType.LATEST_FINAL
         return self._state_proxy.storage_read(Address(account), slot, index, le)
 
     async def storage_write(
@@ -273,15 +298,39 @@ class _Host(genvmhost.IHost):
         encoded_result.extend(memoryview(data))
         self._eq_outputs[call_no] = bytes(encoded_result)
 
-    async def post_message(
-        self, gas: int, account: bytes, calldata: bytes, code: bytes, /
-    ) -> None:
+    async def post_message(self, account: bytes, calldata: bytes, _data, /) -> None:
         self._pending_transactions.append(
-            PendingTransaction(Address(account).as_hex, calldata)
+            PendingTransaction(
+                Address(account).as_hex, calldata, code=None, salt_nonce=0
+            )
         )
 
     async def consume_gas(self, gas: int, /) -> None:
         pass
+
+    async def deploy_contract(
+        self,
+        calldata: bytes,
+        code: bytes,
+        data: genvmhost.DeployDefaultTransactionData,
+        /,
+    ) -> None:
+        self._pending_transactions.append(
+            PendingTransaction(
+                address="0x",
+                calldata=calldata,
+                code=code,
+                salt_nonce=data.get("salt_nonce", 0),
+            )
+        )
+
+    async def eth_send(self, account: bytes, calldata: bytes, /) -> None:
+        # FIXME(core-team): #748
+        assert False
+
+    async def eth_call(self, account: bytes, calldata: bytes, /) -> bytes:
+        # FIXME(core-team): #748
+        assert False
 
 
 async def _run_genvm_host(

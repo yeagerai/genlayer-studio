@@ -10,7 +10,6 @@ from tests.common.request import (
 
 from tests.common.response import (
     has_success_status,
-    has_error_status,
 )
 
 from tests.common.accounts import create_new_account
@@ -78,7 +77,7 @@ def test_accounts_transfers():
     # Test transfer
     transfer_amount = 200
     transaction_response_call_1 = send_transaction(
-        account_1, account_2.address, None, None, transfer_amount
+        account_1, account_2.address, transfer_amount
     )
     assert has_success_status(transaction_response_call_1)
 
@@ -109,9 +108,7 @@ def test_accounts_burn():
 
     # Test burn
     burn_amount = 200
-    transaction_response_call_1 = send_transaction(
-        account_1, None, None, None, burn_amount
-    )
+    transaction_response_call_1 = send_transaction(account_1, None, burn_amount)
     assert has_success_status(transaction_response_call_1)
 
     # Verify balance after transfer

@@ -153,11 +153,16 @@ package-lock.json
 nginx/ssl/*.key
 nginx/ssl/*.crt
 
+
 # Hardhat files
-hardhat/cache
-hardhat/artifacts
+hardhat/cache/*
+hardhat/artifacts/*
 hardhat/.openzeppelin
 hardhat/coverage
 hardhat/coverage.json
 hardhat/typechain
 hardhat/typechain-types
+hardhat/deployments/*
+
+# Geth keystore
+hardhat/geth_keystore/*

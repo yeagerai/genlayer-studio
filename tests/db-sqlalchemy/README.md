@@ -1,3 +1,10 @@
+# TODO
+
+Some of these tests are not working
+
+- [ ] Fix them
+- [ ] Create a GitHub Action to run them in CI
+
 # SQLAlchemy integration tests
 
 ## Why

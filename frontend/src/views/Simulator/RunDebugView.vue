@@ -71,6 +71,7 @@ const isFinalityWindowValid = computed(() => {
             testId="input-finalityWindow"
             :disabled="false"
             class="w-20"
+            tiny
           />
         </div>
 

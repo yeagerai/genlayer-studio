@@ -1,8 +1,9 @@
-import * as calldata from '@/calldata';
+import { type CalldataEncodable } from 'genlayer-js/types';
+import { parse as calldataParse } from '@/calldata/parser';
 import { AnyFieldValue } from '../global/fields/AnyFieldValue';
 
 export interface SingleArgData {
-  val: calldata.CalldataEncodable | AnyFieldValue;
+  val: CalldataEncodable | AnyFieldValue;
   key: number | string;
 }
 
@@ -12,13 +13,13 @@ export interface ArgData {
 }
 
 export function unfoldArgsData(args: ArgData): {
-  args: calldata.CalldataEncodable[];
-  kwargs: { [key: string]: calldata.CalldataEncodable };
+  args: CalldataEncodable[];
+  kwargs: { [key: string]: CalldataEncodable };
 } {
   const unfoldOne = (x: SingleArgData) => {
     if (x.val instanceof AnyFieldValue) {
       try {
-        return calldata.parse(x.val.value);
+        return calldataParse(x.val.value);
       } catch (e) {
         throw new Error(`failed to parse ${x.key}`);
       }

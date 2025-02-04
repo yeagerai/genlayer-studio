@@ -1,30 +1,36 @@
 import { simulator } from 'genlayer-js/chains';
 import { createClient, createAccount } from 'genlayer-js';
 import type { GenLayerClient } from 'genlayer-js/types';
-import { watch } from 'vue';
+import { ref, watch, type Ref } from 'vue';
 import { useAccountsStore } from '@/stores';
 
-let client: GenLayerClient<typeof simulator> | null = null;
+type UseGenlayerReturn = {
+  client: Ref<GenLayerClient<typeof simulator> | null>;
+  initClient: () => void;
+};
 
-export function useGenlayer() {
+export function useGenlayer(): UseGenlayerReturn {
   const accountsStore = useAccountsStore();
+  const client = ref<GenLayerClient<typeof simulator> | null>(null);
 
-  if (!client) {
+  if (!client.value) {
     initClient();
   }
 
-  watch(
-    () => accountsStore.currentUserAddress,
-    () => {
-      initClient();
-    },
-  );
+  watch([() => accountsStore.selectedAccount?.address], () => {
+    initClient();
+  });
 
   function initClient() {
-    client = createClient({
+    const clientAccount =
+      accountsStore.selectedAccount?.type === 'local'
+        ? createAccount(accountsStore.selectedAccount?.privateKey)
+        : accountsStore.selectedAccount?.address;
+
+    client.value = createClient({
       chain: simulator,
       endpoint: import.meta.env.VITE_JSON_RPC_SERVER_URL,
-      account: createAccount(accountsStore.currentPrivateKey || undefined),
+      account: clientAccount,
     });
   }
 
