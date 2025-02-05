@@ -7,7 +7,6 @@ services:
       - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      # - ./certs:/certs:ro # Certs don't seem to be used. Leaving this commented just in case they are cached and in reality they are needed.
       - ./traefik.yaml:/etc/traefik/traefik.yaml:ro
 
 
