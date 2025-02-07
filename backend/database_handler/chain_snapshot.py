@@ -18,7 +18,9 @@ class ChainSnapshot:
         self.all_validators = self.validators_registry.get_all_validators()
         self.pending_transactions = self._load_pending_transactions()
         self.num_validators = len(self.all_validators)
-        self.accepted_transactions = self._load_accepted_transactions()
+        self.accepted_undetermined_transactions = (
+            self._load_accepted_undetermined_transactions()
+        )
 
     def _load_pending_transactions(self) -> List[dict]:
         """Load and return the list of pending transactions from the database."""
@@ -41,12 +43,16 @@ class ChainSnapshot:
         """Return the list of all validators."""
         return self.all_validators
 
-    def _load_accepted_transactions(self) -> List[dict]:
-        """Load and return the list of accepted transactions from the database."""
+    def _load_accepted_undetermined_transactions(self) -> List[dict]:
+        """Load and return the list of accepted and undetermined transactions from the database."""
 
         accepted_transactions = (
             self.session.query(Transactions)
-            .filter(Transactions.status == TransactionStatus.ACCEPTED)
+            .filter(
+                (Transactions.status == TransactionStatus.ACCEPTED)
+                | (Transactions.status == TransactionStatus.UNDETERMINED)
+            )
+            .order_by(Transactions.timestamp_awaiting_finalization)
             .all()
         )
         return [
@@ -54,6 +60,6 @@ class ChainSnapshot:
             for transaction in accepted_transactions
         ]
 
-    def get_accepted_transactions(self):
-        """Return the list of accepted transactions."""
-        return self.accepted_transactions
+    def get_accepted_undetermined_transactions(self):
+        """Return the list of accepted and undetermined transactions."""
+        return self.accepted_undetermined_transactions
