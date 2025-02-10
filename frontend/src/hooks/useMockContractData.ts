@@ -31,7 +31,6 @@ export function useMockContractData() {
     },
   };
 
-  // FIXME:
   const mockDeploymentTx: TransactionItem = {
     contractAddress: mockContractAddress,
     localContractId: mockContractId,
