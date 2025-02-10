@@ -4,7 +4,7 @@ import eth_utils
 
 from tests.common.request import (
     deploy_intelligent_contract,
-    send_transaction,
+    write_intelligent_contract,
     payload,
     post_request_localhost,
     call_contract_method,
@@ -46,7 +46,7 @@ def test_football_prediction_market(setup_validators, from_account):
     ########################################
     ############# RESOLVE match ############
     ########################################
-    transaction_response_call_1 = send_transaction(
+    transaction_response_call_1 = write_intelligent_contract(
         from_account,
         contract_address,
         "resolve",
