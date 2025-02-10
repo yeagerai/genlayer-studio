@@ -20,10 +20,13 @@ export function useTransactionListener() {
       (t: TransactionItem) => t.hash === eventData.data.hash,
     );
 
-    if (currentTx && !newTx) {
-      console.log('Server tx not found for local tx:', currentTx);
-      // We're cleaning up local txs that don't exist on the server anymore
-      transactionsStore.removeTransaction(currentTx);
+    if (!newTx) {
+      if (currentTx) {
+        console.log('Server tx not found for local tx:', currentTx);
+        // We're cleaning up local txs that don't exist on the server anymore
+        transactionsStore.removeTransaction(currentTx);
+      }
+
       return;
     }
 
@@ -31,6 +34,29 @@ export function useTransactionListener() {
       // This happens regularly when local transactions get cleared (e.g. user clears all txs or deploys new contract instance)
       return;
     }
+
+    const statusOrder = [
+      'PENDING',
+      'CANCELED',
+      'PROPOSING',
+      'COMMITTING',
+      'REVEALING',
+      'ACCEPTED',
+      'FINALIZED',
+      // UNDETERMINED ?
+    ];
+
+    // Only update if new status is later in the sequence than current status to prevent race conditions
+    const currentStatusIndex = statusOrder.indexOf(currentTx.status);
+    const newStatusIndex = statusOrder.indexOf(newTx.status);
+
+    if (newStatusIndex < currentStatusIndex) {
+      console.warn('Ignoring out-of-order status update:', newTx.status);
+      alert('YES')
+      return;
+    }
+
+    console.log(currentStatusIndex, newStatusIndex)
 
     transactionsStore.updateTransaction(newTx);
   }
