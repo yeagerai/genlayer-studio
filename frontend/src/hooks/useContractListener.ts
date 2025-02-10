@@ -17,11 +17,14 @@ export function useContractListener() {
       (t) => t.hash === eventData.transaction_hash,
     );
 
+    // Check for a local transaction to:
+    // - match the contract file ID since it is only stored client-side
+    // - make sure to scope the websocket event to the correct client
     if (localDeployTx) {
       contractsStore.addDeployedContract({
         contractId: localDeployTx.localContractId,
         address: eventData.data.id,
-        defaultState: eventData.data.data.state, // TODO: ?
+        defaultState: eventData.data.data.state,
       });
     }
   }
