@@ -4,6 +4,8 @@ from unittest.mock import patch, MagicMock
 import os
 import math
 from datetime import datetime
+from web3 import Web3
+from web3.providers import BaseProvider
 
 from backend.database_handler.chain_snapshot import ChainSnapshot
 from backend.database_handler.models import Transactions
@@ -20,12 +22,15 @@ def mock_env_and_web3():
             "HARDHAT_URL": "http://localhost",
             "HARDHAT_PRIVATE_KEY": "0x0123456789",
         },
-    ), patch("web3.Web3.HTTPProvider"), patch(
-        "web3.Web3.eth.accounts",
-        new_callable=MagicMock,
-        return_value=["0x0000000000000000000000000000000000000000"],
-    ):
-        yield
+    ), patch("web3.Web3.HTTPProvider"):
+        web3_instance = Web3(MagicMock(spec=BaseProvider))
+        web3_instance.eth = MagicMock()
+        web3_instance.eth.accounts = ["0x0000000000000000000000000000000000000000"]
+        with patch(
+            "backend.database_handler.transactions_processor.Web3",
+            return_value=web3_instance,
+        ):
+            yield
 
 
 def test_transactions_processor(transactions_processor: TransactionsProcessor):
@@ -58,7 +63,6 @@ def test_transactions_processor(transactions_processor: TransactionsProcessor):
         transaction_type,
         nonce + 1,
         True,
-        None,
         first_transaction_hash,
     )
 
@@ -136,13 +140,17 @@ def test_get_highest_timestamp(transactions_processor: TransactionsProcessor):
     )
     transactions_processor.session.commit()
     assert transactions_processor.get_highest_timestamp() == 0
-    transactions_processor.set_transaction_timestamp_accepted(tx1_hash, 1000)
+    transactions_processor.set_transaction_timestamp_awaiting_finalization(
+        tx1_hash, 1000
+    )
 
     # Second transaction with timestamp 2000
     tx2_hash = transactions_processor.insert_transaction(
         from_address, to_address, data, 1.0, 1, 1, True
     )
-    transactions_processor.set_transaction_timestamp_accepted(tx2_hash, 2000)
+    transactions_processor.set_transaction_timestamp_awaiting_finalization(
+        tx2_hash, 2000
+    )
 
     # Third transaction with no timestamp (should be ignored)
     transactions_processor.insert_transaction(
