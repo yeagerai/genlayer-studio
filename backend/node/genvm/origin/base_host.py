@@ -310,6 +310,9 @@ async def run_host_and_program(
         if coro_loop in done:
             await wait_all_timeout()
 
+    if handler.has_result():
+        await wait_all_timeout()
+
     if not coro_proc.done():
         try:
             process.terminate()
