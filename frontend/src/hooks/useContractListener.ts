@@ -11,8 +11,6 @@ export function useContractListener() {
   }
 
   async function handleContractDeployed(eventData: any) {
-    console.log('deployed_contract', eventData);
-
     const localDeployTx = transactionsStore.transactions.find(
       (t) => t.hash === eventData.transaction_hash,
     );

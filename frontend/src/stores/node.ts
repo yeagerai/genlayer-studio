@@ -123,7 +123,6 @@ export const useNodeStore = defineStore('nodeStore', () => {
 
   const deleteValidator = async (validator: ValidatorModel) => {
     if (validators.value.length === 1) {
-      throw new Error('You must have at least one validator');
     }
     await rpcClient.deleteValidator({
       address: validator.address || '',
