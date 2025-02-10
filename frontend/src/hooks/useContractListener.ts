@@ -1,0 +1,32 @@
+import { useContractsStore, useTransactionsStore } from '@/stores';
+import { useWebSocketClient } from '@/hooks';
+
+export function useContractListener() {
+  const contractsStore = useContractsStore();
+  const transactionsStore = useTransactionsStore();
+  const webSocketClient = useWebSocketClient();
+
+  function init() {
+    webSocketClient.on('deployed_contract', handleContractDeployed);
+  }
+
+  async function handleContractDeployed(eventData: any) {
+    console.log('deployed_contract', eventData);
+
+    const localDeployTx = transactionsStore.transactions.find(
+      (t) => t.hash === eventData.transaction_hash,
+    );
+
+    if (localDeployTx) {
+      contractsStore.addDeployedContract({
+        contractId: localDeployTx.localContractId,
+        address: eventData.data.id,
+        defaultState: eventData.data.data.state, // TODO: ?
+      });
+    }
+  }
+
+  return {
+    init,
+  };
+}
