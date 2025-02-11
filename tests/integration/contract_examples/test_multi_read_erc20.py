@@ -6,7 +6,7 @@ from tests.common.accounts import create_new_account
 from tests.common.request import (
     call_contract_method,
     deploy_intelligent_contract,
-    send_transaction,
+    write_intelligent_contract,
 )
 from tests.common.response import has_success_status
 
@@ -62,7 +62,7 @@ def test_multi_read_erc20(setup_validators):
     assert has_success_status(transaction_response_deploy)
 
     # update balances for doge account
-    transaction_response_call = send_transaction(
+    transaction_response_call = write_intelligent_contract(
         from_account_doge,
         multi_read_address,
         "update_token_balances",
@@ -87,7 +87,7 @@ def test_multi_read_erc20(setup_validators):
     }
 
     # update balances for shiba account
-    transaction_response_call = send_transaction(
+    transaction_response_call = write_intelligent_contract(
         from_account_shiba,
         multi_read_address,
         "update_token_balances",

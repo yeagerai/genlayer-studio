@@ -307,6 +307,7 @@ class Node:
             from_address=Address(from_address),
             calldata_raw=calldata,
             is_init=is_init,
+            readonly=readonly,
             leader_results=leader_res,
             config=json.dumps(config),
             date=transaction_datetime,
