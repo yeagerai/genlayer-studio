@@ -25,6 +25,27 @@ const responseMessage = ref();
 
 const calldataArguments = ref<ArgData>({ args: [], kwargs: {} });
 
+const formatResponseIfNeeded = (response: string): string => {
+  // Check if the string looks like a malformed JSON (starts with { and ends with })
+  if (response.startsWith('{') && response.endsWith('}')) {
+    try {
+      // Try to parse it as-is first
+      return JSON.stringify(JSON.parse(response), null, 2);
+    } catch {
+      // If parsing fails, try to add commas between properties
+      const fixedResponse = response.replace(/"\s*"(?=[^:]*:)/g, '","');
+      try {
+        // Validate the fixed string can be parsed as JSON
+        return JSON.stringify(JSON.parse(fixedResponse), null, 2);
+      } catch {
+        // If still can't parse, return original
+        return response;
+      }
+    }
+  }
+  return response;
+};
+
 const handleCallReadMethod = async () => {
   isCalling.value = true;
 
@@ -35,7 +56,8 @@ const handleCallReadMethod = async () => {
     );
 
     if (result !== undefined) {
-      responseMessage.value = abi.calldata.toString(result);
+      const resultString = abi.calldata.toString(result);
+      responseMessage.value = formatResponseIfNeeded(resultString);
     } else {
       responseMessage.value = '<genlayer.client is undefined>';
     }
@@ -145,7 +167,7 @@ const handleCallWriteMethod = async () => {
           <div class="mb-1 text-xs font-medium">Response:</div>
           <div
             :data-testid="`method-response-${name}`"
-            class="w-full rounded bg-white p-1 font-mono text-xs dark:bg-slate-600"
+            class="w-full whitespace-pre-wrap rounded bg-white p-1 font-mono text-xs dark:bg-slate-600"
           >
             {{ responseMessage }}
           </div>

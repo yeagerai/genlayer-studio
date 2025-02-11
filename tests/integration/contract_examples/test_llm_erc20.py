@@ -4,7 +4,7 @@ import eth_utils
 from backend.node.types import Address
 from tests.common.request import (
     deploy_intelligent_contract,
-    send_transaction,
+    write_intelligent_contract,
     payload,
     post_request_localhost,
 )
@@ -62,7 +62,7 @@ def test_llm_erc20(setup_validators):
     ########################################
     #### TRANSFER from User A to User B ####
     ########################################
-    transaction_response_call_1 = send_transaction(
+    transaction_response_call_1 = write_intelligent_contract(
         from_account_a,
         contract_address,
         "transfer",
