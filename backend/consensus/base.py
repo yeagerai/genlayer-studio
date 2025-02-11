@@ -339,6 +339,8 @@ class ConsensusAlgorithm:
                     TransactionStatus.UNDETERMINED,
                     msg_handler,
                 )
+
+                transactions_processor.create_rollup_transaction(transaction.hash)
                 return
 
             # Update the balance of the sender account
@@ -363,6 +365,8 @@ class ConsensusAlgorithm:
             TransactionStatus.FINALIZED,
             msg_handler,
         )
+
+        transactions_processor.create_rollup_transaction(transaction.hash)
 
     def run_appeal_window_loop(self):
         """
@@ -886,6 +890,10 @@ class ProposingState(TransactionState):
             context.msg_handler,
         )
 
+        context.transactions_processor.create_rollup_transaction(
+            context.transaction.hash
+        )
+
         # Unpack the leader and validators
         [leader, *remaining_validators] = validators
 
@@ -953,6 +961,10 @@ class CommittingState(TransactionState):
             context.msg_handler,
         )
 
+        context.transactions_processor.create_rollup_transaction(
+            context.transaction.hash
+        )
+
         # Create validator nodes for each validator
         context.validator_nodes = [
             context.node_factory(
@@ -998,6 +1010,10 @@ class RevealingState(TransactionState):
             context.transaction.hash,
             TransactionStatus.REVEALING,
             context.msg_handler,
+        )
+
+        context.transactions_processor.create_rollup_transaction(
+            context.transaction.hash
         )
 
         # Process each validation result and update the context
@@ -1079,6 +1095,11 @@ class RevealingState(TransactionState):
                     TransactionStatus.PENDING,
                     context.msg_handler,
                 )
+
+                context.transactions_processor.create_rollup_transaction(
+                    context.transaction.hash
+                )
+
                 context.transactions_processor.set_transaction_appeal_failed(
                     context.transaction.hash,
                     0,
@@ -1149,6 +1170,10 @@ class AcceptedState(TransactionState):
             context.transaction.hash,
             TransactionStatus.ACCEPTED,
             context.msg_handler,
+        )
+
+        context.transactions_processor.create_rollup_transaction(
+            context.transaction.hash
         )
 
         # Send a message indicating consensus was reached
@@ -1259,6 +1284,10 @@ class UndeterminedState(TransactionState):
             context.msg_handler,
         )
 
+        context.transactions_processor.create_rollup_transaction(
+            context.transaction.hash
+        )
+
         # Log the failure to reach consensus for the transaction
         print(
             "Consensus not reached for transaction: ",
@@ -1290,6 +1319,10 @@ class FinalizingState(TransactionState):
             context.transaction.hash,
             TransactionStatus.FINALIZED,
             context.msg_handler,
+        )
+
+        context.transactions_processor.create_rollup_transaction(
+            context.transaction.hash
         )
 
         if context.transaction.status != TransactionStatus.UNDETERMINED:

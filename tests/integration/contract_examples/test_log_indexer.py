@@ -4,7 +4,7 @@ import eth_utils
 
 from tests.common.request import (
     deploy_intelligent_contract,
-    send_transaction,
+    write_intelligent_contract,
     payload,
     post_request_localhost,
 )
@@ -58,7 +58,7 @@ def test_log_indexer(setup_validators, from_account):
     # ########################################
     # ############## Add log 0 ###############
     # ########################################
-    transaction_response_add_log_0 = send_transaction(
+    transaction_response_add_log_0 = write_intelligent_contract(
         from_account,
         contract_address,
         "add_log",
@@ -80,7 +80,7 @@ def test_log_indexer(setup_validators, from_account):
     # ########################################
     # ############## Add log 1 ###############
     # ########################################
-    transaction_response_add_log_1 = send_transaction(
+    transaction_response_add_log_1 = write_intelligent_contract(
         from_account,
         contract_address,
         "add_log",
@@ -100,7 +100,7 @@ def test_log_indexer(setup_validators, from_account):
     # ########################################
     # ########### Update log 0 ##############
     # ########################################
-    transaction_response_update_log_0 = send_transaction(
+    transaction_response_update_log_0 = write_intelligent_contract(
         from_account,
         contract_address,
         "update_log",
@@ -121,7 +121,7 @@ def test_log_indexer(setup_validators, from_account):
     # ########################################
     # ########### Remove log 0 ##############
     # ########################################
-    transaction_response_remove_log_0 = send_transaction(
+    transaction_response_remove_log_0 = write_intelligent_contract(
         from_account,
         contract_address,
         "remove_log",
@@ -144,7 +144,7 @@ def test_log_indexer(setup_validators, from_account):
     # ########################################
 
     # Add third log
-    transaction_response_add_log_2 = send_transaction(
+    transaction_response_add_log_2 = write_intelligent_contract(
         from_account,
         contract_address,
         "add_log",
