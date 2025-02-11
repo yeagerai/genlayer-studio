@@ -1,7 +1,7 @@
 """config_appeal_rounds
 
 Revision ID: 224600873d38
-Revises: 2a4ac5eb9455
+Revises: a4a32d27dde2
 Create Date: 2025-02-03 10:04:57.725510
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "224600873d38"
-down_revision: Union[str, None] = "2a4ac5eb9455"
+down_revision: Union[str, None] = "a4a32d27dde2"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
