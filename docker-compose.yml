@@ -1,35 +1,13 @@
 services:
-  nginx:
-    profiles: ["studio"]  # For hosted studio, turned off by default
-    build:
-      context: ./
-      dockerfile: ./docker/Dockerfile.nginx
-    cap_add:
-      - NET_BIND_SERVICE
+  traefik:
+    profiles: ["studio"]
+    image: traefik:v3.2
     ports:
       - "80:80"
-      - "443:443"   # For the frontend
-      - "8443:8443" # For the jsonrpc
+      - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - ./nginx/rpc-blocker.lua:/etc/nginx/rpc-blocker.lua:ro
-    depends_on:
-      - frontend
-      - jsonrpc
-    healthcheck:
-      test: ["CMD", "nginx", "-t"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: always
-    security_opt:
-      - "no-new-privileges=true"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yaml:/etc/traefik/traefik.yaml:ro
 
   frontend:
     build:
@@ -58,6 +36,11 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    labels:
+      traefik.enable: true
+      traefik.http.routers.frontend.rule: Host(`${SERVER_NAME}`)
+      traefik.http.routers.frontend.entrypoints: websecure
+      traefik.http.routers.frontend.tls: true
 
   jsonrpc:
     build:
@@ -105,6 +88,11 @@ services:
         max-file: "3"
     deploy:
       replicas: ${JSONRPC_REPLICAS:-1}
+    labels:
+      traefik.enable: true
+      traefik.http.routers.jsonrpc.rule: Host(`${SERVER_NAME}`) && PathPrefix(`/api`)
+      traefik.http.routers.jsonrpc.entrypoints: websecure
+      traefik.http.routers.jsonrpc.tls: true
 
   webrequest:
     build:
@@ -216,6 +204,11 @@ services:
       timeout: 30s
       retries: 5
       start_period: 60s
+    labels:
+      traefik.enable: true
+      traefik.http.routers.hardhat.rule: Host(`${SERVER_NAME}`) && PathPrefix(`/hardhat`)
+      traefik.http.routers.hardhat.entrypoints: websecure
+      traefik.http.routers.hardhat.tls: true
 
 volumes:
   hardhat_artifacts:

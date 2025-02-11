@@ -4,7 +4,7 @@ import eth_utils
 
 from tests.common.request import (
     deploy_intelligent_contract,
-    send_transaction,
+    write_intelligent_contract,
     payload,
     post_request_localhost,
 )
@@ -69,7 +69,7 @@ def test_user_storage(setup_validators):
     ########################################
     ########## ADD User A State ############
     ########################################
-    transaction_response_call_1 = send_transaction(
+    transaction_response_call_1 = write_intelligent_contract(
         from_account_a, contract_address, "update_storage", [INITIAL_STATE_USER_A]
     )
     assert has_success_status(transaction_response_call_1)
@@ -96,7 +96,7 @@ def test_user_storage(setup_validators):
     ########################################
     ########## ADD User B State ############
     ########################################
-    transaction_response_call_2 = send_transaction(
+    transaction_response_call_2 = write_intelligent_contract(
         from_account_b, contract_address, "update_storage", [INITIAL_STATE_USER_B]
     )
     assert has_success_status(transaction_response_call_2)
@@ -114,7 +114,7 @@ def test_user_storage(setup_validators):
     #########################################
     ######### UPDATE User A State ###########
     #########################################
-    transaction_response_call_3 = send_transaction(
+    transaction_response_call_3 = write_intelligent_contract(
         from_account_a, contract_address, "update_storage", [UPDATED_STATE_USER_A]
     )
     assert has_success_status(transaction_response_call_3)

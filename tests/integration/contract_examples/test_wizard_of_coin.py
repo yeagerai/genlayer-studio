@@ -4,7 +4,7 @@ import eth_utils
 
 from tests.common.request import (
     deploy_intelligent_contract,
-    send_transaction,
+    write_intelligent_contract,
     payload,
     post_request_localhost,
 )
@@ -41,7 +41,7 @@ def test_wizard_of_coin(setup_validators, from_account):
     assert has_success_status(transaction_response_deploy)
 
     # Call Contract Function
-    transaction_response_call_1 = send_transaction(
+    transaction_response_call_1 = write_intelligent_contract(
         from_account,
         contract_address,
         "ask_for_coin",
