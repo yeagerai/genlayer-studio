@@ -238,9 +238,12 @@ class ConsensusAlgorithm:
 
                     await self.pending_queues[address].put(transaction)
 
-                    # Set the transaction as queued so it is not added to the queue again
-                    transactions_processor.set_transaction_queued(
-                        transaction.hash, True
+                    # Set the transaction as activated so it is not added to the queue again
+                    ConsensusAlgorithm.dispatch_transaction_status_update(
+                        transactions_processor,
+                        transaction.hash,
+                        TransactionStatus.ACTIVATED,
+                        self.msg_handler,
                     )
 
             await asyncio.sleep(self.consensus_sleep_time)
@@ -421,9 +424,6 @@ class ConsensusAlgorithm:
             if next_state is None:
                 break
             state = next_state
-
-        # Transaction will be in the accepted or undetermined state and will be picked up by the appeal_window thread
-        transactions_processor.set_transaction_queued(transaction.hash, False)
 
     @staticmethod
     def dispatch_transaction_status_update(
@@ -613,6 +613,17 @@ class ConsensusAlgorithm:
             node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create a Node instance.
             stop_event (threading.Event): Event to stop the loop.
         """
+        """
+        Handle the appeal window for transactions, during which EOAs can challenge transaction results.
+
+        Args:
+            chain_snapshot_factory: Creates snapshots of the blockchain state at specific points in time.
+            transactions_processor_factory: Creates processors to modify transactions.
+            accounts_manager_factory: Creates managers to handle account state.
+            contract_snapshot_factory: Creates snapshots of contract states.
+            node_factory: Creates node instances that can execute contracts and process transactions.
+            stop_event: Control signal to terminate the appeal window process.
+        """
         # Set a new event loop for the appeal window
         asyncio.set_event_loop(asyncio.new_event_loop())
 
@@ -753,9 +764,6 @@ class ConsensusAlgorithm:
             contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
             node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
         """
-        # Set the transaction to queued/processing
-        transactions_processor.set_transaction_queued(transaction.hash, True)
-
         # Create a transaction context for finalizing the transaction
         context = TransactionContext(
             transaction=transaction,
@@ -770,9 +778,6 @@ class ConsensusAlgorithm:
         # Transition to the FinalizingState
         state = FinalizingState()
         await state.handle(context)
-
-        # Process the transaction is done
-        transactions_processor.set_transaction_queued(transaction.hash, False)
 
     async def process_leader_appeal(
         self,
@@ -804,9 +809,6 @@ class ConsensusAlgorithm:
             contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
             node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
         """
-        # Set the transaction to queued/processing
-        transactions_processor.set_transaction_queued(transaction.hash, True)
-
         # Create a transaction context for the appeal
         context = TransactionContext(
             transaction=transaction,
@@ -827,13 +829,6 @@ class ConsensusAlgorithm:
         transaction.appeal_undetermined = True
         transaction.appealed = False
 
-        ConsensusAlgorithm.dispatch_transaction_status_update(
-            transactions_processor,
-            transaction.hash,
-            TransactionStatus.PENDING,
-            self.msg_handler,
-        )
-
         # Begin state transitions starting from PendingState
         state = PendingState()
         while True:
@@ -841,9 +836,6 @@ class ConsensusAlgorithm:
             if next_state is None:
                 break
             state = next_state
-
-        # Process the transaction is done
-        transactions_processor.set_transaction_queued(transaction.hash, False)
 
     async def process_validator_appeal(
         self,
@@ -875,9 +867,6 @@ class ConsensusAlgorithm:
             contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
             node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
         """
-        # Set the transaction to queued/processing
-        transactions_processor.set_transaction_queued(transaction.hash, True)
-
         # Create a transaction context for the appeal
         context = TransactionContext(
             transaction=transaction,
@@ -924,9 +913,6 @@ class ConsensusAlgorithm:
                 if next_state is None:
                     break
                 state = next_state
-
-        # Process the transaction is done
-        transactions_processor.set_transaction_queued(transaction.hash, False)
 
     @staticmethod
     def get_extra_validators(

@@ -77,10 +77,9 @@ class TransactionsProcessorMock:
     def get_accepted_undetermined_transactions(self):
         accepted_undetermined_transactions = []
         for transaction in self.transactions:
-            if (
-                (transaction["status"] == TransactionStatus.ACCEPTED.value)
-                or (transaction["status"] == TransactionStatus.UNDETERMINED.value)
-            ) and (transaction["queued"] != True):
+            if (transaction["status"] == TransactionStatus.ACCEPTED.value) or (
+                transaction["status"] == TransactionStatus.UNDETERMINED.value
+            ):
                 accepted_undetermined_transactions.append(transaction)
 
         accepted_undetermined_transactions = sorted(
@@ -112,15 +111,9 @@ class TransactionsProcessorMock:
     def get_pending_transactions(self):
         result = []
         for transaction in self.transactions:
-            if (transaction["status"] == TransactionStatus.PENDING.value) and (
-                transaction["queued"] != True
-            ):
+            if transaction["status"] == TransactionStatus.PENDING.value:
                 result.append(transaction)
         return sorted(result, key=lambda x: x["created_at"])
-
-    def set_transaction_queued(self, transaction_hash: str, queued: bool):
-        transaction = self.get_transaction_by_hash(transaction_hash)
-        transaction["queued"] = queued
 
 
 class SnapshotMock:
@@ -169,7 +162,6 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "timestamp_awaiting_finalization": transaction.timestamp_awaiting_finalization,
         "appeal_failed": transaction.appeal_failed,
         "appeal_undetermined": transaction.appeal_undetermined,
-        "queued": transaction.queued,
     }
 
 

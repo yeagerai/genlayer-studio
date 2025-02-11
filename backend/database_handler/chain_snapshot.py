@@ -28,10 +28,7 @@ class ChainSnapshot:
 
         pending_transactions = (
             self.session.query(Transactions)
-            .filter(
-                Transactions.status == TransactionStatus.PENDING,
-                Transactions.queued != True,
-            )
+            .filter(Transactions.status == TransactionStatus.PENDING)
             .order_by(Transactions.created_at)
             .all()
         )
@@ -56,8 +53,7 @@ class ChainSnapshot:
             self.session.query(Transactions)
             .filter(
                 (Transactions.status == TransactionStatus.ACCEPTED)
-                | (Transactions.status == TransactionStatus.UNDETERMINED),
-                Transactions.queued != True,
+                | (Transactions.status == TransactionStatus.UNDETERMINED)
             )
             .order_by(Transactions.created_at)
             .all()
