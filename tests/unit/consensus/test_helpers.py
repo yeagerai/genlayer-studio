@@ -19,6 +19,7 @@ from backend.domain.types import Transaction, TransactionType
 from backend.node.base import Node
 from backend.node.types import ExecutionMode, ExecutionResultStatus, Receipt, Vote
 from backend.protocol_rpc.message_handler.base import MessageHandler
+from typing import Optional
 
 DEFAULT_FINALITY_WINDOW = 5
 DEFAULT_FINALITY_WINDOW_SLEEP = DEFAULT_FINALITY_WINDOW * 1.2 + 2
@@ -101,6 +102,17 @@ class TransactionsProcessorMock:
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["appeal_undetermined"] = appeal_undetermined
 
+    def get_newer_transactions(self, transaction_hash: str):
+        return []
+
+    def set_transaction_contract_snapshot(
+        self, transaction_hash: str, contract_snapshot: dict
+    ):
+        pass
+
+    def get_transaction_contract_snapshot(self, transaction_hash: str):
+        return None
+
 
 class SnapshotMock:
     def __init__(self, nodes):
@@ -118,7 +130,9 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "to_address": transaction.to_address,
         "input_data": transaction.input_data,
         "data": transaction.data,
-        "consensus_data": transaction.consensus_data,
+        "consensus_data": (
+            transaction.consensus_data.to_dict() if transaction.consensus_data else None
+        ),
         "nonce": transaction.nonce,
         "value": transaction.value,
         "type": transaction.type.value,
@@ -133,6 +147,11 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "timestamp_awaiting_finalization": transaction.timestamp_awaiting_finalization,
         "appeal_failed": transaction.appeal_failed,
         "appeal_undetermined": transaction.appeal_undetermined,
+        "contract_snapshot": (
+            transaction.contract_snapshot.to_dict()
+            if transaction.contract_snapshot
+            else None
+        ),
     }
 
 
@@ -141,8 +160,29 @@ def contract_snapshot_factory(address: str):
         def __init__(self):
             self.address = address
 
-        def update_contract_state(self, state: dict[str, str]):
+        def register_contract(self, contract: dict):
             pass
+
+        def update_contract_state(
+            self,
+            accepted_state: dict[str, str] | None = None,
+            finalized_state: dict[str, str] | None = None,
+        ):
+            pass
+
+        def to_dict(self):
+            return {
+                "address": (self.address if self.address else None),
+            }
+
+        @classmethod
+        def from_dict(cls, input: dict | None) -> Optional["ContractSnapshotMock"]:
+            if input:
+                instance = cls.__new__(cls)
+                instance.address = input.get("address", None)
+                return instance
+            else:
+                return None
 
     return ContractSnapshotMock()
 
@@ -191,24 +231,41 @@ async def _appeal_window(
         accepted_undetermined_transactions = (
             transactions_processor.get_accepted_undetermined_transactions()
         )
-        for transaction in accepted_undetermined_transactions:
+        for i, transaction in enumerate(accepted_undetermined_transactions):
             transaction = Transaction.from_dict(transaction)
             if not transaction.appealed:
                 if (transaction.leader_only) or (
                     (int(time.time()) - transaction.timestamp_awaiting_finalization)
                     > DEFAULT_FINALITY_WINDOW
                 ):
-                    context = TransactionContext(
-                        transaction=transaction,
-                        transactions_processor=transactions_processor,
-                        snapshot=SnapshotMock(nodes),
-                        accounts_manager=AccountsManagerMock(),
-                        contract_snapshot_factory=contract_snapshot_factory,
-                        node_factory=node_factory,
-                        msg_handler=msg_handler,
-                    )
-                    state = FinalizingState()
-                    await state.handle(context)
+                    if i == 0:
+                        finalize_current_transaction = True
+                    else:
+                        previous_transaction_hash = accepted_undetermined_transactions[
+                            i - 1
+                        ]["hash"]
+                        previous_transaction = Transaction.from_dict(
+                            transactions_processor.get_transaction_by_hash(
+                                previous_transaction_hash
+                            )
+                        )
+                        if previous_transaction.status == TransactionStatus.FINALIZED:
+                            finalize_current_transaction = True
+                        else:
+                            finalize_current_transaction = False
+
+                    if finalize_current_transaction:
+                        context = TransactionContext(
+                            transaction=transaction,
+                            transactions_processor=transactions_processor,
+                            snapshot=SnapshotMock(nodes),
+                            accounts_manager=AccountsManagerMock(),
+                            contract_snapshot_factory=contract_snapshot_factory,
+                            node_factory=node_factory,
+                            msg_handler=msg_handler,
+                        )
+                        state = FinalizingState()
+                        await state.handle(context)
 
             else:
                 # Handle transactions that are appealed
@@ -249,10 +306,10 @@ async def _appeal_window(
                         next_state = await state.handle(context)
                         if next_state is None:
                             break
+                        elif next_state == "leader_appeal_success":
+                            rollback_transactions(context)
+                            break
                         state = next_state
-
-                    # Create a rollup transaction
-                    transactions_processor.create_rollup_transaction(transaction.hash)
 
                 else:
                     chain_snapshot = SnapshotMock(nodes)
@@ -327,6 +384,17 @@ async def _appeal_window(
                             next_state = await state.handle(context)
                             if next_state is None:
                                 break
+                            elif next_state == "validator_appeal_success":
+                                rollback_transactions(context)
+                                ConsensusAlgorithm.dispatch_transaction_status_update(
+                                    context.transactions_processor,
+                                    context.transaction.hash,
+                                    TransactionStatus.PENDING,
+                                    context.msg_handler,
+                                )
+
+                                # Transaction will be picked up by _crawl_snapshot
+                                break
                             assert (
                                 len(context.validator_nodes)
                                 == nb_validators_processing_appeal
@@ -334,6 +402,23 @@ async def _appeal_window(
                             state = next_state
 
         await asyncio.sleep(1)
+
+
+def rollback_transactions(context: TransactionContext):
+    """
+    Rollback newer transactions.
+    """
+    # Set all transactions with higher created_at to PENDING
+    future_transactions = context.transactions_processor.get_newer_transactions(
+        context.transaction.hash
+    )
+    for future_transaction in future_transactions:
+        ConsensusAlgorithm.dispatch_transaction_status_update(
+            context.transactions_processor,
+            future_transaction["hash"],
+            TransactionStatus.PENDING,
+            context.msg_handler,
+        )
 
 
 def run_async_task_in_thread(

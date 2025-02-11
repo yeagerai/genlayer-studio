@@ -450,6 +450,7 @@ async def call(
     receipt = await node.get_contract_data(
         from_address="0x" + "00" * 20,
         calldata=decoded_data.calldata,
+        state_status=decoded_data.state_status,
     )
     if receipt.execution_result != ExecutionResultStatus.SUCCESS:
         raise JSONRPCError(

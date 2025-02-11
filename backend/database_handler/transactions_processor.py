@@ -66,6 +66,7 @@ class TransactionsProcessor:
             "timestamp_awaiting_finalization": transaction_data.timestamp_awaiting_finalization,
             "appeal_failed": transaction_data.appeal_failed,
             "appeal_undetermined": transaction_data.appeal_undetermined,
+            "contract_snapshot": transaction_data.contract_snapshot,
         }
 
     @staticmethod
@@ -175,6 +176,7 @@ class TransactionsProcessor:
             timestamp_awaiting_finalization=None,
             appeal_failed=0,
             appeal_undetermined=False,
+            contract_snapshot=None,
         )
 
         self.session.add(new_transaction)
@@ -382,3 +384,41 @@ class TransactionsProcessor:
         }
 
         return block_details
+
+    def get_newer_transactions(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        address = transaction.to_address or transaction.from_address
+        transactions = (
+            self.session.query(Transactions)
+            .filter(
+                Transactions.created_at > transaction.created_at,
+                or_(
+                    Transactions.to_address == address,
+                    Transactions.from_address == address,
+                ),
+            )
+            .order_by(Transactions.created_at)
+            .all()
+        )
+        return [
+            self._parse_transaction_data(transaction) for transaction in transactions
+        ]
+
+    def set_transaction_contract_snapshot(
+        self, transaction_hash: str, contract_snapshot: dict | None
+    ):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.contract_snapshot = contract_snapshot
+        self.session.commit()
+
+    def get_transaction_contract_snapshot(
+        self, transaction_hash: str
+    ) -> ContractSnapshot | None:
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        return ContractSnapshot.from_dict(transaction.contract_snapshot)
