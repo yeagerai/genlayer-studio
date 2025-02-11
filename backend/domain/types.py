@@ -3,8 +3,8 @@
 # These types should not depend on any other layer.
 
 from dataclasses import dataclass
-import decimal
-from enum import Enum, IntEnum
+from enum import IntEnum
+import os
 
 from backend.database_handler.models import TransactionStatus
 from backend.database_handler.types import ConsensusData
@@ -86,6 +86,8 @@ class Transaction:
     timestamp_awaiting_finalization: int | None = None
     appeal_failed: int = 0
     appeal_undetermined: bool = False
+    config_appeal_rounds: int | None = int(os.getenv("VITE_MAX_APPEALS", 3))
+    appeal_round: int = 0
 
     def to_dict(self):
         return {
@@ -110,6 +112,8 @@ class Transaction:
             "timestamp_awaiting_finalization": self.timestamp_awaiting_finalization,
             "appeal_failed": self.appeal_failed,
             "appeal_undetermined": self.appeal_undetermined,
+            "config_appeal_rounds": self.config_appeal_rounds,
+            "appeal_round": self.appeal_round,
         }
 
     @classmethod
@@ -138,4 +142,6 @@ class Transaction:
             ),
             appeal_failed=input.get("appeal_failed", 0),
             appeal_undetermined=input.get("appeal_undetermined", False),
+            config_appeal_rounds=input.get("config_appeal_rounds"),
+            appeal_round=input.get("appeal_round"),
         )

@@ -66,6 +66,8 @@ class TransactionsProcessor:
             "timestamp_awaiting_finalization": transaction_data.timestamp_awaiting_finalization,
             "appeal_failed": transaction_data.appeal_failed,
             "appeal_undetermined": transaction_data.appeal_undetermined,
+            "config_appeal_rounds": transaction_data.config_appeal_rounds,
+            "appeal_round": transaction_data.appeal_round,
         }
 
     @staticmethod
@@ -175,6 +177,8 @@ class TransactionsProcessor:
             timestamp_awaiting_finalization=None,
             appeal_failed=0,
             appeal_undetermined=False,
+            config_appeal_rounds=3,  # should come from the frontend/wallet
+            appeal_round=0,
         )
 
         self.session.add(new_transaction)
@@ -295,14 +299,18 @@ class TransactionsProcessor:
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
-        # You can only appeal the transaction if it is in accepted or undetermined state
-        # Setting it to false is always allowed
-        if (
-            (not appeal)
-            or (transaction.status == TransactionStatus.ACCEPTED)
-            or (transaction.status == TransactionStatus.UNDETERMINED)
-        ):
-            transaction.appealed = appeal
+        if appeal:
+            if (transaction.status == TransactionStatus.ACCEPTED) or (
+                transaction.status == TransactionStatus.UNDETERMINED
+            ):
+                if transaction.appeal_round < transaction.config_appeal_rounds:
+                    transaction.appealed = True
+                else:
+                    raise ValueError(
+                        "Transaction has already been appealed the maximum number of times"
+                    )
+        else:
+            transaction.appealed = False
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
@@ -382,3 +390,12 @@ class TransactionsProcessor:
         }
 
         return block_details
+
+    def set_transaction_appeal_round(self, transaction_hash: str, appeal_round: int):
+        if appeal_round < 0:
+            raise ValueError("appeal_round must be a non-negative integer")
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.appeal_round = appeal_round
+        self.session.commit()

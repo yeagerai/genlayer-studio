@@ -432,6 +432,9 @@ class ConsensusAlgorithm:
                         else:
                             # Handle transactions that are appealed
                             transactions_processor = TransactionsProcessor(session)
+                            transactions_processor.set_transaction_appeal_round(
+                                transaction.hash, transaction.appeal_round + 1
+                            )
 
                             if transaction.status == TransactionStatus.UNDETERMINED:
                                 # Leader appeal

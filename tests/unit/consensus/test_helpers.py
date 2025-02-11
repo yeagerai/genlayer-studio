@@ -59,12 +59,18 @@ class TransactionsProcessorMock:
 
     def set_transaction_appeal(self, transaction_hash: str, appeal: bool):
         transaction = self.get_transaction_by_hash(transaction_hash)
-        if (
-            (not appeal)
-            or (transaction["status"] == TransactionStatus.ACCEPTED.value)
-            or (transaction["status"] == TransactionStatus.UNDETERMINED.value)
-        ):
-            transaction["appealed"] = appeal
+        if appeal:
+            if (transaction["status"] == TransactionStatus.ACCEPTED.value) or (
+                transaction["status"] == TransactionStatus.UNDETERMINED.value
+            ):
+                if transaction["appeal_round"] < transaction["config_appeal_rounds"]:
+                    transaction["appealed"] = True
+                else:
+                    raise ValueError(
+                        "Transaction has already been appealed the maximum number of times"
+                    )
+        else:
+            transaction["appealed"] = False
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
@@ -101,6 +107,12 @@ class TransactionsProcessorMock:
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["appeal_undetermined"] = appeal_undetermined
 
+    def set_transaction_appeal_round(self, transaction_hash: str, appeal_round: int):
+        if appeal_round < 0:
+            raise ValueError("appeal_round must be a non-negative integer")
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        transaction["appeal_round"] = appeal_round
+
 
 class SnapshotMock:
     def __init__(self, nodes):
@@ -133,6 +145,8 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "timestamp_awaiting_finalization": transaction.timestamp_awaiting_finalization,
         "appeal_failed": transaction.appeal_failed,
         "appeal_undetermined": transaction.appeal_undetermined,
+        "config_appeal_rounds": transaction.config_appeal_rounds,
+        "appeal_round": transaction.appeal_round,
     }
 
 
@@ -212,6 +226,10 @@ async def _appeal_window(
 
             else:
                 # Handle transactions that are appealed
+                transactions_processor.set_transaction_appeal_round(
+                    transaction.hash, transaction.appeal_round + 1
+                )
+
                 if transaction.status == TransactionStatus.UNDETERMINED:
                     # Leader appeal
                     # Appeal data member is used in the frontend for both types of appeals
