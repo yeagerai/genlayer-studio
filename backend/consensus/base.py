@@ -672,6 +672,7 @@ class ConsensusAlgorithm:
                                                     ),
                                                     node_factory,
                                                 )
+                                                task_session.commit()
 
                                         else:
                                             # Handle transactions that are appealed
@@ -694,6 +695,7 @@ class ConsensusAlgorithm:
                                                     ),
                                                     node_factory,
                                                 )
+                                                task_session.commit()
 
                                             else:
                                                 # Validator appeal
@@ -711,6 +713,7 @@ class ConsensusAlgorithm:
                                                     ),
                                                     node_factory,
                                                 )
+                                                task_session.commit()
 
                                 tg.create_task(
                                     exec_appeal_window_with_session_handling(
