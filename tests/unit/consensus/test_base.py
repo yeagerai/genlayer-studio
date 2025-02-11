@@ -1510,6 +1510,7 @@ async def test_exec_undetermined_appeal(managed_thread):
         -successful-appeal-> PENDING -> UNDETERMINED -appeal-success-> FINALIZED
     """
     transaction = init_dummy_transaction()
+    transaction.config_appeal_rounds = 4
 
     nodes = get_nodes_specs(
         2 * (2 * (2 * (2 * DEFAULT_VALIDATORS_COUNT + 1) + 1) + 1) + 1 + 4
