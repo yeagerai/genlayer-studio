@@ -4,7 +4,7 @@ import eth_utils
 
 from tests.common.request import (
     deploy_intelligent_contract,
-    send_transaction,
+    write_intelligent_contract,
     payload,
     post_request_localhost,
 )
@@ -55,7 +55,7 @@ def test_storage(setup_validators, from_account):
     assert contract_state_1 == INITIAL_STATE
 
     # Update State
-    transaction_response_call_1 = send_transaction(
+    transaction_response_call_1 = write_intelligent_contract(
         from_account, contract_address, "update_storage", [UPDATED_STATE]
     )
 
