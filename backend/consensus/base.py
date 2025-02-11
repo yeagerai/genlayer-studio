@@ -196,9 +196,9 @@ class ConsensusAlgorithm:
         Run the loop to crawl snapshots.
 
         Args:
-            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Factory function to create a ChainSnapshot instance.
-            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Factory function to create a TransactionsProcessor instance.
-            stop_event (threading.Event): Event to stop the loop.
+            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Creates snapshots of the blockchain state at specific points in time.
+            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Creates processors to modify transactions.
+            stop_event (threading.Event): Control signal to terminate the loop.
         """
         # Create a new event loop for crawling snapshots
         loop = asyncio.new_event_loop()
@@ -220,9 +220,9 @@ class ConsensusAlgorithm:
         Crawl snapshots and process pending transactions.
 
         Args:
-            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Factory function to create a ChainSnapshot instance.
-            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Factory function to create a TransactionsProcessor instance.
-            stop_event (threading.Event): Event to stop the loop.
+            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Creates snapshots of the blockchain state at specific points in time.
+            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Creates processors to modify transactions.
+            stop_event (threading.Event): Control signal to terminate the loop.
         """
         while not stop_event.is_set():
             with self.get_session() as session:
@@ -279,12 +279,12 @@ class ConsensusAlgorithm:
         Run the process pending transactions loop.
 
         Args:
-            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Factory function to create a ChainSnapshot instance.
-            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Factory function to create a TransactionsProcessor instance.
-            accounts_manager_factory (Callable[[Session], AccountsManager]): Factory function to create an AccountsManager instance.
-            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Factory function to create a ContractSnapshot instance.
-            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create a Node instance.
-            stop_event (threading.Event): Event to stop the loop.
+            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Creates snapshots of the blockchain state at specific points in time.
+            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Creates processors to modify transactions.
+            accounts_manager_factory (Callable[[Session], AccountsManager]): Creates managers to handle account state.
+            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Creates snapshots of contract states.
+            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Creates node instances that can execute contracts and process transactions.
+            stop_event (threading.Event): Control signal to terminate the pending transactions process.
         """
         # Create a new event loop for running the processing of pending transactions
         loop = asyncio.new_event_loop()
@@ -326,12 +326,12 @@ class ConsensusAlgorithm:
         Process pending transactions.
 
         Args:
-            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Factory function to create a ChainSnapshot instance.
-            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Factory function to create a TransactionsProcessor instance.
-            accounts_manager_factory (Callable[[Session], AccountsManager]): Factory function to create an AccountsManager instance.
-            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Factory function to create a ContractSnapshot instance.
-            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create a Node instance.
-            stop_event (threading.Event): Event to stop the loop.
+            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Creates snapshots of the blockchain state at specific points in time.
+            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Creates processors to modify transactions.
+            accounts_manager_factory (Callable[[Session], AccountsManager]): Creates managers to handle account state.
+            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Creates snapshots of contract states.
+            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Creates node instances that can execute contracts and process transactions.
+            stop_event (threading.Event): Control signal to terminate the pending transactions process.
         """
         # Set a new event loop for the processing of pending transactions
         asyncio.set_event_loop(asyncio.new_event_loop())
@@ -555,12 +555,12 @@ class ConsensusAlgorithm:
         Run the loop to handle the appeal window.
 
         Args:
-            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Factory function to create a ChainSnapshot instance.
-            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Factory function to create a TransactionsProcessor instance.
-            accounts_manager_factory (Callable[[Session], AccountsManager]): Factory function to create an AccountsManager instance.
-            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Factory function to create a ContractSnapshot instance.
-            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create a Node instance.
-            stop_event (threading.Event): Event to stop the loop.
+            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Creates snapshots of the blockchain state at specific points in time.
+            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Creates processors to modify transactions.
+            accounts_manager_factory (Callable[[Session], AccountsManager]): Creates managers to handle account state.
+            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Creates snapshots of contract states.
+            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Creates node instances that can execute contracts and process transactions.
+            stop_event (threading.Event): Control signal to terminate the appeal window process.
         """
         # Create a new event loop for running the appeal window
         loop = asyncio.new_event_loop()
@@ -603,26 +603,15 @@ class ConsensusAlgorithm:
         stop_event: threading.Event,
     ):
         """
-        Handle the appeal window for transactions.
-
-        Args:
-            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Factory function to create a ChainSnapshot instance.
-            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Factory function to create a TransactionsProcessor instance.
-            accounts_manager_factory (Callable[[Session], AccountsManager]): Factory function to create an AccountsManager instance.
-            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Factory function to create a ContractSnapshot instance.
-            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create a Node instance.
-            stop_event (threading.Event): Event to stop the loop.
-        """
-        """
         Handle the appeal window for transactions, during which EOAs can challenge transaction results.
 
         Args:
-            chain_snapshot_factory: Creates snapshots of the blockchain state at specific points in time.
-            transactions_processor_factory: Creates processors to modify transactions.
-            accounts_manager_factory: Creates managers to handle account state.
-            contract_snapshot_factory: Creates snapshots of contract states.
-            node_factory: Creates node instances that can execute contracts and process transactions.
-            stop_event: Control signal to terminate the appeal window process.
+            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Creates snapshots of the blockchain state at specific points in time.
+            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Creates processors to modify transactions.
+            accounts_manager_factory (Callable[[Session], AccountsManager]): Creates managers to handle account state.
+            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Creates snapshots of contract states.
+            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Creates node instances that can execute contracts and process transactions.
+            stop_event (threading.Event): Control signal to terminate the appeal window process.
         """
         # Set a new event loop for the appeal window
         asyncio.set_event_loop(asyncio.new_event_loop())
