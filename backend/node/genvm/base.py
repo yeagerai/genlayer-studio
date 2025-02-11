@@ -52,7 +52,7 @@ class ExecutionResult:
     pending_transactions: list[PendingTransaction]
     stdout: str
     stderr: str
-    genvm_log: str
+    genvm_log: list
 
 
 def encode_result_to_bytes(result: ExecutionReturn | ExecutionError) -> bytes:
@@ -134,7 +134,8 @@ class GenVMHost(IGenVM):
         from_address: Address,
         contract_address: Address,
         calldata_raw: bytes,
-        is_init: bool = False,
+        is_init: bool,
+        readonly: bool,
         leader_results: None | dict[int, bytes],
         config: str,
         date: datetime.datetime | None,
@@ -153,6 +154,9 @@ class GenVMHost(IGenVM):
         if date is not None:
             assert date.tzinfo is not None
             message["datetime"] = date.isoformat()
+        perms = "rc"  # read/call
+        if not readonly:
+            perms += "ws"  # write/send
         return await _run_genvm_host(
             functools.partial(
                 _Host,
@@ -160,7 +164,7 @@ class GenVMHost(IGenVM):
                 state_proxy=state,
                 leader_results=leader_results,
             ),
-            ["--message", json.dumps(message)],
+            ["--message", json.dumps(message), "--permissions", perms],
             config,
         )
 
@@ -181,9 +185,19 @@ class GenVMHost(IGenVM):
                 state_proxy=_StateProxyNone(Address(NO_ADDR), contract_code),
                 leader_results=None,
             ),
-            ["--message", json.dumps(message)],
+            ["--message", json.dumps(message), "--permissions", ""],
             None,
         )
+
+
+def _decode_genvm_log(log: str) -> list:
+    decoded: list = []
+    for log_line in log.splitlines():
+        try:
+            decoded.append(json.loads(log_line))
+        except Exception:
+            decoded.append(log_line)
+    return decoded
 
 
 # Class that has logic for handling all genvm host methods and accumulating results
@@ -217,7 +231,7 @@ class _Host(genvmhost.IHost):
             pending_transactions=self._pending_transactions,
             stdout=res.stdout,
             stderr=res.stderr,
-            genvm_log=res.genvm_log,
+            genvm_log=_decode_genvm_log(res.genvm_log),
             result=self._result,
         )
 
