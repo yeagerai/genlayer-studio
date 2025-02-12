@@ -54,7 +54,12 @@ class TransactionsProcessorMock:
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["consensus_data"] = consensus_data
 
-    def set_transaction_appeal(self, transaction_hash: str, appeal: bool):
+    def set_transaction_appeal(
+        self,
+        transaction_hash: str,
+        appeal: bool,
+        msg_handler: MessageHandler | None = None,
+    ):
         transaction = self.get_transaction_by_hash(transaction_hash)
         if (
             (not appeal)
