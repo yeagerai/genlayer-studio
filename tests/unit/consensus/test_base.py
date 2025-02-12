@@ -603,7 +603,10 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
         appeal(transaction, transactions_processor)
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.PENDING.value
+            transactions_processor,
+            transaction,
+            TransactionStatus.PENDING.value,
+            interval=0.01,
         )
 
         transaction_status_history += [
