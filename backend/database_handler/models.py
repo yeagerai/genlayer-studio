@@ -29,6 +29,7 @@ import enum
 
 class TransactionStatus(enum.Enum):
     PENDING = "PENDING"
+    ACTIVATED = "ACTIVATED"
     CANCELED = "CANCELED"
     PROPOSING = "PROPOSING"
     COMMITTING = "COMMITTING"
