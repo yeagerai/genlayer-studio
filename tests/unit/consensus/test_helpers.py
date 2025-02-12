@@ -115,6 +115,9 @@ class TransactionsProcessorMock:
                 result.append(transaction)
         return sorted(result, key=lambda x: x["created_at"])
 
+    def get_newer_transactions(self, transaction_hash: str):
+        return []
+
 
 class SnapshotMock:
     def __init__(self, nodes: list, transactions_processor: TransactionsProcessorMock):

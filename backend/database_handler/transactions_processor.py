@@ -383,3 +383,20 @@ class TransactionsProcessor:
         }
 
         return block_details
+
+    def get_newer_transactions(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transactions = (
+            self.session.query(Transactions)
+            .filter(
+                Transactions.created_at > transaction.created_at,
+                Transactions.to_address == transaction.to_address,
+            )
+            .order_by(Transactions.created_at)
+            .all()
+        )
+        return [
+            self._parse_transaction_data(transaction) for transaction in transactions
+        ]
