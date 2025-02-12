@@ -6,7 +6,12 @@ import TransactionsList from '@/components/Simulator/TransactionsList.vue';
 import { useContractQueries, useConfig } from '@/hooks';
 import MainTitle from '@/components/Simulator/MainTitle.vue';
 import { ref, watch, computed } from 'vue';
-import { useContractsStore, useNodeStore, useConsensusStore, useUIStore } from '@/stores';
+import {
+  useContractsStore,
+  useNodeStore,
+  useConsensusStore,
+  useUIStore,
+} from '@/stores';
 
 import ContractInfo from '@/components/Simulator/ContractInfo.vue';
 import BooleanField from '@/components/global/fields/BooleanField.vue';
