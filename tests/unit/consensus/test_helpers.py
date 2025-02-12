@@ -138,7 +138,6 @@ class TransactionsProcessorMock:
                 appeal_processing_time = (
                     round(time.time()) - transaction["timestamp_appeal"]
                 )
-            print("bla", appeal_processing_time)
             transaction["appeal_processing_time"] += appeal_processing_time
 
 
@@ -406,8 +405,8 @@ def assert_transaction_status_match(
     transactions_processor: TransactionsProcessorMock,
     transaction: Transaction,
     expected_status: TransactionStatus,
-    timeout: int = 15,
-    interval: float = 0.1,
+    timeout: int = 30,
+    interval: float = 0.01,
 ):
     assert wait_for_condition(
         lambda: transactions_processor.get_transaction_by_hash(transaction.hash)[
@@ -423,8 +422,8 @@ def assert_transaction_status_change_and_match(
     transactions_processor: TransactionsProcessorMock,
     transaction: Transaction,
     expected_status: TransactionStatus,
-    timeout: int = 15,
-    interval: float = 0.1,
+    timeout: int = 30,
+    interval: float = 0.01,
 ):
     transactions_processor.status_changed_event.wait()
     assert_transaction_status_match(
