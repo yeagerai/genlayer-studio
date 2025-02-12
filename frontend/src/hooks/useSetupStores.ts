@@ -6,7 +6,12 @@ import {
   useTutorialStore,
   useConsensusStore,
 } from '@/stores';
-import { useDb, useGenlayer, useTransactionListener } from '@/hooks';
+import {
+  useDb,
+  useGenlayer,
+  useTransactionListener,
+  useContractListener,
+} from '@/hooks';
 import { v4 as uuidv4 } from 'uuid';
 
 export const useSetupStores = () => {
@@ -20,6 +25,7 @@ export const useSetupStores = () => {
     const db = useDb();
     const genlayer = useGenlayer();
     const transactionListener = useTransactionListener();
+    const contractListener = useContractListener();
     const contractFiles = await db.contractFiles.toArray();
     const exampleFiles = contractFiles.filter((c) => c.example);
 
@@ -54,6 +60,7 @@ export const useSetupStores = () => {
     transactionsStore.initSubscriptions();
     transactionsStore.refreshPendingTransactions();
     transactionListener.init();
+    contractListener.init();
     contractsStore.getInitialOpenedFiles();
     tutorialStore.resetTutorialState();
     nodeStore.getValidatorsData();
