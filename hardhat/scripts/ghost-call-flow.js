@@ -8,6 +8,8 @@ async function generateSignature(signer, currentSeed) {
 
 async function completeConsensusFlow(
   consensusMain,
+  consensusData,
+  genManager,
   txId,
   ghostAddress,
   activator,
@@ -16,7 +18,7 @@ async function completeConsensusFlow(
   nonces
 ) {
   // 1. Activate transaction
-  const currentSeed = await consensusMain.recipientRandomSeed(ghostAddress);
+  let currentSeed = await genManager.recipientRandomSeed(ghostAddress);
   const vrfProofActivate = await generateSignature(activator, BigInt(currentSeed));
   const activateTx = await consensusMain.connect(activator).activateTransaction(txId, vrfProofActivate);
   const activationReceipt = await activateTx.wait();
@@ -32,8 +34,8 @@ async function completeConsensusFlow(
   );
 
   // 2. Leader proposes receipt
-  const currentSeedForProposal = await consensusMain.recipientRandomSeed(ghostAddress);
-  const vrfProofPropose = await generateSignature(leader, BigInt(currentSeedForProposal));
+  currentSeed = await genManager.recipientRandomSeed(ghostAddress);
+  const vrfProofPropose = await generateSignature(leader, BigInt(currentSeed));
   const proposeReceipt = await consensusMain
     .connect(leader)
     .proposeReceipt(txId, proposedReceipt, [], vrfProofPropose);
@@ -47,7 +49,7 @@ async function completeConsensusFlow(
       ["address", "uint8", "uint256"],
       [validators[i].address, voteType, nonces[i]]
     );
-    await consensusMain.connect(validators[i]).commitVote(txId, voteHash, false);
+    await consensusMain.connect(validators[i]).commitVote(txId, voteHash);
   }
 
   // 4. Reveal votes
@@ -56,25 +58,30 @@ async function completeConsensusFlow(
       ["address", "uint8", "uint256"],
       [validators[i].address, voteType, nonces[i]]
     );
-    await consensusMain.connect(validators[i]).revealVote(txId, voteHash, voteType, nonces[i], false);
+    await consensusMain.connect(validators[i]).revealVote(txId, voteHash, voteType, nonces[i]);
   }
 
   // 5. Finalize transaction
   await consensusMain.finalizeTransaction(txId);
-  return await consensusMain.txStatus(txId);
+  return await consensusData.getTransactionStatus(txId);
 }
 
 async function main() {
   console.log("Starting ghost deployment and call flow...");
 
   // Get signers
-  const [owner, validator1, validator2, validator3] = await hre.ethers.getSigners();
-  const validators = [validator1, validator2, validator3];
+  const [owner, validator1, validator2, validator3, validator4, validator5] = await hre.ethers.getSigners();
+  const validators = [validator1, validator2, validator3, validator4, validator5];
 
   // Get contract instances
   const consensusMainAddress = require("../deployments/localhost/ConsensusMain.json").address;
-  console.log("🚀 ~ main ~ consensusMainAddress:", consensusMainAddress);
   const consensusMain = await hre.ethers.getContractAt("ConsensusMain", consensusMainAddress);
+
+  const consensusDataAddress = require("../deployments/localhost/ConsensusData.json").address;
+  const consensusData = await hre.ethers.getContractAt("ConsensusData", consensusDataAddress);
+
+  const genManagerAddress = require("../deployments/localhost/ConsensusManager.json").address;
+  const genManager = await hre.ethers.getContractAt("ConsensusManager", genManagerAddress);
 
   const maxRotations = 2;
 
@@ -83,9 +90,9 @@ async function main() {
   const deployTx = await consensusMain.addTransaction(
     ethers.ZeroAddress,
     ethers.ZeroAddress,
-    3,
+    5, // Actualizado a 5 validadores
     maxRotations,
-    "0x"
+    "0x1234"
   );
   const deployReceipt = await deployTx.wait();
 
@@ -105,12 +112,14 @@ async function main() {
   console.log("\n2. Completing consensus flow for ghost deployment...");
   const deployStatus = await completeConsensusFlow(
     consensusMain,
+    consensusData,
+    genManager,
     deployTxId,
     ghostAddress,
     deployActivator,
     validators,
     "0x123456",
-    [123, 456, 789] // deployNonces
+    [123, 456, 789, 1011, 1213] // deployNonces
   );
   console.log("- Ghost deployment status:", deployStatus.toString());
 
@@ -124,7 +133,7 @@ async function main() {
   // 3. Create dummy call through ghost contract
   console.log("\n3. Creating dummy call through ghost contract...");
   const dummyCallTx = await ghost.addTransaction(
-    3,
+    5, // Actualizado a 5 validadores
     maxRotations,
     ethers.keccak256(ethers.toUtf8Bytes("dummyFunction()"))
   );
@@ -144,16 +153,18 @@ async function main() {
   console.log("\n4. Completing consensus flow for dummy call...");
   const dummyCallStatus = await completeConsensusFlow(
     consensusMain,
+    consensusData,
+    genManager,
     dummyCallTxId,
     ghostAddress,
     dummyCallActivator,
     validators,
-    "0x123456",
-    [123, 456, 789] // deployNonces
+    "0x5678",
+    [321, 654, 987, 1316, 1649] // ghostNonces
   );
   console.log("- Dummy call status:", dummyCallStatus.toString());
 
-  if (deployStatus.toString() === "6" && dummyCallStatus.toString() === "6") {
+  if (deployStatus.toString() === "7" && dummyCallStatus.toString() === "7") {
     console.log("\n¡Ghost deployment and dummy call completed successfully! ✓");
   } else {
     throw new Error(`Unexpected final status: Deploy=${deployStatus}, DummyCall=${dummyCallStatus}`);
