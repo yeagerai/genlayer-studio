@@ -6,11 +6,13 @@ import TransactionsList from '@/components/Simulator/TransactionsList.vue';
 import { useContractQueries, useConfig } from '@/hooks';
 import MainTitle from '@/components/Simulator/MainTitle.vue';
 import { ref, watch, computed } from 'vue';
-import { useContractsStore, useNodeStore } from '@/stores';
+import { useContractsStore, useNodeStore, useUIStore } from '@/stores';
 import ContractInfo from '@/components/Simulator/ContractInfo.vue';
 import BooleanField from '@/components/global/fields/BooleanField.vue';
 import FieldError from '@/components/global/fields/FieldError.vue';
 import NumberInput from '@/components/global/inputs/NumberInput.vue';
+
+const uiStore = useUIStore();
 const contractsStore = useContractsStore();
 const { isDeployed, address, contract } = useContractQueries();
 const nodeStore = useNodeStore();
@@ -84,7 +86,8 @@ const isFinalityWindowValid = computed(() => {
         :showNewDeploymentButton="!isDeploymentOpen"
         @openDeployment="isDeploymentOpen = true"
       />
-      <template v-if="nodeStore.hasAtLeastOneValidator">
+
+      <template v-if="nodeStore.hasAtLeastOneValidator || uiStore.showTutorial">
         <ConstructorParameters
           id="tutorial-how-to-deploy"
           v-if="isDeploymentOpen"

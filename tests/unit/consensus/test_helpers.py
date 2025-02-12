@@ -1,16 +1,11 @@
 from collections import defaultdict
 from typing import Callable
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, MagicMock
 import time
 import threading
-import asyncio
 import pytest
 from backend.consensus.base import (
     ConsensusAlgorithm,
-    PendingState,
-    CommittingState,
-    FinalizingState,
-    TransactionContext,
 )
 from backend.database_handler.transactions_processor import TransactionsProcessor
 from backend.database_handler.contract_snapshot import ContractSnapshot
@@ -21,7 +16,7 @@ from backend.node.types import ExecutionMode, ExecutionResultStatus, Receipt, Vo
 from backend.protocol_rpc.message_handler.base import MessageHandler
 
 DEFAULT_FINALITY_WINDOW = 5
-DEFAULT_FINALITY_WINDOW_SLEEP = DEFAULT_FINALITY_WINDOW * 1.2 + 2
+DEFAULT_CONSENSUS_SLEEP_TIME = 2
 DEFAULT_EXEC_RESULT = b"\x00\x00"  # success(null)
 
 
@@ -40,6 +35,7 @@ class TransactionsProcessorMock:
     def __init__(self, transactions=None):
         self.transactions = transactions or []
         self.updated_transaction_status_history = defaultdict(list)
+        self.status_changed_event = threading.Event()
 
     def get_transaction_by_hash(self, transaction_hash: str) -> dict:
         for transaction in self.transactions:
@@ -52,6 +48,7 @@ class TransactionsProcessorMock:
     ):
         self.get_transaction_by_hash(transaction_hash)["status"] = status.value
         self.updated_transaction_status_history[transaction_hash].append(status)
+        self.status_changed_event.set()
 
     def set_transaction_result(self, transaction_hash: str, consensus_data: dict):
         transaction = self.get_transaction_by_hash(transaction_hash)
@@ -80,13 +77,23 @@ class TransactionsProcessorMock:
             transaction["timestamp_awaiting_finalization"] = int(time.time())
 
     def get_accepted_undetermined_transactions(self):
-        result = []
+        accepted_undetermined_transactions = []
         for transaction in self.transactions:
             if (transaction["status"] == TransactionStatus.ACCEPTED.value) or (
                 transaction["status"] == TransactionStatus.UNDETERMINED.value
             ):
-                result.append(transaction)
-        return sorted(result, key=lambda x: x["timestamp_awaiting_finalization"])
+                accepted_undetermined_transactions.append(transaction)
+
+        accepted_undetermined_transactions = sorted(
+            accepted_undetermined_transactions, key=lambda x: x["created_at"]
+        )
+
+        # Group transactions by address
+        transactions_by_address = defaultdict(list)
+        for transaction in accepted_undetermined_transactions:
+            address = transaction["to_address"]
+            transactions_by_address[address].append(transaction)
+        return transactions_by_address
 
     def create_rollup_transaction(self, transaction_hash: str):
         pass
@@ -102,6 +109,13 @@ class TransactionsProcessorMock:
     ):
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["appeal_undetermined"] = appeal_undetermined
+
+    def get_pending_transactions(self):
+        result = []
+        for transaction in self.transactions:
+            if transaction["status"] == TransactionStatus.PENDING.value:
+                result.append(transaction)
+        return sorted(result, key=lambda x: x["created_at"])
 
     def set_transaction_timestamp_appeal(
         self, transaction: dict | str, timestamp_appeal: int
@@ -126,11 +140,26 @@ class TransactionsProcessorMock:
 
 
 class SnapshotMock:
-    def __init__(self, nodes):
+    def __init__(self, nodes: list, transactions_processor: TransactionsProcessorMock):
         self.nodes = nodes
+        self.transactions_processor = transactions_processor
 
     def get_all_validators(self):
         return self.nodes
+
+    def get_pending_transactions(self):
+        return self.transactions_processor.get_pending_transactions()
+
+    def get_accepted_undetermined_transactions(self):
+        return self.transactions_processor.get_accepted_undetermined_transactions()
+
+
+class ContractSnapshotMock:
+    def __init__(self, address: str):
+        self.address = address
+
+    def update_contract_state(self, state: dict[str, str]):
+        pass
 
 
 def transaction_to_dict(transaction: Transaction) -> dict:
@@ -161,17 +190,6 @@ def transaction_to_dict(transaction: Transaction) -> dict:
     }
 
 
-def contract_snapshot_factory(address: str):
-    class ContractSnapshotMock:
-        def __init__(self):
-            self.address = address
-
-        def update_contract_state(self, state: dict[str, str]):
-            pass
-
-    return ContractSnapshotMock()
-
-
 def init_dummy_transaction():
     return Transaction(
         hash="transaction_hash",
@@ -193,244 +211,6 @@ def get_nodes_specs(number_of_nodes: int):
         }
         for i in range(number_of_nodes)
     ]
-
-
-async def _appeal_window(
-    stop_event: threading.Event,
-    transactions_processor: TransactionsProcessorMock,
-    msg_handler: MessageHandler,
-    nodes: list[dict],
-    node_factory: Callable[
-        [
-            dict,
-            ExecutionMode,
-            ContractSnapshot,
-            Receipt | None,
-            MessageHandler,
-            Callable[[str], ContractSnapshot],
-        ],
-        Node,
-    ],
-):
-    while not stop_event.is_set():
-        accepted_undetermined_transactions = (
-            transactions_processor.get_accepted_undetermined_transactions()
-        )
-        for transaction in accepted_undetermined_transactions:
-            transaction = Transaction.from_dict(transaction)
-            if not transaction.appealed:
-                if (transaction.leader_only) or (
-                    (
-                        int(time.time())
-                        - transaction.timestamp_awaiting_finalization
-                        - transaction.appeal_processing_time
-                    )
-                    > DEFAULT_FINALITY_WINDOW
-                ):
-                    context = TransactionContext(
-                        transaction=transaction,
-                        transactions_processor=transactions_processor,
-                        snapshot=SnapshotMock(nodes),
-                        accounts_manager=AccountsManagerMock(),
-                        contract_snapshot_factory=contract_snapshot_factory,
-                        node_factory=node_factory,
-                        msg_handler=msg_handler,
-                    )
-                    state = FinalizingState()
-                    await state.handle(context)
-
-            else:
-                # Handle transactions that are appealed
-                if transaction.status == TransactionStatus.UNDETERMINED:
-                    # Leader appeal
-                    # Appeal data member is used in the frontend for both types of appeals
-                    # Here the type is refined based on the status
-                    transactions_processor.set_transaction_appeal_undetermined(
-                        transaction.hash, True
-                    )
-                    transactions_processor.set_transaction_appeal(
-                        transaction.hash, False
-                    )
-                    transaction.appeal_undetermined = True
-                    transaction.appealed = False
-
-                    ConsensusAlgorithm.dispatch_transaction_status_update(
-                        transactions_processor,
-                        transaction.hash,
-                        TransactionStatus.PENDING,
-                        msg_handler,
-                    )
-
-                    # Create a transaction context for the appeal process
-                    context = TransactionContext(
-                        transaction=transaction,
-                        transactions_processor=transactions_processor,
-                        snapshot=SnapshotMock(nodes),
-                        accounts_manager=AccountsManagerMock(),
-                        contract_snapshot_factory=contract_snapshot_factory,
-                        node_factory=node_factory,
-                        msg_handler=msg_handler,
-                    )
-
-                    # Begin state transitions starting from PendingState
-                    state = PendingState(called_from_pending_queue=False)
-                    while True:
-                        next_state = await state.handle(context)
-                        if next_state is None:
-                            break
-                        state = next_state
-
-                    # Create a rollup transaction
-                    transactions_processor.create_rollup_transaction(transaction.hash)
-
-                else:
-                    chain_snapshot = SnapshotMock(nodes)
-                    context = TransactionContext(
-                        transaction=transaction,
-                        transactions_processor=transactions_processor,
-                        snapshot=chain_snapshot,
-                        accounts_manager=AccountsManagerMock(),
-                        contract_snapshot_factory=contract_snapshot_factory,
-                        node_factory=node_factory,
-                        msg_handler=msg_handler,
-                    )
-                    context.consensus_data.leader_receipt = (
-                        transaction.consensus_data.leader_receipt
-                    )
-                    nb_current_validators = (
-                        len(transaction.consensus_data.validators) + 1
-                    )
-                    current_validators_addresses = {
-                        validator.node_config["address"]
-                        for validator in transaction.consensus_data.validators
-                    }
-                    current_validators_addresses.add(
-                        transaction.consensus_data.leader_receipt.node_config["address"]
-                    )
-                    try:
-                        context.remaining_validators = (
-                            ConsensusAlgorithm.get_extra_validators(
-                                chain_snapshot,
-                                transaction.consensus_data,
-                                transaction.appeal_failed,
-                            )
-                        )
-                    except ValueError as e:
-                        print(e, transaction)
-                        context.transactions_processor.set_transaction_appeal(
-                            context.transaction.hash, False
-                        )
-                        context.transaction.appealed = False
-                        context.transactions_processor.set_transaction_appeal_processing_time(
-                            context.transaction.hash
-                        )
-                    else:
-                        if transaction.appeal_failed == 0:
-                            n = nb_current_validators
-                            nb_validators_processing_appeal = n + 2
-                        elif transaction.appeal_failed == 1:
-                            n = (nb_current_validators - 2) // 2
-                            nb_validators_processing_appeal = 2 * n + 3
-                        else:
-                            n = (nb_current_validators - 3) // (
-                                2 * transaction.appeal_failed - 1
-                            )
-                            nb_validators_processing_appeal = 4 * n + 3
-
-                        context.num_validators = len(context.remaining_validators)
-                        assert context.num_validators == nb_validators_processing_appeal
-
-                        context.votes = {}
-                        context.contract_snapshot_supplier = (
-                            lambda: context.contract_snapshot_factory(
-                                context.transaction.to_address
-                            )
-                        )
-
-                        new_validators_addresses = {
-                            validator["address"]
-                            for validator in context.remaining_validators
-                        }
-                        assert new_validators_addresses != current_validators_addresses
-
-                        # State transitions
-                        state = CommittingState()
-                        while True:
-                            next_state = await state.handle(context)
-                            if next_state is None:
-                                break
-                            assert (
-                                len(context.validator_nodes)
-                                == nb_validators_processing_appeal
-                            )
-                            state = next_state
-
-        await asyncio.sleep(1)
-
-
-def run_async_task_in_thread(
-    stop_event: threading.Event,
-    transactions_processor: TransactionsProcessorMock,
-    msg_handler: MessageHandler,
-    nodes: list[dict],
-    node_factory: Callable[
-        [
-            dict,
-            ExecutionMode,
-            ContractSnapshot,
-            Receipt | None,
-            MessageHandler,
-            Callable[[str], ContractSnapshot],
-        ],
-        Node,
-    ],
-):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(
-            _appeal_window(
-                stop_event, transactions_processor, msg_handler, nodes, node_factory
-            )
-        )
-    finally:
-        loop.close()
-
-
-@pytest.fixture
-def managed_thread(request):
-    def start_thread(
-        transactions_processor: TransactionsProcessorMock,
-        msg_handler: MessageHandler,
-        nodes: list[dict],
-        node_factory: Callable[
-            [
-                dict,
-                ExecutionMode,
-                ContractSnapshot,
-                Receipt | None,
-                MessageHandler,
-                Callable[[str], ContractSnapshot],
-            ],
-            Node,
-        ],
-    ):
-        stop_event = threading.Event()
-        thread = threading.Thread(
-            target=run_async_task_in_thread,
-            args=(stop_event, transactions_processor, msg_handler, nodes, node_factory),
-        )
-        thread.start()
-
-        def fin():
-            stop_event.set()
-            thread.join()
-
-        request.addfinalizer(fin)
-
-        return thread
-
-    return start_thread
 
 
 def node_factory(
@@ -465,7 +245,8 @@ def node_factory(
     return mock
 
 
-def appeal(transaction: Transaction, transactions_processor: TransactionsProcessor):
+def appeal(transaction: Transaction, transactions_processor: TransactionsProcessorMock):
+    transactions_processor.status_changed_event.clear()
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["appealed"]
         == False
@@ -507,3 +288,146 @@ def get_validator_addresses(
         validator["node_config"]["address"]
         for validator in transaction_dict["consensus_data"]["validators"]
     }
+
+
+@pytest.fixture
+def consensus_algorithm() -> ConsensusAlgorithm:
+    class MessageHandlerMock:
+        def send_message(self, log_event):
+            print(log_event)
+
+    # Mock the session and other dependencies
+    mock_session = MagicMock()
+    mock_msg_handler = MessageHandlerMock()
+
+    consensus_algorithm = ConsensusAlgorithm(
+        get_session=lambda: mock_session, msg_handler=mock_msg_handler
+    )
+    consensus_algorithm.finality_window_time = DEFAULT_FINALITY_WINDOW
+    consensus_algorithm.consensus_sleep_time = DEFAULT_CONSENSUS_SLEEP_TIME
+    return consensus_algorithm
+
+
+def setup_test_environment(
+    consensus_algorithm: ConsensusAlgorithm,
+    transactions_processor: TransactionsProcessorMock,
+    nodes: list,
+    created_nodes: list,
+    get_vote: Callable[[], Vote],
+):
+    chain_snapshot = SnapshotMock(nodes, transactions_processor)
+    accounts_manager = AccountsManagerMock()
+
+    chain_snapshot_factory = lambda session: chain_snapshot
+    transactions_processor_factory = lambda session: transactions_processor
+    accounts_manager_factory = lambda session: accounts_manager
+    contract_snapshot_factory = (
+        lambda address, session, transaction: ContractSnapshotMock(address)
+    )
+    node_factory_supplier = (
+        lambda node, mode, contract_snapshot, receipt, msg_handler, contract_snapshot_factory: created_nodes.append(
+            node_factory(
+                node,
+                mode,
+                contract_snapshot,
+                receipt,
+                msg_handler,
+                contract_snapshot_factory,
+                get_vote(),
+            )
+        )
+        or created_nodes[-1]
+    )
+
+    # Create a stop event
+    stop_event = threading.Event()
+
+    # Start the crawl_snapshot, process_pending_transactions and appeal_window threads
+    thread_crawl_snapshot = threading.Thread(
+        target=consensus_algorithm.run_crawl_snapshot_loop,
+        args=(chain_snapshot_factory, transactions_processor_factory, stop_event),
+    )
+    thread_process_pending_transactions = threading.Thread(
+        target=consensus_algorithm.run_process_pending_transactions_loop,
+        args=(
+            chain_snapshot_factory,
+            transactions_processor_factory,
+            accounts_manager_factory,
+            contract_snapshot_factory,
+            node_factory_supplier,
+            stop_event,
+        ),
+    )
+    thread_appeal_window = threading.Thread(
+        target=consensus_algorithm.run_appeal_window_loop,
+        args=(
+            chain_snapshot_factory,
+            transactions_processor_factory,
+            accounts_manager_factory,
+            contract_snapshot_factory,
+            node_factory_supplier,
+            stop_event,
+        ),
+    )
+
+    thread_crawl_snapshot.start()
+    thread_process_pending_transactions.start()
+    thread_appeal_window.start()
+
+    return (
+        stop_event,
+        thread_crawl_snapshot,
+        thread_process_pending_transactions,
+        thread_appeal_window,
+    )
+
+
+def cleanup_threads(event: threading.Event, threads: list[threading.Thread]):
+    event.set()
+    for thread in threads:
+        thread.join()
+
+
+def wait_for_condition(
+    condition_func: Callable[[], bool], timeout: int = 5, interval: float = 0.1
+):
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if condition_func():
+            return True
+        time.sleep(interval)
+    return False
+
+
+def assert_transaction_status_match(
+    transactions_processor: TransactionsProcessorMock,
+    transaction: Transaction,
+    expected_status: TransactionStatus,
+    timeout: int = 15,
+    interval: float = 0.1,
+):
+    assert wait_for_condition(
+        lambda: transactions_processor.get_transaction_by_hash(transaction.hash)[
+            "status"
+        ]
+        == expected_status,
+        timeout=timeout,
+        interval=interval,
+    ), f"Transaction did not reach the {expected_status} state"
+
+
+def assert_transaction_status_change_and_match(
+    transactions_processor: TransactionsProcessorMock,
+    transaction: Transaction,
+    expected_status: TransactionStatus,
+    timeout: int = 15,
+    interval: float = 0.1,
+):
+    transactions_processor.status_changed_event.wait()
+    assert_transaction_status_match(
+        transactions_processor,
+        transaction,
+        expected_status,
+        timeout=timeout,
+        interval=interval,
+    )
