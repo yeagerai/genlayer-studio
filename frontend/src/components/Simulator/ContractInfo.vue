@@ -2,7 +2,7 @@
 import PageSection from '@/components/Simulator/PageSection.vue';
 import { CheckCircleIcon } from '@heroicons/vue/24/outline';
 import EmptyListPlaceholder from '@/components/Simulator/EmptyListPlaceholder.vue';
-import { useNodeStore } from '@/stores';
+import { useNodeStore, useUIStore } from '@/stores';
 import { useContractQueries, useShortAddress } from '@/hooks';
 import { UploadIcon } from 'lucide-vue-next';
 
@@ -15,6 +15,7 @@ defineProps<{
 
 const emit = defineEmits(['openDeployment']);
 const { isDeployed, address, contract } = useContractQueries();
+const uiStore = useUIStore();
 </script>
 
 <template>
@@ -47,7 +48,9 @@ const { isDeployed, address, contract } = useContractQueries();
     <Alert
       warning
       v-if="
-        !nodeStore.isLoadingValidatorData && !nodeStore.hasAtLeastOneValidator
+        !uiStore.showTutorial &&
+        !nodeStore.isLoadingValidatorData &&
+        !nodeStore.hasAtLeastOneValidator
       "
     >
       You need at least one validator before you can deploy or interact with a

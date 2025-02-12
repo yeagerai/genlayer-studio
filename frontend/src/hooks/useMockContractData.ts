@@ -11,35 +11,24 @@ export function useMockContractData() {
   };
 
   const mockContractSchema = {
-    class: 'Storage',
-    abi: [
-      {
-        inputs: [
-          {
-            name: 'initial_storage',
-            type: 'string',
-          },
-        ],
-        type: 'constructor',
+    ctor: {
+      kwparams: {},
+      params: [['initial_storage', 'string']],
+    },
+    methods: {
+      get_storage: {
+        kwparams: {},
+        params: [],
+        readonly: true,
+        ret: 'string',
       },
-      {
-        inputs: [],
-        name: 'get_storage',
-        outputs: 'string',
-        type: 'function',
+      update_storage: {
+        kwparams: {},
+        params: [['new_storage', 'string']],
+        readonly: false,
+        ret: 'null',
       },
-      {
-        inputs: [
-          {
-            name: 'update',
-            type: 'string',
-          },
-        ],
-        name: 'new_storage',
-        outputs: '',
-        type: 'function',
-      },
-    ],
+    },
   };
 
   const mockDeploymentTx: TransactionItem = {
