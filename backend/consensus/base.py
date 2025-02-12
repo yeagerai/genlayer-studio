@@ -159,7 +159,7 @@ class TransactionContext:
     Attributes:
         transaction (Transaction): The transaction.
         transactions_processor (TransactionsProcessor): Instance responsible for handling transaction operations within the database.
-        snapshot (ChainSnapshot): Snapshot of the chain state.
+        chain_snapshot (ChainSnapshot): Snapshot of the chain state.
         accounts_manager (AccountsManager): Manager for accounts.
         contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
         node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
@@ -178,7 +178,7 @@ class TransactionContext:
         self,
         transaction: Transaction,
         transactions_processor: TransactionsProcessor,
-        snapshot: ChainSnapshot,
+        chain_snapshot: ChainSnapshot,
         accounts_manager: AccountsManager,
         contract_snapshot_factory: Callable[[str], ContractSnapshot],
         node_factory: Callable[
@@ -200,7 +200,7 @@ class TransactionContext:
         Args:
             transaction (Transaction): The transaction.
             transactions_processor (TransactionsProcessor): Instance responsible for handling transaction operations within the database.
-            snapshot (ChainSnapshot): Snapshot of the chain state.
+            chain_snapshot (ChainSnapshot): Snapshot of the chain state.
             accounts_manager (AccountsManager): Manager for accounts.
             contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
             node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
@@ -208,7 +208,7 @@ class TransactionContext:
         """
         self.transaction = transaction
         self.transactions_processor = transactions_processor
-        self.snapshot = snapshot
+        self.chain_snapshot = chain_snapshot
         self.accounts_manager = accounts_manager
         self.contract_snapshot_factory = contract_snapshot_factory
         self.node_factory = node_factory
@@ -501,7 +501,7 @@ class ConsensusAlgorithm:
         self,
         transaction: Transaction,
         transactions_processor: TransactionsProcessor,
-        snapshot: ChainSnapshot,
+        chain_snapshot: ChainSnapshot,
         accounts_manager: AccountsManager,
         contract_snapshot_factory: Callable[[str], ContractSnapshot],
         node_factory: Callable[
@@ -522,7 +522,7 @@ class ConsensusAlgorithm:
         Args:
             transaction (Transaction): The transaction to execute.
             transactions_processor (TransactionsProcessor): Instance responsible for handling transaction operations within the database.
-            snapshot (ChainSnapshot): Snapshot of the chain state.
+            chain_snapshot (ChainSnapshot): Snapshot of the chain state.
             accounts_manager (AccountsManager): Manager for accounts.
             contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
             node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
@@ -531,7 +531,7 @@ class ConsensusAlgorithm:
         context = TransactionContext(
             transaction=transaction,
             transactions_processor=transactions_processor,
-            snapshot=snapshot,
+            chain_snapshot=chain_snapshot,
             accounts_manager=accounts_manager,
             contract_snapshot_factory=contract_snapshot_factory,
             node_factory=node_factory,
@@ -895,7 +895,7 @@ class ConsensusAlgorithm:
         self,
         transaction: Transaction,
         transactions_processor: TransactionsProcessor,
-        snapshot: ChainSnapshot,
+        chain_snapshot: ChainSnapshot,
         accounts_manager: AccountsManager,
         contract_snapshot_factory: Callable[[str], ContractSnapshot],
         node_factory: Callable[
@@ -916,7 +916,7 @@ class ConsensusAlgorithm:
         Args:
             transaction (Transaction): The transaction to finalize.
             transactions_processor (TransactionsProcessor): Instance responsible for handling transaction operations within the database.
-            snapshot (ChainSnapshot): Snapshot of the chain state.
+            chain_snapshot (ChainSnapshot): Snapshot of the chain state.
             accounts_manager (AccountsManager): Manager for accounts.
             contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
             node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
@@ -925,7 +925,7 @@ class ConsensusAlgorithm:
         context = TransactionContext(
             transaction=transaction,
             transactions_processor=transactions_processor,
-            snapshot=snapshot,
+            chain_snapshot=chain_snapshot,
             accounts_manager=accounts_manager,
             contract_snapshot_factory=contract_snapshot_factory,
             node_factory=node_factory,
@@ -940,7 +940,7 @@ class ConsensusAlgorithm:
         self,
         transaction: Transaction,
         transactions_processor: TransactionsProcessor,
-        snapshot: ChainSnapshot,
+        chain_snapshot: ChainSnapshot,
         accounts_manager: AccountsManager,
         contract_snapshot_factory: Callable[[str], ContractSnapshot],
         node_factory: Callable[
@@ -961,7 +961,7 @@ class ConsensusAlgorithm:
         Args:
             transaction (Transaction): The transaction to appeal.
             transactions_processor (TransactionsProcessor): Instance responsible for handling transaction operations within the database.
-            snapshot (ChainSnapshot): Snapshot of the chain state.
+            chain_snapshot (ChainSnapshot): Snapshot of the chain state.
             accounts_manager (AccountsManager): Manager for accounts.
             contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
             node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
@@ -970,7 +970,7 @@ class ConsensusAlgorithm:
         context = TransactionContext(
             transaction=transaction,
             transactions_processor=transactions_processor,
-            snapshot=snapshot,
+            chain_snapshot=chain_snapshot,
             accounts_manager=accounts_manager,
             contract_snapshot_factory=contract_snapshot_factory,
             node_factory=node_factory,
@@ -1001,7 +1001,7 @@ class ConsensusAlgorithm:
         self,
         transaction: Transaction,
         transactions_processor: TransactionsProcessor,
-        snapshot: ChainSnapshot,
+        chain_snapshot: ChainSnapshot,
         accounts_manager: AccountsManager,
         contract_snapshot_factory: Callable[[str], ContractSnapshot],
         node_factory: Callable[
@@ -1022,7 +1022,7 @@ class ConsensusAlgorithm:
         Args:
             transaction (Transaction): The transaction to appeal.
             transactions_processor (TransactionsProcessor): Instance responsible for handling transaction operations within the database.
-            snapshot (ChainSnapshot): Snapshot of the chain state.
+            chain_snapshot (ChainSnapshot): Snapshot of the chain state.
             accounts_manager (AccountsManager): Manager for accounts.
             contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
             node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
@@ -1031,7 +1031,7 @@ class ConsensusAlgorithm:
         context = TransactionContext(
             transaction=transaction,
             transactions_processor=transactions_processor,
-            snapshot=snapshot,
+            chain_snapshot=chain_snapshot,
             accounts_manager=accounts_manager,
             contract_snapshot_factory=contract_snapshot_factory,
             node_factory=node_factory,
@@ -1045,7 +1045,7 @@ class ConsensusAlgorithm:
         try:
             # Attempt to get extra validators for the appeal process
             context.remaining_validators = ConsensusAlgorithm.get_extra_validators(
-                snapshot,
+                chain_snapshot,
                 transaction.consensus_data,
                 transaction.appeal_failed,
             )
@@ -1118,7 +1118,7 @@ class ConsensusAlgorithm:
 
     @staticmethod
     def get_extra_validators(
-        snapshot: ChainSnapshot, consensus_data: ConsensusData, appeal_failed: int
+        chain_snapshot: ChainSnapshot, consensus_data: ConsensusData, appeal_failed: int
     ):
         """
         Get extra validators for the appeal process according to the following formula:
@@ -1148,7 +1148,7 @@ class ConsensusAlgorithm:
         This is used to calculate n
 
         Args:
-            snapshot (ChainSnapshot): Snapshot of the chain state.
+            chain_snapshot (ChainSnapshot): Snapshot of the chain state.
             consensus_data (ConsensusData): Data related to the consensus process.
             appeal_failed (int): Number of times the appeal has failed.
 
@@ -1156,7 +1156,7 @@ class ConsensusAlgorithm:
             list: List of extra validators.
         """
         # Get all validators
-        validators = snapshot.get_all_validators()
+        validators = chain_snapshot.get_all_validators()
 
         # Create a dictionary to map addresses to validator entries
         validator_map = {validator["address"]: validator for validator in validators}
@@ -1289,7 +1289,7 @@ class PendingState(TransactionState):
             return None
 
         # Retrieve all validators from the snapshot
-        all_validators = context.snapshot.get_all_validators()
+        all_validators = context.chain_snapshot.get_all_validators()
 
         # Check if there are validators available
         if not all_validators:
@@ -1318,7 +1318,7 @@ class PendingState(TransactionState):
                 all_validators, context.transaction.consensus_data, False
             )
             extra_validators = ConsensusAlgorithm.get_extra_validators(
-                context.snapshot, context.transaction.consensus_data, 0
+                context.chain_snapshot, context.transaction.consensus_data, 0
             )
             involved_validators = current_validators + extra_validators
 
