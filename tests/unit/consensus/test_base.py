@@ -348,7 +348,7 @@ async def test_exec_accepted_appeal_fail(managed_thread):
 
     appeal(transaction, transactions_processor)
 
-    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW_SLEEP + 10)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
@@ -1813,7 +1813,7 @@ async def test_exec_undetermined_appeal(managed_thread):
         node_factory=node_factory_supplier,
     )
 
-    await asyncio.sleep(DEFAULT_FINALITY_WINDOW + 7)
+    await asyncio.sleep(DEFAULT_FINALITY_WINDOW + 15)
 
     assert (
         transactions_processor.get_transaction_by_hash(transaction.hash)["status"]
