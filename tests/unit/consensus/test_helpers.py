@@ -117,6 +117,9 @@ class TransactionsProcessorMock:
                 result.append(transaction)
         return sorted(result, key=lambda x: x["created_at"])
 
+    def get_newer_transactions(self, transaction_hash: str):
+        return []
+
     def set_transaction_timestamp_appeal(
         self, transaction: dict | str, timestamp_appeal: int
     ):
