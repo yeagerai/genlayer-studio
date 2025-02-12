@@ -8,8 +8,7 @@ from genlayer import *
 
 
 # use @gl.contract annotation to mark class as a contract. There can be only one contract class
-@gl.contract
-class Storage:
+class Storage(gl.Contract):
     # below you must declare all class fields that you are going to use
     # this fields persist between contract calls
     storage_str: str

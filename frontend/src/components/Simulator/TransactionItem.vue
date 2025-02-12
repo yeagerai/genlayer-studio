@@ -11,6 +11,11 @@ import CopyTextButton from '../global/CopyTextButton.vue';
 import { FilterIcon } from 'lucide-vue-next';
 import { GavelIcon } from 'lucide-vue-next';
 import { abi } from 'genlayer-js';
+import {
+  resultToUserFriendlyJson,
+  b64ToArray,
+  calldataToUserFriendlyJson,
+} from '@/calldata/jsonifier';
 
 const uiStore = useUIStore();
 const nodeStore = useNodeStore();
@@ -60,6 +65,43 @@ watch(
 );
 
 function prettifyTxData(x: any): any {
+  const oldResult = x?.consensus_data?.leader_receipt?.result;
+
+  if (oldResult) {
+    try {
+      x.consensus_data.leader_receipt.result =
+        resultToUserFriendlyJson(oldResult);
+    } catch (e) {
+      console.log(e);
+    }
+  }
+
+  const oldCalldata = x?.consensus_data?.leader_receipt?.calldata;
+
+  if (oldCalldata) {
+    try {
+      x.consensus_data.leader_receipt.calldata = {
+        base64: oldCalldata,
+        ...calldataToUserFriendlyJson(b64ToArray(oldCalldata)),
+      };
+    } catch (e) {
+      console.log(e);
+    }
+  }
+
+  const oldDataCalldata = x?.data?.calldata;
+
+  if (oldDataCalldata) {
+    try {
+      x.data.calldata = {
+        base64: oldDataCalldata,
+        ...calldataToUserFriendlyJson(b64ToArray(oldDataCalldata)),
+      };
+    } catch (e) {
+      console.log(e);
+    }
+  }
+
   const oldEqOutputs = x?.consensus_data?.leader_receipt?.eq_outputs;
   if (oldEqOutputs == undefined) {
     return x;
@@ -67,23 +109,8 @@ function prettifyTxData(x: any): any {
   try {
     const new_eq_outputs = Object.fromEntries(
       Object.entries(oldEqOutputs).map(([k, v]) => {
-        const val = Uint8Array.from(atob(v as string), (c) => c.charCodeAt(0));
-        const rest = new Uint8Array(val).slice(1);
-        if (val[0] == 0) {
-          return [
-            k,
-            {
-              status: 'success',
-              data: abi.calldata.toString(abi.calldata.decode(rest)),
-            },
-          ];
-        } else if (val[0] == 1) {
-          return [
-            k,
-            { status: 'rollback', data: new TextDecoder('utf-8').decode(rest) },
-          ];
-        }
-        return [k, v];
+        const val = resultToUserFriendlyJson(b64ToArray(v));
+        return [k, val];
       }),
     );
     const ret = {
