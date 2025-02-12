@@ -9,7 +9,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik.yaml:/etc/traefik/traefik.yaml:ro
 
-
   frontend:
     build:
       context: ./
@@ -91,7 +90,7 @@ services:
       replicas: ${JSONRPC_REPLICAS:-1}
     labels:
       traefik.enable: true
-      traefik.http.routers.jsonrpc.rule: Host(`${SERVER_NAME}`) && PathPrefix(`/api`)
+      traefik.http.routers.jsonrpc.rule: Host(`${SERVER_NAME}`) && (PathPrefix(`/api`) || PathPrefix(`/socket.io`))
       traefik.http.routers.jsonrpc.entrypoints: websecure
       traefik.http.routers.jsonrpc.tls: true
 
@@ -205,6 +204,11 @@ services:
       timeout: 30s
       retries: 5
       start_period: 60s
+    labels:
+      traefik.enable: true
+      traefik.http.routers.hardhat.rule: Host(`${SERVER_NAME}`) && PathPrefix(`/hardhat`)
+      traefik.http.routers.hardhat.entrypoints: websecure
+      traefik.http.routers.hardhat.tls: true
 
 volumes:
   hardhat_artifacts:
