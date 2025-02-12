@@ -643,20 +643,22 @@ class ConsensusAlgorithm:
                                     )
 
                                     # Go through the whole queue to check for appeals and finalizations
-                                    for transaction in accepted_undetermined_queue:
+                                    for index, transaction in enumerate(
+                                        accepted_undetermined_queue
+                                    ):
                                         transaction = Transaction.from_dict(transaction)
 
                                         # Check if the transaction is appealed
                                         if not transaction.appealed:
 
-                                            # Check if the transaction has exceeded the finality window or if it is a leader only transaction
-                                            if (transaction.leader_only) or (
-                                                (
-                                                    int(time.time())
-                                                    - transaction.timestamp_awaiting_finalization
-                                                )
-                                                > self.finality_window_time
+                                            # Check if the transaction can be finalized
+                                            if self.can_finalize_transaction(
+                                                transactions_processor,
+                                                transaction,
+                                                index,
+                                                accepted_undetermined_queue,
                                             ):
+
                                                 # Handle transactions that need to be finalized
                                                 await self.process_finalization(
                                                     transaction,
@@ -725,6 +727,48 @@ class ConsensusAlgorithm:
                 print("Error running consensus", e)
                 print(traceback.format_exc())
             await asyncio.sleep(self.consensus_sleep_time)
+
+    def can_finalize_transaction(
+        self,
+        transactions_processor: TransactionsProcessor,
+        transaction: Transaction,
+        index: int,
+        accepted_undetermined_queue: list[dict],
+    ) -> bool:
+        """
+        Check if the transaction can be finalized based on the following criteria:
+        - The transaction is a leader only transaction
+        - The transaction has exceeded the finality window
+        - The previous transaction has been finalized
+
+        Args:
+            transactions_processor (TransactionsProcessor): The transactions processor instance.
+            transaction (Transaction): The transaction to be possibly finalized.
+            index (int): The index of the current transaction in the accepted_undetermined_queue.
+            accepted_undetermined_queue (list[dict]): The list of accepted and undetermined transactions for one contract.
+
+        Returns:
+            bool: True if the transaction can be finalized, False otherwise.
+        """
+        if (transaction.leader_only) or (
+            (int(time.time()) - transaction.timestamp_awaiting_finalization)
+            > self.finality_window_time
+        ):
+            if index == 0:
+                return True
+            else:
+                previous_transaction_hash = accepted_undetermined_queue[index - 1][
+                    "hash"
+                ]
+                previous_transaction = transactions_processor.get_transaction_by_hash(
+                    previous_transaction_hash
+                )
+                if previous_transaction["status"] == TransactionStatus.FINALIZED.value:
+                    return True
+                else:
+                    return False
+        else:
+            return False
 
     async def process_finalization(
         self,
