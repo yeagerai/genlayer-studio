@@ -231,7 +231,7 @@ class ConsensusAlgorithm:
                 pending_transactions = chain_snapshot.get_pending_transactions()
                 for transaction in pending_transactions:
                     transaction = Transaction.from_dict(transaction)
-                    address = transaction.to_address or transaction.from_address
+                    address = transaction.to_address
 
                     if address not in self.pending_queues:
                         self.pending_queues[address] = asyncio.Queue()

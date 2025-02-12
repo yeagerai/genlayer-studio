@@ -62,7 +62,7 @@ class ChainSnapshot:
         # Group transactions by address
         transactions_by_address = defaultdict(list)
         for transaction in accepted_undetermined_transactions:
-            address = transaction.to_address or transaction.from_address
+            address = transaction.to_address
             transactions_by_address[address].append(
                 TransactionsProcessor._parse_transaction_data(transaction)
             )
