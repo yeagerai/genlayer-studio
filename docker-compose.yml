@@ -110,7 +110,6 @@ services:
       - ./.env:/app/webrequest/.env
       - ./webrequest:/app/webrequest
     environment:
-    environment:
       - FLASK_SERVER_PORT=${WEBREQUESTPORT}
       - WEBREQUESTSELENIUMPORT=${WEBREQUESTSELENIUMPORT}
       # TODO: remove this in production
