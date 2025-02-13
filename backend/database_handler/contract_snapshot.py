@@ -15,6 +15,7 @@ class ContractSnapshot:
     contract_address: str
     contract_code: str
     encoded_state: dict[str, str]
+    balance: int
 
     def __init__(self, contract_address: str | None, session: Session):
         self.session = session
@@ -26,6 +27,7 @@ class ContractSnapshot:
             self.contract_data = contract_account.data
             self.contract_code = self.contract_data["code"]
             self.encoded_state = self.contract_data["state"]
+            self.balance = contract_account.balance
             self.ghost_contract_address = (
                 self.contract_data["ghost_contract_address"]
                 if "ghost_contract_address" in self.contract_data

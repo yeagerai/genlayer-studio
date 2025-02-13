@@ -4,9 +4,10 @@ from enum import IntEnum
 class ResultCode(IntEnum):
     RETURN = 0
     ROLLBACK = 1
-    NONE = 2
+    CONTRACT_ERROR = 2
     ERROR = 3
-    CONTRACT_ERROR = 4
+    NONE = 4
+    NO_LEADERS = 5
 
 
 class StorageType(IntEnum):

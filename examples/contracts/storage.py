@@ -4,8 +4,7 @@ from genlayer import *
 
 
 # contract class
-@gl.contract
-class Storage:
+class Storage(gl.Contract):
     storage: str
 
     # constructor

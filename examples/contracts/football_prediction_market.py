@@ -6,8 +6,7 @@ import json
 import typing
 
 
-@gl.contract
-class PredictionMarket:
+class PredictionMarket(gl.Contract):
     has_resolved: bool
     team1: str
     team2: str
