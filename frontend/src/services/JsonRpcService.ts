@@ -202,4 +202,12 @@ export class JsonRpcService implements IJsonRpcService {
       'Error setting finality window duration',
     );
   }
+
+  async getFinalityWindowTime(): Promise<number> {
+    return this.callRpcMethod<any>(
+      'sim_getFinalityWindowTime',
+      [],
+      'Error getting finality window time',
+    );
+  }
 }
