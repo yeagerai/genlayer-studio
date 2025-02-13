@@ -14,6 +14,7 @@ from backend.domain.types import Transaction, TransactionType
 from backend.node.base import Node
 from backend.node.types import ExecutionMode, ExecutionResultStatus, Receipt, Vote
 from backend.protocol_rpc.message_handler.base import MessageHandler
+from typing import Optional
 
 DEFAULT_FINALITY_WINDOW = 5
 DEFAULT_CONSENSUS_SLEEP_TIME = 2
@@ -118,6 +119,14 @@ class TransactionsProcessorMock:
     def get_newer_transactions(self, transaction_hash: str):
         return []
 
+    def set_transaction_contract_snapshot(
+        self, transaction_hash: str, contract_snapshot: dict
+    ):
+        pass
+
+    def get_transaction_contract_snapshot(self, transaction_hash: str):
+        return None
+
 
 class SnapshotMock:
     def __init__(self, nodes: list, transactions_processor: TransactionsProcessorMock):
@@ -138,8 +147,29 @@ class ContractSnapshotMock:
     def __init__(self, address: str):
         self.address = address
 
-    def update_contract_state(self, state: dict[str, str]):
+    def register_contract(self, contract: dict):
         pass
+
+    def update_contract_state(
+        self,
+        accepted_state: dict[str, str] | None = None,
+        finalized_state: dict[str, str] | None = None,
+    ):
+        pass
+
+    def to_dict(self):
+        return {
+            "address": (self.address if self.address else None),
+        }
+
+    @classmethod
+    def from_dict(cls, input: dict | None) -> Optional["ContractSnapshotMock"]:
+        if input:
+            instance = cls.__new__(cls)
+            instance.address = input.get("address", None)
+            return instance
+        else:
+            return None
 
 
 def transaction_to_dict(transaction: Transaction) -> dict:
@@ -150,7 +180,9 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "to_address": transaction.to_address,
         "input_data": transaction.input_data,
         "data": transaction.data,
-        "consensus_data": transaction.consensus_data,
+        "consensus_data": (
+            transaction.consensus_data.to_dict() if transaction.consensus_data else None
+        ),
         "nonce": transaction.nonce,
         "value": transaction.value,
         "type": transaction.type.value,
@@ -165,6 +197,11 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "timestamp_awaiting_finalization": transaction.timestamp_awaiting_finalization,
         "appeal_failed": transaction.appeal_failed,
         "appeal_undetermined": transaction.appeal_undetermined,
+        "contract_snapshot": (
+            transaction.contract_snapshot.to_dict()
+            if transaction.contract_snapshot
+            else None
+        ),
     }
 
 
@@ -380,7 +417,7 @@ def wait_for_condition(
 def assert_transaction_status_match(
     transactions_processor: TransactionsProcessorMock,
     transaction: Transaction,
-    expected_status: TransactionStatus,
+    expected_statuses: list[TransactionStatus],
     timeout: int = 15,
     interval: float = 0.1,
 ):
@@ -388,16 +425,16 @@ def assert_transaction_status_match(
         lambda: transactions_processor.get_transaction_by_hash(transaction.hash)[
             "status"
         ]
-        == expected_status,
+        in expected_statuses,
         timeout=timeout,
         interval=interval,
-    ), f"Transaction did not reach the {expected_status} state"
+    ), f"Transaction did not reach {expected_statuses}"
 
 
 def assert_transaction_status_change_and_match(
     transactions_processor: TransactionsProcessorMock,
     transaction: Transaction,
-    expected_status: TransactionStatus,
+    expected_statuses: list[TransactionStatus],
     timeout: int = 15,
     interval: float = 0.1,
 ):
@@ -405,7 +442,7 @@ def assert_transaction_status_change_and_match(
     assert_transaction_status_match(
         transactions_processor,
         transaction,
-        expected_status,
+        expected_statuses,
         timeout=timeout,
         interval=interval,
     )
