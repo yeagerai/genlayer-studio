@@ -49,7 +49,6 @@ const appealed = ref(props.transaction.data.appealed);
 
 const handleSetTransactionAppeal = () => {
   transactionsStore.setTransactionAppeal(props.transaction.hash);
-  appealed.value = true;
 };
 
 watch(

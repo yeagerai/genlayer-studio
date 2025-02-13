@@ -7,13 +7,11 @@ export function useTransactionListener() {
   const webSocketClient = useWebSocketClient();
 
   function init() {
-    webSocketClient.on(
-      'transaction_status_updated',
-      handleTransactionStatusUpdate,
-    );
+    webSocketClient.on('transaction_status_updated', handleTransactionUpdate);
+    webSocketClient.on('transaction_appeal_updated', handleTransactionUpdate);
   }
 
-  async function handleTransactionStatusUpdate(eventData: any) {
+  async function handleTransactionUpdate(eventData: any) {
     const newTx = await transactionsStore.getTransaction(eventData.data.hash);
 
     const currentTx = transactionsStore.transactions.find(
