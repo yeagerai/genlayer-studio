@@ -4,6 +4,7 @@ import {
   useTransactionsStore,
   useNodeStore,
   useTutorialStore,
+  useConsensusStore,
 } from '@/stores';
 import {
   useDb,
@@ -19,6 +20,7 @@ export const useSetupStores = () => {
     const accountsStore = useAccountsStore();
     const transactionsStore = useTransactionsStore();
     const nodeStore = useNodeStore();
+    const consensusStore = useConsensusStore();
     const tutorialStore = useTutorialStore();
     const db = useDb();
     const genlayer = useGenlayer();
@@ -63,6 +65,7 @@ export const useSetupStores = () => {
     tutorialStore.resetTutorialState();
     nodeStore.getValidatorsData();
     nodeStore.getProvidersData();
+    consensusStore.fetchFinalityWindowTime();
 
     if (accountsStore.accounts.length < 1) {
       accountsStore.generateNewAccount();
