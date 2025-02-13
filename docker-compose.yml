@@ -2,6 +2,7 @@ services:
   traefik:
     profiles: ["studio"]
     image: traefik:v3.2
+    pull_policy: always
     ports:
       - "80:80"
       - "443:443"
@@ -9,14 +10,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik.yaml:/etc/traefik/traefik.yaml:ro
 
-
   frontend:
-    build:
-      context: ./
-      dockerfile: ./docker/Dockerfile.frontend
-      target: ${FRONTEND_BUILD_TARGET:-final}
-      args:
-        - VITE_*
+    image: yeagerai/simulator-frontend:latest
+    pull_policy: build
     ports:
       - "${FRONTEND_PORT}:8080"
     volumes:
@@ -44,13 +40,10 @@ services:
       traefik.http.routers.frontend.tls: true
 
   jsonrpc:
-    build:
-      context: ./
-      dockerfile: ./docker/Dockerfile.backend
-      target: ${BACKEND_BUILD_TARGET:-prod}
+    image: yeagerai/simulator-jsonpc:latest
+    pull_policy: always
     environment:
       - FLASK_SERVER_PORT=${RPCPORT}
-      # TODO: remove this in production
       - PYTHONUNBUFFERED=1
       - RPCDEBUGPORT=${RPCDEBUGPORT}
       - WEBREQUESTPORT=${WEBREQUESTPORT}
@@ -96,9 +89,8 @@ services:
       traefik.http.routers.jsonrpc.tls: true
 
   webrequest:
-    build:
-      context: ./
-      dockerfile: ./docker/Dockerfile.webrequest
+    image: yeagerai/simulator-webrequest:latest
+    pull_policy: always
     shm_size: 2gb
     volumes:
       - ./.env:/app/webrequest/.env
@@ -106,7 +98,6 @@ services:
     environment:
       - FLASK_SERVER_PORT=${WEBREQUESTPORT}
       - WEBREQUESTSELENIUMPORT=${WEBREQUESTSELENIUMPORT}
-      # TODO: remove this in production
       - PYTHONUNBUFFERED=1
     depends_on:
       ollama:
@@ -125,6 +116,7 @@ services:
 
   ollama:
     image: ollama/ollama:0.4.1
+    pull_policy: always
     ports:
       - 11434:11434
     volumes:
@@ -142,6 +134,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    pull_policy: always
     ports:
       - "${DBPORT}:5432"
     environment:
@@ -161,14 +154,12 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # If you want your db to persist in dev
     volumes:
      - "./data/postgres:/var/lib/postgresql/data"
 
   database-migration:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.database-migration
+    image: yeagerai/simulator-database-migration:latest
+    pull_policy: always
     environment:
       - DB_URL=postgresql://${DBUSER}:${DBUSER}@postgres/${DBNAME}
       - WEBREQUESTPORT=${WEBREQUESTPORT}
@@ -181,9 +172,8 @@ services:
         condition: service_healthy
 
   hardhat:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.hardhat
+    image: yeagerai/simulator-hardhat:latest
+    pull_policy: always
     ports:
       - "${HARDHAT_PORT:-8545}:8545"
     volumes:
