@@ -14,6 +14,7 @@ import backend.node.genvm.origin.base_host as genvmhost
 import collections.abc
 import functools
 import datetime
+import abc
 
 from backend.node.types import (
     PendingTransaction,
@@ -64,10 +65,12 @@ def encode_result_to_bytes(result: ExecutionReturn | ExecutionError) -> bytes:
 
 # Interface for accessing the blockchain state, it is needed to not tangle current (awfully unoptimized)
 # storage format with the genvm source code
-class StateProxy(typing.Protocol):
+class StateProxy(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
     def storage_read(
         self, account: Address, slot: bytes, index: int, le: int, /
     ) -> bytes: ...
+    @abc.abstractmethod
     def storage_write(
         self,
         account: Address,
@@ -76,7 +79,10 @@ class StateProxy(typing.Protocol):
         got: collections.abc.Buffer,
         /,
     ) -> None: ...
+    @abc.abstractmethod
     def get_code(self, addr: Address) -> bytes: ...
+    @abc.abstractmethod
+    def get_balance(self, addr: Address) -> int: ...
 
 
 # GenVM protocol just in case it is needed for mocks or bringing back the old one
@@ -123,6 +129,9 @@ class _StateProxyNone(StateProxy):
     def get_code(self, addr: Address) -> bytes:
         assert addr == self.my_address
         return self.code
+
+    def get_balance(self, addr: Address) -> int:
+        return 0
 
 
 # Actual genvm wrapper that will start process and handle all communication
@@ -301,10 +310,19 @@ class _Host(genvmhost.IHost):
         encoded_result.extend(memoryview(data))
         self._eq_outputs[call_no] = bytes(encoded_result)
 
-    async def post_message(self, account: bytes, calldata: bytes, _data, /) -> None:
+    async def post_message(
+        self, account: bytes, calldata: bytes, data: genvmhost.DefaultTransactionData, /
+    ) -> None:
+        on = data.get("on", "finalized")
+        value = int(data.get("value", "0x0"), 16)
         self._pending_transactions.append(
             PendingTransaction(
-                Address(account).as_hex, calldata, code=None, salt_nonce=0
+                Address(account).as_hex,
+                calldata,
+                code=None,
+                salt_nonce=0,
+                value=value,
+                on=on,
             )
         )
 
@@ -318,12 +336,17 @@ class _Host(genvmhost.IHost):
         data: genvmhost.DeployDefaultTransactionData,
         /,
     ) -> None:
+        on = data.get("on", "finalized")
+        value = int(data.get("value", "0x0"), 16)
+        salt_nonce = int(data.get("salt_nonce", "0x0"), 16)
         self._pending_transactions.append(
             PendingTransaction(
                 address="0x",
                 calldata=calldata,
                 code=code,
-                salt_nonce=data.get("salt_nonce", 0),
+                salt_nonce=salt_nonce,
+                value=value,
+                on=on,
             )
         )
 
@@ -336,7 +359,7 @@ class _Host(genvmhost.IHost):
         assert False
 
     async def get_balance(self, account: bytes, /) -> int:
-        assert False
+        return self._state_proxy.get_balance(Address(account))
 
 
 async def _run_genvm_host(

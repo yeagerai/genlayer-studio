@@ -38,6 +38,8 @@ class DefaultTransactionData(typing.TypedDict):
 
 class DeployDefaultTransactionData(DefaultTransactionData):
     salt_nonce: typing.NotRequired[str]
+    value: str
+    on: str
 
 
 class IHost(metaclass=abc.ABCMeta):
