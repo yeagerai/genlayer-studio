@@ -11,7 +11,7 @@ services:
       - ./traefik.yaml:/etc/traefik/traefik.yaml:ro
 
   frontend:
-    image: yeagerai/simulator-frontend:latest
+    image: yeagerai/simulator-frontend:${DOCKER_IMAGE_VERSION:-latest}
     pull_policy: build
     build:
       context: ./
@@ -46,7 +46,7 @@ services:
       traefik.http.routers.frontend.tls: true
 
   jsonrpc:
-    image: yeagerai/simulator-jsonrpc:latest
+    image: yeagerai/simulator-jsonrpc:${DOCKER_IMAGE_VERSION:-latest}
     pull_policy: always
     build:
       context: ./
@@ -100,7 +100,7 @@ services:
       traefik.http.routers.jsonrpc.tls: true
 
   webrequest:
-    image: yeagerai/simulator-webrequest:latest
+    image: yeagerai/simulator-webrequest:${DOCKER_IMAGE_VERSION:-latest}
     build:
       context: ./
       dockerfile: ./docker/Dockerfile.webrequest
@@ -173,7 +173,7 @@ services:
      - "./data/postgres:/var/lib/postgresql/data"
 
   database-migration:
-    image: yeagerai/simulator-database-migration:latest
+    image: yeagerai/simulator-database-migration:${DOCKER_IMAGE_VERSION:-latest}
     pull_policy: always
     build:
       context: .
@@ -190,7 +190,7 @@ services:
         condition: service_healthy
 
   hardhat:
-    image: yeagerai/simulator-hardhat:latest
+    image: yeagerai/simulator-hardhat:${DOCKER_IMAGE_VERSION:-latest}
     pull_policy: always
     build:
       context: .
