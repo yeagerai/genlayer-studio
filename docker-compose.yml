@@ -1,7 +1,8 @@
 services:
   traefik:
     profiles: ["studio"]
-    image: traefik:v3.2
+    image: traefik:v3.3.3
+    pull_policy: always
     ports:
       - "80:80"
       - "443:443"
@@ -10,6 +11,8 @@ services:
       - ./traefik.yaml:/etc/traefik/traefik.yaml:ro
 
   frontend:
+    image: yeagerai/simulator-frontend:${STUDIO_DOCKER_IMAGE_VERSION:-latest}
+    pull_policy: build
     build:
       context: ./
       dockerfile: ./docker/Dockerfile.frontend
@@ -43,6 +46,8 @@ services:
       traefik.http.routers.frontend.tls: true
 
   jsonrpc:
+    image: yeagerai/simulator-jsonrpc:${STUDIO_DOCKER_IMAGE_VERSION:-latest}
+    pull_policy: always
     build:
       context: ./
       dockerfile: ./docker/Dockerfile.backend
@@ -95,9 +100,11 @@ services:
       traefik.http.routers.jsonrpc.tls: true
 
   webrequest:
+    image: yeagerai/simulator-webrequest:${STUDIO_DOCKER_IMAGE_VERSION:-latest}
     build:
       context: ./
       dockerfile: ./docker/Dockerfile.webrequest
+    pull_policy: always
     shm_size: 2gb
     volumes:
       - ./.env:/app/webrequest/.env
@@ -124,6 +131,7 @@ services:
 
   ollama:
     image: ollama/ollama:0.4.1
+    pull_policy: always
     ports:
       - 11434:11434
     volumes:
@@ -141,6 +149,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    pull_policy: always
     ports:
       - "${DBPORT}:5432"
     environment:
@@ -160,11 +169,12 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # If you want your db to persist in dev
     volumes:
      - "./data/postgres:/var/lib/postgresql/data"
 
   database-migration:
+    image: yeagerai/simulator-database-migration:${STUDIO_DOCKER_IMAGE_VERSION:-latest}
+    pull_policy: always
     build:
       context: .
       dockerfile: docker/Dockerfile.database-migration
@@ -180,6 +190,8 @@ services:
         condition: service_healthy
 
   hardhat:
+    image: yeagerai/simulator-hardhat:${STUDIO_DOCKER_IMAGE_VERSION:-latest}
+    pull_policy: always
     build:
       context: .
       dockerfile: docker/Dockerfile.hardhat
