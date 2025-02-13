@@ -118,6 +118,25 @@ class TransactionsProcessorMock:
     def get_newer_transactions(self, transaction_hash: str):
         return []
 
+    def update_consensus_history(
+        self,
+        transaction_hash: str,
+        consensus_round: str,
+        leader_result: dict | None,
+        validator_results: list,
+    ):
+        transaction = self.get_transaction_by_hash(transaction_hash)
+
+        current_consensus_results = {
+            "consensus_round": consensus_round,
+            "leader_result": leader_result.to_dict() if leader_result else None,
+            "validator_results": [receipt.to_dict() for receipt in validator_results],
+        }
+        if transaction["consensus_history"]:
+            transaction["consensus_history"] += [current_consensus_results]
+        else:
+            transaction["consensus_history"] = [current_consensus_results]
+
 
 class SnapshotMock:
     def __init__(self, nodes: list, transactions_processor: TransactionsProcessorMock):
@@ -165,6 +184,7 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "timestamp_awaiting_finalization": transaction.timestamp_awaiting_finalization,
         "appeal_failed": transaction.appeal_failed,
         "appeal_undetermined": transaction.appeal_undetermined,
+        "consensus_history": transaction.consensus_history,
     }
 
 

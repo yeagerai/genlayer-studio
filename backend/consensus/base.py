@@ -1354,13 +1354,22 @@ class PendingState(TransactionState):
         context.iterator_rotation = rotate(involved_validators)
 
         # Transition to the ProposingState
-        return ProposingState()
+        return ProposingState(leader_rotation=False)
 
 
 class ProposingState(TransactionState):
     """
     Class representing the proposing state of a transaction.
     """
+
+    def __init__(self, leader_rotation: bool):
+        """
+        Initialize the ProposingState.
+
+        Args:
+            leader_rotation (bool): Indicates if the ProposingState was called to do a leader rotation.
+        """
+        self.leader_rotation = leader_rotation
 
     async def handle(self, context):
         """
@@ -1378,6 +1387,23 @@ class ProposingState(TransactionState):
         except StopIteration:
             # If all rotations are done and no consensus is reached, transition to UndeterminedState
             return UndeterminedState()
+
+        # Update the consensus history after the leader rotation happened
+        if self.leader_rotation:
+            if context.transaction.appeal_undetermined:
+                context.transactions_processor.update_consensus_history(
+                    context.transaction.hash,
+                    "Leader Rotation Appeal",
+                    context.consensus_data.leader_receipt,
+                    context.validation_results,
+                )
+            else:
+                context.transactions_processor.update_consensus_history(
+                    context.transaction.hash,
+                    "Leader Rotation",
+                    context.consensus_data.leader_receipt,
+                    context.validation_results,
+                )
 
         # Dispatch a transaction status update to PROPOSING
         ConsensusAlgorithm.dispatch_transaction_status_update(
@@ -1476,9 +1502,14 @@ class CommittingState(TransactionState):
         ]
 
         # Execute the transaction on each validator node and gather the results
+        sem = asyncio.Semaphore(8)
+
+        async def run_single_validator(validator: Node) -> Receipt:
+            async with sem:
+                return await validator.exec_transaction(context.transaction)
+
         validation_tasks = [
-            validator.exec_transaction(context.transaction)
-            for validator in context.validator_nodes
+            run_single_validator(validator) for validator in context.validator_nodes
         ]
         context.validation_results = await asyncio.gather(*validation_tasks)
 
@@ -1595,6 +1626,12 @@ class RevealingState(TransactionState):
                     context.transaction.hash,
                     0,
                 )
+                context.transactions_processor.update_consensus_history(
+                    context.transaction.hash,
+                    "Validator Appeal Successful",
+                    None,
+                    context.validation_results,
+                )
                 return "validator_appeal_success"
 
         else:
@@ -1613,7 +1650,7 @@ class RevealingState(TransactionState):
                         context.transaction.hash
                     ),
                 )
-                return ProposingState()
+                return ProposingState(leader_rotation=True)
 
 
 class AcceptedState(TransactionState):
@@ -1632,16 +1669,38 @@ class AcceptedState(TransactionState):
             None: The transaction is accepted.
         """
         # When appeal fails, the appeal window is not reset
-        if not context.transaction.appealed:
+        if context.transaction.appeal_undetermined:
+            context.transactions_processor.update_consensus_history(
+                context.transaction.hash,
+                "Leader Appeal Successful",
+                context.consensus_data.leader_receipt,
+                context.validation_results,
+            )
             context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
                 context.transaction.hash
             )
-
-        # Set the transaction appeal status to False
-        context.transactions_processor.set_transaction_appeal(
-            context.transaction.hash, False
-        )
-        context.transaction.appealed = False
+        elif not context.transaction.appealed:
+            context.transactions_processor.update_consensus_history(
+                context.transaction.hash,
+                "Accepted",
+                context.consensus_data.leader_receipt,
+                context.validation_results,
+            )
+            context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
+                context.transaction.hash
+            )
+        else:
+            context.transactions_processor.update_consensus_history(
+                context.transaction.hash,
+                "Validator Appeal Failed",
+                None,
+                context.validation_results,
+            )
+            # Set the transaction appeal status to False
+            context.transactions_processor.set_transaction_appeal(
+                context.transaction.hash, False
+            )
+            context.transaction.appealed = False
 
         # Set the transaction result
         context.transactions_processor.set_transaction_result(
@@ -1757,10 +1816,24 @@ class UndeterminedState(TransactionState):
             )
 
         # Set the transaction appeal undetermined status to false
-        context.transactions_processor.set_transaction_appeal_undetermined(
-            context.transaction.hash, False
-        )
-        context.transaction.appeal_undetermined = False
+        if context.transaction.appeal_undetermined:
+            context.transactions_processor.set_transaction_appeal_undetermined(
+                context.transaction.hash, False
+            )
+            context.transaction.appeal_undetermined = False
+            context.transactions_processor.update_consensus_history(
+                context.transaction.hash,
+                "Leader Appeal Failed",
+                context.consensus_data.leader_receipt,
+                context.consensus_data.validators,
+            )
+        else:
+            context.transactions_processor.update_consensus_history(
+                context.transaction.hash,
+                "Undetermined",
+                context.consensus_data.leader_receipt,
+                context.consensus_data.validators,
+            )
 
         # Set the transaction result with the current consensus data
         context.transactions_processor.set_transaction_result(
