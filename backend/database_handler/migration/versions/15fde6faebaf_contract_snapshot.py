@@ -1,7 +1,7 @@
 """contract_snapshot
 
 Revision ID: 15fde6faebaf
-Revises: a4a32d27dde2
+Revises: 67943badcbe9
 Create Date: 2025-01-06 10:42:19.972610
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "15fde6faebaf"
-down_revision: Union[str, None] = "a4a32d27dde2"
+down_revision: Union[str, None] = "67943badcbe9"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
