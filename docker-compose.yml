@@ -1,7 +1,7 @@
 services:
   traefik:
     profiles: ["studio"]
-    image: traefik:v3.2
+    image: traefik:v3.3.3
     pull_policy: always
     ports:
       - "80:80"
@@ -12,13 +12,13 @@ services:
 
   frontend:
     image: yeagerai/simulator-frontend:latest
+    pull_policy: build
     build:
       context: ./
       dockerfile: ./docker/Dockerfile.frontend
       target: ${FRONTEND_BUILD_TARGET:-final}
       args:
         - VITE_*
-    pull_policy: build
     ports:
       - "${FRONTEND_PORT}:8080"
     volumes:
@@ -48,8 +48,13 @@ services:
   jsonrpc:
     image: yeagerai/simulator-jsonrpc:latest
     pull_policy: always
+    build:
+      context: ./
+      dockerfile: ./docker/Dockerfile.backend
+      target: ${BACKEND_BUILD_TARGET:-prod}
     environment:
       - FLASK_SERVER_PORT=${RPCPORT}
+      # TODO: remove this in production
       - PYTHONUNBUFFERED=1
       - RPCDEBUGPORT=${RPCDEBUGPORT}
       - WEBREQUESTPORT=${WEBREQUESTPORT}
@@ -96,14 +101,19 @@ services:
 
   webrequest:
     image: yeagerai/simulator-webrequest:latest
+    build:
+      context: ./
+      dockerfile: ./docker/Dockerfile.webrequest
     pull_policy: always
     shm_size: 2gb
     volumes:
       - ./.env:/app/webrequest/.env
       - ./webrequest:/app/webrequest
     environment:
+    environment:
       - FLASK_SERVER_PORT=${WEBREQUESTPORT}
       - WEBREQUESTSELENIUMPORT=${WEBREQUESTSELENIUMPORT}
+      # TODO: remove this in production
       - PYTHONUNBUFFERED=1
     depends_on:
       ollama:
@@ -166,6 +176,9 @@ services:
   database-migration:
     image: yeagerai/simulator-database-migration:latest
     pull_policy: always
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.database-migration
     environment:
       - DB_URL=postgresql://${DBUSER}:${DBUSER}@postgres/${DBNAME}
       - WEBREQUESTPORT=${WEBREQUESTPORT}
@@ -180,6 +193,9 @@ services:
   hardhat:
     image: yeagerai/simulator-hardhat:latest
     pull_policy: always
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.hardhat
     ports:
       - "${HARDHAT_PORT:-8545}:8545"
     volumes:
