@@ -11,7 +11,7 @@ services:
       - ./traefik.yaml:/etc/traefik/traefik.yaml:ro
 
   frontend:
-    image: yeagerai/simulator-frontend:latest
+    # image: yeagerai/simulator-frontend:latest
     pull_policy: build
     ports:
       - "${FRONTEND_PORT}:8080"
@@ -40,7 +40,7 @@ services:
       traefik.http.routers.frontend.tls: true
 
   jsonrpc:
-    image: yeagerai/simulator-jsonpc:latest
+    image: yeagerai/simulator-jsonrpc:latest
     pull_policy: always
     environment:
       - FLASK_SERVER_PORT=${RPCPORT}
