@@ -5,12 +5,12 @@ DEFAULT_CONSENSUS_SLEEP_TIME = 5
 
 import os
 import asyncio
-from collections import deque
 import traceback
-from typing import Callable, Iterator, List
+from typing import Callable, List
 import time
 from abc import ABC, abstractmethod
 import threading
+import random
 
 from sqlalchemy.orm import Session
 from backend.consensus.vrf import get_validators_for_transaction
@@ -216,13 +216,15 @@ class TransactionContext:
         self.consensus_data = ConsensusData(
             votes={}, leader_receipt=None, validators=[]
         )
-        self.iterator_rotation: Iterator[list] | None = None
+        self.involved_validators: list[dict] = []
+        self.leaders_used: list[dict] = []
         self.remaining_validators: list = []
         self.num_validators: int = 0
         self.contract_snapshot_supplier: Callable[[], ContractSnapshot] | None = None
         self.votes: dict = {}
         self.validator_nodes: list = []
         self.validation_results: list = []
+        self.rotation_count: int = 0
 
 
 class ConsensusAlgorithm:
@@ -1045,13 +1047,13 @@ class ConsensusAlgorithm:
         try:
             # Attempt to get extra validators for the appeal process
             context.remaining_validators = ConsensusAlgorithm.get_extra_validators(
-                chain_snapshot,
+                chain_snapshot.get_all_validators(),
                 transaction.consensus_data,
                 transaction.appeal_failed,
             )
         except ValueError as e:
             # When no validators are found, then the appeal failed
-            print(e, transaction)
+            print(e, transaction.hash)
             context.transactions_processor.set_transaction_appeal(
                 context.transaction.hash, False
             )
@@ -1118,7 +1120,7 @@ class ConsensusAlgorithm:
 
     @staticmethod
     def get_extra_validators(
-        chain_snapshot: ChainSnapshot, consensus_data: ConsensusData, appeal_failed: int
+        all_validators: List[dict], consensus_data: ConsensusData, appeal_failed: int
     ):
         """
         Get extra validators for the appeal process according to the following formula:
@@ -1148,18 +1150,17 @@ class ConsensusAlgorithm:
         This is used to calculate n
 
         Args:
-            chain_snapshot (ChainSnapshot): Snapshot of the chain state.
+            all_validators (List[dict]): List of all validators.
             consensus_data (ConsensusData): Data related to the consensus process.
             appeal_failed (int): Number of times the appeal has failed.
 
         Returns:
             list: List of extra validators.
         """
-        # Get all validators
-        validators = chain_snapshot.get_all_validators()
-
         # Create a dictionary to map addresses to validator entries
-        validator_map = {validator["address"]: validator for validator in validators}
+        validator_map = {
+            validator["address"]: validator for validator in all_validators
+        }
 
         # List containing addresses found in leader and validator receipts
         receipt_addresses = [consensus_data.leader_receipt.node_config["address"]] + [
@@ -1232,6 +1233,43 @@ class ConsensusAlgorithm:
             for validator in all_validators
             if validator["address"] in current_validators_addresses
         ]
+
+    @staticmethod
+    def add_new_validator(
+        all_validators: List[dict], validators: list[dict], leaders: list[dict]
+    ):
+        """
+        Add a new validator to the list of validators.
+
+        Args:
+            all_validators (List[dict]): List of all validators.
+            validators (list[dict]): List of validators.
+            leaders (list[dict]): List of leaders.
+
+        Returns:
+            list: List of validators.
+        """
+        # Check if there is a validator to be possibly selected
+        if len(leaders) + len(validators) >= len(all_validators):
+            raise ValueError(
+                "No more validators found to add a new validator, going to undetermined state: "
+            )
+
+        # Extract a set of addresses of validators and leaders
+        addresses = {validator["address"] for validator in validators}
+        addresses.update(leader["address"] for leader in leaders)
+
+        # Get not used validators
+        not_used_validators = [
+            validator
+            for validator in all_validators
+            if validator["address"] not in addresses
+        ]
+
+        # Get new validator
+        new_validator = get_validators_for_transaction(not_used_validators, 1)
+
+        return new_validator + validators
 
     def set_finality_window_time(self, time: int):
         self.finality_window_time = time
@@ -1314,8 +1352,10 @@ class PendingState(TransactionState):
         # Determine the involved validators based on whether the transaction is appealed
         if context.transaction.appealed:
             # If the transaction is appealed, remove the old leader
-            involved_validators = ConsensusAlgorithm.get_validators_from_consensus_data(
-                all_validators, context.transaction.consensus_data, False
+            context.involved_validators = (
+                ConsensusAlgorithm.get_validators_from_consensus_data(
+                    all_validators, context.transaction.consensus_data, False
+                )
             )
 
             # Reset the transaction appeal status
@@ -1330,15 +1370,15 @@ class PendingState(TransactionState):
                 all_validators, context.transaction.consensus_data, False
             )
             extra_validators = ConsensusAlgorithm.get_extra_validators(
-                context.chain_snapshot, context.transaction.consensus_data, 0
+                all_validators, context.transaction.consensus_data, 0
             )
-            involved_validators = current_validators + extra_validators
+            context.involved_validators = current_validators + extra_validators
 
         else:
             # If there was no validator appeal or leader appeal
             if context.transaction.consensus_data:
                 # Transaction was rolled back, so we need to reuse the validators and leader
-                involved_validators = (
+                context.involved_validators = (
                     ConsensusAlgorithm.get_validators_from_consensus_data(
                         all_validators, context.transaction.consensus_data, True
                     )
@@ -1346,12 +1386,9 @@ class PendingState(TransactionState):
 
             else:
                 # Transaction was never executed, get the default number of validators for the transaction
-                involved_validators = get_validators_for_transaction(
+                context.involved_validators = get_validators_for_transaction(
                     all_validators, DEFAULT_VALIDATORS_COUNT
                 )
-
-        # Set up the iterator for rotating through the involved validators
-        context.iterator_rotation = rotate(involved_validators)
 
         # Transition to the ProposingState
         return ProposingState()
@@ -1372,13 +1409,6 @@ class ProposingState(TransactionState):
         Returns:
             TransactionState: The CommittingState or UndeterminedState if all rotations are done.
         """
-        # Attempt to select the next leader from the iterator
-        try:
-            validators = next(context.iterator_rotation)
-        except StopIteration:
-            # If all rotations are done and no consensus is reached, transition to UndeterminedState
-            return UndeterminedState()
-
         # Dispatch a transaction status update to PROPOSING
         ConsensusAlgorithm.dispatch_transaction_status_update(
             context.transactions_processor,
@@ -1391,12 +1421,16 @@ class ProposingState(TransactionState):
             context.transaction.hash
         )
 
+        # The leader is elected randomly
+        random.shuffle(context.involved_validators)
+
         # Unpack the leader and validators
-        [leader, *remaining_validators] = validators
+        [leader, *context.remaining_validators] = context.involved_validators
+        context.leaders_used.append(leader)
 
         # If the transaction is leader-only, clear the validators
         if context.transaction.leader_only:
-            remaining_validators = []
+            context.remaining_validators = []
 
         # Create a contract snapshot for the transaction
         contract_snapshot_supplier = lambda: context.contract_snapshot_factory(
@@ -1426,8 +1460,7 @@ class ProposingState(TransactionState):
         )
 
         # Set the validators and other context attributes
-        context.remaining_validators = remaining_validators
-        context.num_validators = len(remaining_validators) + 1
+        context.num_validators = len(context.remaining_validators) + 1
         context.contract_snapshot_supplier = contract_snapshot_supplier
         context.votes = votes
 
@@ -1476,9 +1509,14 @@ class CommittingState(TransactionState):
         ]
 
         # Execute the transaction on each validator node and gather the results
+        sem = asyncio.Semaphore(8)
+
+        async def run_single_validator(validator: Node) -> Receipt:
+            async with sem:
+                return await validator.exec_transaction(context.transaction)
+
         validation_tasks = [
-            validator.exec_transaction(context.transaction)
-            for validator in context.validator_nodes
+            run_single_validator(validator) for validator in context.validator_nodes
         ]
         context.validation_results = await asyncio.gather(*validation_tasks)
 
@@ -1595,6 +1633,12 @@ class RevealingState(TransactionState):
                     context.transaction.hash,
                     0,
                 )
+                context.transactions_processor.update_consensus_history(
+                    context.transaction.hash,
+                    "Validator Appeal Successful",
+                    None,
+                    context.validation_results,
+                )
                 return "validator_appeal_success"
 
         else:
@@ -1605,7 +1649,25 @@ class RevealingState(TransactionState):
             if majority_agrees:
                 return AcceptedState()
 
+            # If all rotations are done and no consensus is reached, transition to UndeterminedState
+            elif context.rotation_count >= context.transaction.config_rotation_rounds:
+                return UndeterminedState()
+
             else:
+                # Add a new validator to the list of current validators when a rotation happens
+                try:
+                    context.involved_validators = ConsensusAlgorithm.add_new_validator(
+                        context.chain_snapshot.get_all_validators(),
+                        context.remaining_validators,
+                        context.leaders_used,
+                    )
+                except ValueError as e:
+                    # No more validators
+                    print(e, context.transaction.hash)
+                    return UndeterminedState()
+
+                context.rotation_count += 1
+
                 # Log the failure to reach consensus and transition to ProposingState
                 print(
                     "Consensus not reached for transaction, rotating leader: ",
@@ -1613,6 +1675,22 @@ class RevealingState(TransactionState):
                         context.transaction.hash
                     ),
                 )
+
+                # Update the consensus history
+                if context.transaction.appeal_undetermined:
+                    context.transactions_processor.update_consensus_history(
+                        context.transaction.hash,
+                        "Leader Rotation Appeal",
+                        context.consensus_data.leader_receipt,
+                        context.validation_results,
+                    )
+                else:
+                    context.transactions_processor.update_consensus_history(
+                        context.transaction.hash,
+                        "Leader Rotation",
+                        context.consensus_data.leader_receipt,
+                        context.validation_results,
+                    )
                 return ProposingState()
 
 
@@ -1632,16 +1710,38 @@ class AcceptedState(TransactionState):
             None: The transaction is accepted.
         """
         # When appeal fails, the appeal window is not reset
-        if not context.transaction.appealed:
+        if context.transaction.appeal_undetermined:
+            context.transactions_processor.update_consensus_history(
+                context.transaction.hash,
+                "Leader Appeal Successful",
+                context.consensus_data.leader_receipt,
+                context.validation_results,
+            )
             context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
                 context.transaction.hash
             )
-
-        # Set the transaction appeal status to False
-        context.transactions_processor.set_transaction_appeal(
-            context.transaction.hash, False
-        )
-        context.transaction.appealed = False
+        elif not context.transaction.appealed:
+            context.transactions_processor.update_consensus_history(
+                context.transaction.hash,
+                "Accepted",
+                context.consensus_data.leader_receipt,
+                context.validation_results,
+            )
+            context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
+                context.transaction.hash
+            )
+        else:
+            context.transactions_processor.update_consensus_history(
+                context.transaction.hash,
+                "Validator Appeal Failed",
+                None,
+                context.validation_results,
+            )
+            # Set the transaction appeal status to False
+            context.transactions_processor.set_transaction_appeal(
+                context.transaction.hash, False
+            )
+            context.transaction.appealed = False
 
         # Set the transaction result
         context.transactions_processor.set_transaction_result(
@@ -1757,10 +1857,24 @@ class UndeterminedState(TransactionState):
             )
 
         # Set the transaction appeal undetermined status to false
-        context.transactions_processor.set_transaction_appeal_undetermined(
-            context.transaction.hash, False
-        )
-        context.transaction.appeal_undetermined = False
+        if context.transaction.appeal_undetermined:
+            context.transactions_processor.set_transaction_appeal_undetermined(
+                context.transaction.hash, False
+            )
+            context.transaction.appeal_undetermined = False
+            context.transactions_processor.update_consensus_history(
+                context.transaction.hash,
+                "Leader Appeal Failed",
+                context.consensus_data.leader_receipt,
+                context.consensus_data.validators,
+            )
+        else:
+            context.transactions_processor.update_consensus_history(
+                context.transaction.hash,
+                "Undetermined",
+                context.consensus_data.leader_receipt,
+                context.consensus_data.validators,
+            )
 
         # Set the transaction result with the current consensus data
         context.transactions_processor.set_transaction_result(
@@ -1875,26 +1989,3 @@ class FinalizingState(TransactionState):
                     leader_only=context.transaction.leader_only,  # Cascade
                     triggered_by_hash=context.transaction.hash,
                 )
-
-
-def rotate(nodes: list) -> Iterator[list]:
-    """
-    Rotate a list of nodes, yielding each rotation.
-
-    Args:
-        nodes (list): The list of nodes to rotate.
-
-    Yields:
-        Iterator[list]: An iterator over the rotated lists of nodes.
-    """
-    # Convert the list of nodes to a deque to allow efficient rotations
-    nodes = deque(nodes)
-
-    # Iterate over the nodes
-    for _ in range(len(nodes)):
-
-        # Yield the current order of nodes as a list
-        yield list(nodes)
-
-        # Rotate the deque to the left by one position
-        nodes.rotate(-1)
