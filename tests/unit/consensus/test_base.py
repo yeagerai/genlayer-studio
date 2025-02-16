@@ -42,12 +42,12 @@ async def test_exec_transaction(consensus_algorithm):
 
     try:
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+            transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
         assert len(created_nodes) == len(nodes)
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.FINALIZED.value
+            transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
         assert transactions_processor.updated_transaction_status_history == {
             "transaction_hash": [
@@ -85,12 +85,12 @@ async def test_exec_transaction_no_consensus(consensus_algorithm):
 
     try:
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.UNDETERMINED.value
+            transactions_processor, transaction, [TransactionStatus.UNDETERMINED.value]
         )
         assert len(created_nodes) == len(nodes) ** 2
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.FINALIZED.value
+            transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
 
         assert transactions_processor.updated_transaction_status_history == {
@@ -140,7 +140,7 @@ async def test_exec_transaction_one_disagreement(consensus_algorithm):
 
     try:
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.FINALIZED.value
+            transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
 
         assert transactions_processor.updated_transaction_status_history == {
@@ -204,7 +204,7 @@ async def test_exec_accepted_appeal_fail(consensus_algorithm):
 
     try:
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+            transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
         assert len(created_nodes) == DEFAULT_VALIDATORS_COUNT
 
@@ -216,7 +216,7 @@ async def test_exec_accepted_appeal_fail(consensus_algorithm):
 
         appeal(transaction, transactions_processor)
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.FINALIZED.value
+            transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
 
         check_validator_count(
@@ -276,7 +276,7 @@ async def test_exec_accepted_appeal_no_extra_validators(consensus_algorithm):
 
     try:
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+            transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
         assert len(created_nodes) == DEFAULT_VALIDATORS_COUNT
 
@@ -289,7 +289,7 @@ async def test_exec_accepted_appeal_no_extra_validators(consensus_algorithm):
         appeal(transaction, transactions_processor)
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.FINALIZED.value
+            transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
 
         assert transactions_processor.updated_transaction_status_history == {
@@ -354,7 +354,7 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
 
     try:
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+            transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
 
         expected_nb_created_nodes = DEFAULT_VALIDATORS_COUNT
@@ -369,7 +369,9 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
         appeal(transaction, transactions_processor)
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.PENDING.value
+            transactions_processor,
+            transaction,
+            [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
         )
 
         transaction_status_history = [
@@ -395,7 +397,7 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
         old_leader_address = get_leader_address(transaction, transactions_processor)
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.FINALIZED.value
+            transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
 
         expected_nb_created_nodes += expected_nb_created_nodes - 1
@@ -470,7 +472,7 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(
 
     try:
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+            transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
         expected_nb_created_nodes = DEFAULT_VALIDATORS_COUNT
         assert len(created_nodes) == expected_nb_created_nodes
@@ -480,8 +482,7 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(
         assert_transaction_status_match(
             transactions_processor,
             transaction,
-            TransactionStatus.PENDING.value,
-            interval=0.01,
+            [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
         )
 
         transaction_status_history = [
@@ -502,7 +503,7 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(
         assert len(created_nodes) == expected_nb_created_nodes
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.UNDETERMINED.value
+            transactions_processor, transaction, [TransactionStatus.UNDETERMINED.value]
         )
 
         transaction_status_history += [
@@ -580,7 +581,7 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
 
     try:
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+            transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
 
         expected_nb_created_nodes = DEFAULT_VALIDATORS_COUNT  # 5
@@ -608,8 +609,7 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
         assert_transaction_status_match(
             transactions_processor,
             transaction,
-            TransactionStatus.PENDING.value,
-            interval=0.01,
+            [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
         )
 
         transaction_status_history += [
@@ -630,7 +630,7 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
         old_leader_address = get_leader_address(transaction, transactions_processor)
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+            transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
 
         transaction_status_history += [
@@ -666,7 +666,9 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
         appeal(transaction, transactions_processor)
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.PENDING.value
+            transactions_processor,
+            transaction,
+            [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
         )
 
         transaction_status_history += [
@@ -689,7 +691,7 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
         old_leader_address = get_leader_address(transaction, transactions_processor)
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.FINALIZED.value
+            transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
 
         transaction_status_history += [
@@ -765,7 +767,7 @@ async def test_exec_accepted_appeal_fail_three_times(consensus_algorithm):
 
     try:
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+            transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
 
         timestamp_awaiting_finalization_1 = (
@@ -800,7 +802,7 @@ async def test_exec_accepted_appeal_fail_three_times(consensus_algorithm):
             appeal(transaction, transactions_processor)
 
             assert_transaction_status_change_and_match(
-                transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+                transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
             )
 
             assert (
@@ -846,7 +848,7 @@ async def test_exec_accepted_appeal_fail_three_times(consensus_algorithm):
             assert leader_address not in validator_set_addresses
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.FINALIZED.value
+            transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
 
         assert transactions_processor.updated_transaction_status_history == {
@@ -929,7 +931,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
 
     try:
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+            transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
 
         expected_nb_created_nodes = DEFAULT_VALIDATORS_COUNT
@@ -955,7 +957,9 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
 
         appeal(transaction, transactions_processor)
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.PENDING.value
+            transactions_processor,
+            transaction,
+            [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
         )
 
         transaction_status_history += [
@@ -976,7 +980,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
         old_leader_address = get_leader_address(transaction, transactions_processor)
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+            transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
 
         transaction_status_history += [
@@ -1012,7 +1016,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
         # Appeal fails
         appeal(transaction, transactions_processor)
         assert_transaction_status_change_and_match(
-            transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+            transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
 
         transaction_status_history += [
@@ -1044,7 +1048,9 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
         # Appeal successful
         appeal(transaction, transactions_processor)
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.PENDING.value
+            transactions_processor,
+            transaction,
+            [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
         )
 
         transaction_status_history += [
@@ -1069,7 +1075,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
         )
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.FINALIZED.value
+            transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
 
         transaction_status_history += [
@@ -1154,7 +1160,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
 
     try:
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.UNDETERMINED.value
+            transactions_processor, transaction, [TransactionStatus.UNDETERMINED.value]
         )
 
         transaction_status_history = [
@@ -1178,7 +1184,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
 
         appeal(transaction, transactions_processor)
         assert_transaction_status_change_and_match(
-            transactions_processor, transaction, TransactionStatus.UNDETERMINED.value
+            transactions_processor, transaction, [TransactionStatus.UNDETERMINED.value]
         )
 
         transaction_status_history += [
@@ -1201,7 +1207,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
 
         appeal(transaction, transactions_processor)
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.ACCEPTED.value
+            transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
 
         transaction_status_history += [
@@ -1224,7 +1230,9 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
 
         appeal(transaction, transactions_processor)
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.PENDING.value
+            transactions_processor,
+            transaction,
+            [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
         )
 
         transaction_status_history += [
@@ -1242,7 +1250,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
         assert len(created_nodes) == nb_created_nodes
 
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.UNDETERMINED.value
+            transactions_processor, transaction, [TransactionStatus.UNDETERMINED.value]
         )
 
         transaction_status_history += [
@@ -1266,7 +1274,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
 
         appeal(transaction, transactions_processor)
         assert_transaction_status_match(
-            transactions_processor, transaction, TransactionStatus.FINALIZED.value
+            transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
 
         transaction_status_history += [
