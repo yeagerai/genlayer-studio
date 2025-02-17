@@ -318,7 +318,7 @@ class TransactionsProcessor:
             or (transaction.status == TransactionStatus.UNDETERMINED)
         ):
             transaction.appealed = appeal
-        self.session.commit()
+            self.session.commit()
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None

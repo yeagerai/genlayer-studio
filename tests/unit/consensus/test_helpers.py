@@ -66,7 +66,12 @@ class TransactionsProcessorMock:
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["consensus_data"] = consensus_data
 
-    def set_transaction_appeal(self, transaction_hash: str, appeal: bool):
+    def set_transaction_appeal(
+        self,
+        transaction_hash: str,
+        appeal: bool,
+        msg_handler: MessageHandler | None = None,
+    ):
         transaction = self.get_transaction_by_hash(transaction_hash)
         if (
             (not appeal)
@@ -426,15 +431,23 @@ def assert_transaction_status_match(
     expected_statuses: list[TransactionStatus],
     timeout: int = 15,
     interval: float = 0.1,
-):
-    assert wait_for_condition(
-        lambda: transactions_processor.get_transaction_by_hash(transaction.hash)[
+) -> TransactionStatus:
+    status = None
+
+    def condition():
+        nonlocal status
+        status = transactions_processor.get_transaction_by_hash(transaction.hash)[
             "status"
         ]
-        in expected_statuses,
+        return status in expected_statuses
+
+    assert wait_for_condition(
+        condition,
         timeout=timeout,
         interval=interval,
     ), f"Transaction did not reach {expected_statuses}"
+
+    return status
 
 
 def assert_transaction_status_change_and_match(
