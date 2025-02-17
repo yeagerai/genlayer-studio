@@ -54,12 +54,7 @@ class TransactionsProcessorMock:
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["consensus_data"] = consensus_data
 
-    def set_transaction_appeal(
-        self,
-        transaction_hash: str,
-        appeal: bool,
-        msg_handler: MessageHandler | None = None,
-    ):
+    def set_transaction_appeal(self, transaction_hash: str, appeal: bool):
         transaction = self.get_transaction_by_hash(transaction_hash)
         if appeal:
             if (transaction["status"] == TransactionStatus.ACCEPTED.value) or (
@@ -297,7 +292,7 @@ def get_validator_addresses(
 @pytest.fixture
 def consensus_algorithm() -> ConsensusAlgorithm:
     class MessageHandlerMock:
-        def send_message(self, log_event):
+        def send_message(self, log_event, log_to_terminal: bool = True):
             print(log_event)
 
     # Mock the session and other dependencies
