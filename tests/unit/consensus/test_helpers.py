@@ -388,15 +388,23 @@ def assert_transaction_status_match(
     expected_statuses: list[TransactionStatus],
     timeout: int = 15,
     interval: float = 0.1,
-):
-    assert wait_for_condition(
-        lambda: transactions_processor.get_transaction_by_hash(transaction.hash)[
+) -> TransactionStatus:
+    status = None
+
+    def condition():
+        nonlocal status
+        status = transactions_processor.get_transaction_by_hash(transaction.hash)[
             "status"
         ]
-        in expected_statuses,
+        return status in expected_statuses
+
+    assert wait_for_condition(
+        condition,
         timeout=timeout,
         interval=interval,
     ), f"Transaction did not reach {expected_statuses}"
+
+    return status
 
 
 def assert_transaction_status_change_and_match(

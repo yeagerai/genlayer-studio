@@ -323,13 +323,13 @@ class ConsensusAlgorithm:
                     if not self.pending_queue_stop_events[address].is_set():
                         await self.pending_queues[address].put(transaction)
 
-                    # Set the transaction as activated so it is not added to the queue again
-                    ConsensusAlgorithm.dispatch_transaction_status_update(
-                        transactions_processor,
-                        transaction.hash,
-                        TransactionStatus.ACTIVATED,
-                        self.msg_handler,
-                    )
+                        # Set the transaction as activated so it is not added to the queue again
+                        ConsensusAlgorithm.dispatch_transaction_status_update(
+                            transactions_processor,
+                            transaction.hash,
+                            TransactionStatus.ACTIVATED,
+                            self.msg_handler,
+                        )
 
             await asyncio.sleep(self.consensus_sleep_time)
 
