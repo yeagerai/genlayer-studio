@@ -38,14 +38,6 @@ export const useTransactionsStore = defineStore('transactionsStore', () => {
         status: tx.status,
         data: tx,
       });
-
-      if (currentTx.type === 'deploy' && tx.status === 'ACCEPTED') {
-        contractsStore.addDeployedContract({
-          contractId: currentTx.localContractId,
-          address: tx.data.contract_address,
-          defaultState: '{}',
-        });
-      }
     } else {
       // Temporary logging to debug always-PENDING transactions
       console.warn('Transaction not found', tx);

@@ -303,6 +303,7 @@ class TransactionsProcessor:
             or (transaction.status == TransactionStatus.UNDETERMINED)
         ):
             transaction.appealed = appeal
+        self.session.commit()
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
@@ -382,3 +383,20 @@ class TransactionsProcessor:
         }
 
         return block_details
+
+    def get_newer_transactions(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transactions = (
+            self.session.query(Transactions)
+            .filter(
+                Transactions.created_at > transaction.created_at,
+                Transactions.to_address == transaction.to_address,
+            )
+            .order_by(Transactions.created_at)
+            .all()
+        )
+        return [
+            self._parse_transaction_data(transaction) for transaction in transactions
+        ]
