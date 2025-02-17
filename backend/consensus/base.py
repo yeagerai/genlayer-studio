@@ -325,13 +325,13 @@ class ConsensusAlgorithm:
                     if not self.pending_queue_stop_events[address].is_set():
                         await self.pending_queues[address].put(transaction)
 
-                    # Set the transaction as activated so it is not added to the queue again
-                    ConsensusAlgorithm.dispatch_transaction_status_update(
-                        transactions_processor,
-                        transaction.hash,
-                        TransactionStatus.ACTIVATED,
-                        self.msg_handler,
-                    )
+                        # Set the transaction as activated so it is not added to the queue again
+                        ConsensusAlgorithm.dispatch_transaction_status_update(
+                            transactions_processor,
+                            transaction.hash,
+                            TransactionStatus.ACTIVATED,
+                            self.msg_handler,
+                        )
 
             await asyncio.sleep(self.consensus_sleep_time)
 
@@ -993,6 +993,18 @@ class ConsensusAlgorithm:
                     transaction_hash=transaction.hash,
                 )
             )
+            self.msg_handler.send_message(
+                log_event=LogEvent(
+                    "transaction_appeal_updated",
+                    EventType.INFO,
+                    EventScope.CONSENSUS,
+                    "Set transaction appealed",
+                    {
+                        "transaction_hash": context.transaction.hash,
+                    },
+                ),
+                log_to_terminal=False,
+            )
 
         else:
             # Appeal data member is used in the frontend for both types of appeals
@@ -1080,9 +1092,21 @@ class ConsensusAlgorithm:
                 )
             )
             context.transactions_processor.set_transaction_appeal(
-                context.transaction.hash, False
+                context.transaction.hash, False, self.msg_handler
             )
             context.transaction.appealed = False
+            self.msg_handler.send_message(
+                log_event=LogEvent(
+                    "transaction_appeal_updated",
+                    EventType.INFO,
+                    EventScope.CONSENSUS,
+                    "Set transaction appealed",
+                    {
+                        "transaction_hash": context.transaction.hash,
+                    },
+                ),
+                log_to_terminal=False,
+            )
         else:
             # Set up the context for the committing state
             context.num_validators = len(context.remaining_validators)
