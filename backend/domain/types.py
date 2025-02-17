@@ -98,7 +98,9 @@ class Transaction:
             "to_address": self.to_address,
             "input_data": self.input_data,
             "data": self.data,
-            "consensus_data": self.consensus_data,
+            "consensus_data": (
+                self.consensus_data.to_dict() if self.consensus_data else None
+            ),
             "nonce": self.nonce,
             "value": self.value,
             "gaslimit": self.gaslimit,
