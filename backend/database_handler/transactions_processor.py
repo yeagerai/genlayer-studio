@@ -16,8 +16,6 @@ from web3 import Web3
 from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
 from backend.rollup.consensus_service import ConsensusService
-from backend.protocol_rpc.message_handler.base import MessageHandler
-from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
 
 
 class TransactionAddressFilter(Enum):
@@ -292,12 +290,7 @@ class TransactionsProcessor:
             self._parse_transaction_data(transaction) for transaction in transactions
         ]
 
-    def set_transaction_appeal(
-        self,
-        transaction_hash: str,
-        appeal: bool,
-        msg_handler: MessageHandler | None = None,
-    ):
+    def set_transaction_appeal(self, transaction_hash: str, appeal: bool):
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
@@ -310,19 +303,6 @@ class TransactionsProcessor:
         ):
             transaction.appealed = appeal
             self.session.commit()
-            if msg_handler:
-                msg_handler.send_message(
-                    log_event=LogEvent(
-                        "transaction_appeal_updated",
-                        EventType.INFO,
-                        EventScope.CONSENSUS,
-                        "Set transaction appealed",
-                        {
-                            "hash": str(transaction_hash),
-                        },
-                    ),
-                    log_to_terminal=False,
-                )
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None

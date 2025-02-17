@@ -48,6 +48,7 @@ from flask import request
 from flask_jsonrpc.exceptions import JSONRPCError
 import base64
 import os
+from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
 
 
 ####### WRAPPER TO BLOCK ENDPOINTS FOR HOSTED ENVIRONMENT #######
@@ -557,7 +558,19 @@ def set_transaction_appeal(
     msg_handler: MessageHandler,
     transaction_hash: str,
 ) -> None:
-    transactions_processor.set_transaction_appeal(transaction_hash, True, msg_handler)
+    transactions_processor.set_transaction_appeal(transaction_hash, True)
+    msg_handler.send_message(
+        log_event=LogEvent(
+            "transaction_appeal_updated",
+            EventType.INFO,
+            EventScope.CONSENSUS,
+            "Set transaction appealed",
+            {
+                "transaction_hash": transaction_hash,
+            },
+        ),
+        log_to_terminal=False,
+    )
 
 
 @check_forbidden_method_in_hosted_studio
