@@ -97,7 +97,7 @@ class Transactions(Base):
     v: Mapped[Optional[int]] = mapped_column(Integer)
     ghost_contract_address: Mapped[Optional[str]] = mapped_column(String(255))
     appeal_failed: Mapped[Optional[int]] = mapped_column(Integer)
-    consensus_history: Mapped[Optional[List[dict]]] = mapped_column(JSONB)
+    consensus_history: Mapped[Optional[dict]] = mapped_column(JSONB)
     config_rotation_rounds: Mapped[Optional[int]] = mapped_column(Integer)
 
     # Relationship for triggered transactions

@@ -179,7 +179,7 @@ class TransactionsProcessor:
             timestamp_awaiting_finalization=None,
             appeal_failed=0,
             appeal_undetermined=False,
-            consensus_history=None,
+            consensus_history={},
             config_rotation_rounds=MAX_ROTATIONS,
         )
 
@@ -208,6 +208,18 @@ class TransactionsProcessor:
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.status = new_status
+
+        if "current_status_changes" in transaction.consensus_history:
+            transaction.consensus_history["current_status_changes"].append(
+                new_status.value
+            )
+        else:
+            transaction.consensus_history["current_status_changes"] = [
+                TransactionStatus.PENDING.value,
+                new_status.value,
+            ]
+        flag_modified(transaction, "consensus_history")
+
         self.session.commit()
 
     def set_transaction_result(self, transaction_hash: str, consensus_data: dict):
@@ -309,7 +321,7 @@ class TransactionsProcessor:
             or (transaction.status == TransactionStatus.UNDETERMINED)
         ):
             transaction.appealed = appeal
-        self.session.commit()
+            self.session.commit()
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
@@ -421,10 +433,23 @@ class TransactionsProcessor:
             "consensus_round": consensus_round,
             "leader_result": leader_result.to_dict() if leader_result else None,
             "validator_results": [receipt.to_dict() for receipt in validator_results],
+            "status_changes": (
+                transaction.consensus_history["current_status_changes"]
+                if "current_status_changes" in transaction.consensus_history
+                else []
+            ),
         }
-        if transaction.consensus_history:
-            transaction.consensus_history.append(current_consensus_results)
+
+        if "consensus_results" in transaction.consensus_history:
+            transaction.consensus_history["consensus_results"].append(
+                current_consensus_results
+            )
         else:
-            transaction.consensus_history = [current_consensus_results]
+            transaction.consensus_history["consensus_results"] = [
+                current_consensus_results
+            ]
+
+        transaction.consensus_history["current_status_changes"] = []
+
         flag_modified(transaction, "consensus_history")
         self.session.commit()

@@ -48,7 +48,6 @@ const appealed = ref(props.transaction.data.appealed);
 
 const handleSetTransactionAppeal = () => {
   transactionsStore.setTransactionAppeal(props.transaction.hash);
-  appealed.value = true;
 };
 
 watch(
@@ -306,31 +305,42 @@ function prettifyTxData(x: any): any {
         <ModalSection
           v-if="
             transaction.data.consensus_history &&
-            transaction.data.consensus_history.length
+            (transaction.data.consensus_history.consensus_results?.length ||
+              transaction.data.consensus_history.current_status_changes?.length)
           "
         >
           <template #title>Consensus History</template>
 
           <div
-            v-for="(history, index) in transaction.data.consensus_history"
+            v-for="(history, index) in transaction.data.consensus_history
+              .consensus_results || []"
             :key="index"
             class="mb-4"
           >
-            <div class="mb-2 font-medium italic">
-              {{ history?.consensus_round || `Consensus Round ${index + 1}` }}
+            <div class="mb-2 flex flex-col gap-1">
+              <span class="font-medium italic">
+                {{ history?.consensus_round || `Consensus Round ${index + 1}` }}
+              </span>
+              <div
+                class="flex items-center gap-2 text-[10px] text-gray-600 dark:text-gray-400"
+              >
+                <template
+                  v-for="(status, sIndex) in history.status_changes"
+                  :key="sIndex"
+                >
+                  <span>{{ status }}</span>
+                  <span
+                    v-if="sIndex < history.status_changes.length - 1"
+                    class="text-gray-400"
+                    >→</span
+                  >
+                </template>
+              </div>
             </div>
 
             <div
               class="divide-y overflow-hidden rounded border dark:border-gray-600"
             >
-              <div
-                class="flex flex-row items-center justify-between p-2 text-xs font-semibold dark:border-gray-600"
-              >
-                <div>Address</div>
-                <div>Vote</div>
-              </div>
-
-              <!-- Leader result -->
               <div
                 v-if="history?.leader_result"
                 class="flex flex-row items-center justify-between p-2 text-xs dark:border-gray-600"
@@ -353,7 +363,6 @@ function prettifyTxData(x: any): any {
                 </div>
               </div>
 
-              <!-- Validator results -->
               <div
                 v-for="(validator, vIndex) in history?.validator_results || []"
                 :key="vIndex"
