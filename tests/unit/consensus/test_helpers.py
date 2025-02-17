@@ -400,7 +400,7 @@ def wait_for_condition(
 def assert_transaction_status_match(
     transactions_processor: TransactionsProcessorMock,
     transaction: Transaction,
-    expected_status: TransactionStatus,
+    expected_statuses: list[TransactionStatus],
     timeout: int = 15,
     interval: float = 0.1,
 ):
@@ -408,16 +408,16 @@ def assert_transaction_status_match(
         lambda: transactions_processor.get_transaction_by_hash(transaction.hash)[
             "status"
         ]
-        == expected_status,
+        in expected_statuses,
         timeout=timeout,
         interval=interval,
-    ), f"Transaction did not reach the {expected_status} state"
+    ), f"Transaction did not reach {expected_statuses}"
 
 
 def assert_transaction_status_change_and_match(
     transactions_processor: TransactionsProcessorMock,
     transaction: Transaction,
-    expected_status: TransactionStatus,
+    expected_statuses: list[TransactionStatus],
     timeout: int = 15,
     interval: float = 0.1,
 ):
@@ -425,7 +425,7 @@ def assert_transaction_status_change_and_match(
     assert_transaction_status_match(
         transactions_processor,
         transaction,
-        expected_status,
+        expected_statuses,
         timeout=timeout,
         interval=interval,
     )
