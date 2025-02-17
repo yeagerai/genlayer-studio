@@ -114,7 +114,9 @@ class Transaction:
             "timestamp_awaiting_finalization": self.timestamp_awaiting_finalization,
             "appeal_failed": self.appeal_failed,
             "appeal_undetermined": self.appeal_undetermined,
-            "contract_snapshot": self.contract_snapshot.to_dict(),
+            "contract_snapshot": (
+                self.contract_snapshot.to_dict() if self.contract_snapshot else None
+            ),
         }
 
     @classmethod
