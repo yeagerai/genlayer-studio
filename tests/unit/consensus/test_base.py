@@ -381,7 +381,7 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
 
         appeal(transaction, transactions_processor)
 
-        assert_transaction_status_match(
+        current_status = assert_transaction_status_match(
             transactions_processor,
             transaction,
             [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
@@ -397,6 +397,9 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
             TransactionStatus.REVEALING,
             TransactionStatus.PENDING,
         ]
+        if current_status == TransactionStatus.ACTIVATED.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
+
         assert transactions_processor.updated_transaction_status_history == {
             "transaction_hash": transaction_status_history
         }
@@ -416,8 +419,9 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
         expected_nb_created_nodes += expected_nb_created_nodes - 1
         assert len(created_nodes) == expected_nb_created_nodes
 
+        if current_status == TransactionStatus.PENDING.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
         transaction_status_history += [
-            TransactionStatus.ACTIVATED,
             TransactionStatus.PROPOSING,
             TransactionStatus.COMMITTING,
             TransactionStatus.REVEALING,
@@ -499,7 +503,7 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(
 
         appeal(transaction, transactions_processor)
 
-        assert_transaction_status_match(
+        current_status = assert_transaction_status_match(
             transactions_processor,
             transaction,
             [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
@@ -515,6 +519,9 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(
             TransactionStatus.REVEALING,
             TransactionStatus.PENDING,
         ]
+        if current_status == TransactionStatus.ACTIVATED.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
+
         assert transactions_processor.updated_transaction_status_history == {
             "transaction_hash": transaction_status_history
         }
@@ -526,8 +533,9 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(
             transactions_processor, transaction, [TransactionStatus.UNDETERMINED.value]
         )
 
+        if current_status == TransactionStatus.PENDING.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
         transaction_status_history += [
-            TransactionStatus.ACTIVATED,
             *(
                 [
                     TransactionStatus.PROPOSING,
@@ -626,7 +634,7 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
 
         appeal(transaction, transactions_processor)
 
-        assert_transaction_status_match(
+        current_status = assert_transaction_status_match(
             transactions_processor,
             transaction,
             [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
@@ -637,6 +645,9 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
             TransactionStatus.REVEALING,
             TransactionStatus.PENDING,
         ]
+        if current_status == TransactionStatus.ACTIVATED.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
+
         assert transactions_processor.updated_transaction_status_history == {
             "transaction_hash": transaction_status_history
         }
@@ -653,8 +664,9 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
             transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
 
+        if current_status == TransactionStatus.PENDING.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
         transaction_status_history += [
-            TransactionStatus.ACTIVATED,
             TransactionStatus.PROPOSING,
             TransactionStatus.COMMITTING,
             TransactionStatus.REVEALING,
@@ -685,7 +697,7 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
 
         appeal(transaction, transactions_processor)
 
-        assert_transaction_status_match(
+        current_status = assert_transaction_status_match(
             transactions_processor,
             transaction,
             [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
@@ -696,6 +708,9 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
             TransactionStatus.REVEALING,
             TransactionStatus.PENDING,
         ]
+        if current_status == TransactionStatus.ACTIVATED.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
+
         assert transactions_processor.updated_transaction_status_history == {
             "transaction_hash": transaction_status_history
         }
@@ -714,8 +729,9 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
             transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
 
+        if current_status == TransactionStatus.PENDING.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
         transaction_status_history += [
-            TransactionStatus.ACTIVATED,
             TransactionStatus.PROPOSING,
             TransactionStatus.COMMITTING,
             TransactionStatus.REVEALING,
@@ -994,7 +1010,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
         )
 
         appeal(transaction, transactions_processor)
-        assert_transaction_status_match(
+        current_status = assert_transaction_status_match(
             transactions_processor,
             transaction,
             [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
@@ -1005,6 +1021,9 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
             TransactionStatus.REVEALING,
             TransactionStatus.PENDING,
         ]
+        if current_status == TransactionStatus.ACTIVATED.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
+
         assert transactions_processor.updated_transaction_status_history == {
             "transaction_hash": transaction_status_history
         }
@@ -1021,8 +1040,9 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
             transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
 
+        if current_status == TransactionStatus.PENDING.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
         transaction_status_history += [
-            TransactionStatus.ACTIVATED,
             TransactionStatus.PROPOSING,
             TransactionStatus.COMMITTING,
             TransactionStatus.REVEALING,
@@ -1085,7 +1105,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
 
         # Appeal successful
         appeal(transaction, transactions_processor)
-        assert_transaction_status_match(
+        current_status = assert_transaction_status_match(
             transactions_processor,
             transaction,
             [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
@@ -1096,6 +1116,9 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
             TransactionStatus.REVEALING,
             TransactionStatus.PENDING,
         ]
+        if current_status == TransactionStatus.ACTIVATED.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
+
         assert transactions_processor.updated_transaction_status_history == {
             "transaction_hash": transaction_status_history
         }
@@ -1116,8 +1139,9 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
             transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
 
+        if current_status == TransactionStatus.PENDING.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
         transaction_status_history += [
-            TransactionStatus.ACTIVATED,
             TransactionStatus.PROPOSING,
             TransactionStatus.COMMITTING,
             TransactionStatus.REVEALING,
@@ -1293,7 +1317,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
         )
 
         appeal(transaction, transactions_processor)
-        assert_transaction_status_match(
+        current_status = assert_transaction_status_match(
             transactions_processor,
             transaction,
             [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
@@ -1304,6 +1328,9 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
             TransactionStatus.REVEALING,
             TransactionStatus.PENDING,
         ]
+        if current_status == TransactionStatus.ACTIVATED.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
+
         assert transactions_processor.updated_transaction_status_history == {
             "transaction_hash": transaction_status_history
         }
@@ -1317,8 +1344,9 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
             transactions_processor, transaction, [TransactionStatus.UNDETERMINED.value]
         )
 
+        if current_status == TransactionStatus.PENDING.value:
+            transaction_status_history.append(TransactionStatus.ACTIVATED)
         transaction_status_history += [
-            TransactionStatus.ACTIVATED,
             *[
                 TransactionStatus.PROPOSING,
                 TransactionStatus.COMMITTING,

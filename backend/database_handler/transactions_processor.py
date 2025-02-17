@@ -309,7 +309,7 @@ class TransactionsProcessor:
                 self.set_transaction_timestamp_appeal(transaction, int(time.time()))
         else:
             transaction.appealed = appeal
-        self.session.commit()
+            self.session.commit()
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
