@@ -44,10 +44,22 @@ class TransactionsProcessorMock:
         raise ValueError(f"Transaction with hash {transaction_hash} not found")
 
     def update_transaction_status(
-        self, transaction_hash: str, status: TransactionStatus
+        self, transaction_hash: str, new_status: TransactionStatus
     ):
-        self.get_transaction_by_hash(transaction_hash)["status"] = status.value
-        self.updated_transaction_status_history[transaction_hash].append(status)
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        transaction["status"] = new_status.value
+        self.updated_transaction_status_history[transaction_hash].append(new_status)
+
+        if "current_status_changes" in transaction["consensus_history"]:
+            transaction["consensus_history"]["current_status_changes"].append(
+                new_status.value
+            )
+        else:
+            transaction["consensus_history"]["current_status_changes"] = [
+                TransactionStatus.PENDING.value,
+                new_status.value,
+            ]
+
         self.status_changed_event.set()
 
     def set_transaction_result(self, transaction_hash: str, consensus_data: dict):
@@ -131,11 +143,22 @@ class TransactionsProcessorMock:
             "consensus_round": consensus_round,
             "leader_result": leader_result.to_dict() if leader_result else None,
             "validator_results": [receipt.to_dict() for receipt in validator_results],
+            "status_changes": (
+                transaction["consensus_history"]["current_status_changes"]
+                if "current_status_changes" in transaction["consensus_history"]
+                else []
+            ),
         }
-        if transaction["consensus_history"]:
-            transaction["consensus_history"] += [current_consensus_results]
+        if "consensus_results" in transaction["consensus_history"]:
+            transaction["consensus_history"]["consensus_results"].append(
+                current_consensus_results
+            )
         else:
-            transaction["consensus_history"] = [current_consensus_results]
+            transaction["consensus_history"]["consensus_results"] = [
+                current_consensus_results
+            ]
+
+        transaction["consensus_history"]["current_status_changes"] = []
 
 
 class SnapshotMock:

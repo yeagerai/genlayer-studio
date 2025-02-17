@@ -1434,19 +1434,15 @@ class ProposingState(TransactionState):
         # Update the consensus history after the leader rotation happened
         if self.leader_rotation:
             if context.transaction.appeal_undetermined:
-                context.transactions_processor.update_consensus_history(
-                    context.transaction.hash,
-                    "Leader Rotation Appeal",
-                    context.consensus_data.leader_receipt,
-                    context.validation_results,
-                )
+                consensus_round = "Leader Rotation Appeal"
             else:
-                context.transactions_processor.update_consensus_history(
-                    context.transaction.hash,
-                    "Leader Rotation",
-                    context.consensus_data.leader_receipt,
-                    context.validation_results,
-                )
+                consensus_round = "Leader Rotation"
+            context.transactions_processor.update_consensus_history(
+                context.transaction.hash,
+                consensus_round,
+                context.consensus_data.leader_receipt,
+                context.validation_results,
+            )
 
         # Dispatch a transaction status update to PROPOSING
         ConsensusAlgorithm.dispatch_transaction_status_update(
@@ -1719,32 +1715,17 @@ class AcceptedState(TransactionState):
         """
         # When appeal fails, the appeal window is not reset
         if context.transaction.appeal_undetermined:
-            context.transactions_processor.update_consensus_history(
-                context.transaction.hash,
-                "Leader Appeal Successful",
-                context.consensus_data.leader_receipt,
-                context.validation_results,
-            )
+            consensus_round = "Leader Appeal Successful"
             context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
                 context.transaction.hash
             )
         elif not context.transaction.appealed:
-            context.transactions_processor.update_consensus_history(
-                context.transaction.hash,
-                "Accepted",
-                context.consensus_data.leader_receipt,
-                context.validation_results,
-            )
+            consensus_round = "Accepted"
             context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
                 context.transaction.hash
             )
         else:
-            context.transactions_processor.update_consensus_history(
-                context.transaction.hash,
-                "Validator Appeal Failed",
-                None,
-                context.validation_results,
-            )
+            consensus_round = "Validator Appeal Failed"
             # Set the transaction appeal status to False
             context.transactions_processor.set_transaction_appeal(
                 context.transaction.hash, False
@@ -1762,6 +1743,17 @@ class AcceptedState(TransactionState):
             context.transaction.hash,
             TransactionStatus.ACCEPTED,
             context.msg_handler,
+        )
+
+        context.transactions_processor.update_consensus_history(
+            context.transaction.hash,
+            consensus_round,
+            (
+                None
+                if consensus_round == "Validator Appeal Failed"
+                else context.consensus_data.leader_receipt
+            ),
+            context.validation_results,
         )
 
         context.transactions_processor.create_rollup_transaction(
@@ -1877,19 +1869,9 @@ class UndeterminedState(TransactionState):
                 context.transaction.hash, False
             )
             context.transaction.appeal_undetermined = False
-            context.transactions_processor.update_consensus_history(
-                context.transaction.hash,
-                "Leader Appeal Failed",
-                context.consensus_data.leader_receipt,
-                context.consensus_data.validators,
-            )
+            consensus_round = "Leader Appeal Failed"
         else:
-            context.transactions_processor.update_consensus_history(
-                context.transaction.hash,
-                "Undetermined",
-                context.consensus_data.leader_receipt,
-                context.consensus_data.validators,
-            )
+            consensus_round = "Undetermined"
 
         # Set the transaction result with the current consensus data
         context.transactions_processor.set_transaction_result(
@@ -1903,6 +1885,13 @@ class UndeterminedState(TransactionState):
             context.transaction.hash,
             TransactionStatus.UNDETERMINED,
             context.msg_handler,
+        )
+
+        context.transactions_processor.update_consensus_history(
+            context.transaction.hash,
+            consensus_round,
+            context.consensus_data.leader_receipt,
+            context.consensus_data.validators,
         )
 
         context.transactions_processor.create_rollup_transaction(

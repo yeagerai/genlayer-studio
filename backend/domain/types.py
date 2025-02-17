@@ -2,7 +2,7 @@
 # Trying to follow [hexagonal architecture](https://en.wikipedia.org/wiki/Hexagonal_architecture_(software)) or layered architecture.
 # These types should not depend on any other layer.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import decimal
 from enum import Enum, IntEnum
 
@@ -86,7 +86,7 @@ class Transaction:
     timestamp_awaiting_finalization: int | None = None
     appeal_failed: int = 0
     appeal_undetermined: bool = False
-    consensus_history: list | None = None
+    consensus_history: dict = field(default_factory=dict)
 
     def to_dict(self):
         return {
