@@ -127,18 +127,15 @@ class TransactionsProcessorMock:
             transaction = self.get_transaction_by_hash(transaction)
         transaction["timestamp_appeal"] = timestamp_appeal
 
-    def set_transaction_appeal_processing_time(
-        self, transaction_hash: str, appeal_processing_time: int | None = None
-    ):
+    def set_transaction_appeal_processing_time(self, transaction_hash: str):
         transaction = self.get_transaction_by_hash(transaction_hash)
-        if appeal_processing_time == 0:
-            transaction["appeal_processing_time"] = 0
-        else:
-            if appeal_processing_time is None:
-                appeal_processing_time = (
-                    round(time.time()) - transaction["timestamp_appeal"]
-                )
-            transaction["appeal_processing_time"] += appeal_processing_time
+        transaction["appeal_processing_time"] += (
+            round(time.time()) - transaction["timestamp_appeal"]
+        )
+
+    def reset_transaction_appeal_processing_time(self, transaction_hash: str):
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        transaction["appeal_processing_time"] = 0
 
 
 class SnapshotMock:

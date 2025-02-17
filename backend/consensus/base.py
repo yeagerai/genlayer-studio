@@ -1647,8 +1647,8 @@ class RevealingState(TransactionState):
                 )
 
                 # Reset the appeal processing time
-                context.transactions_processor.set_transaction_appeal_processing_time(
-                    context.transaction.hash, 0
+                context.transactions_processor.reset_transaction_appeal_processing_time(
+                    context.transaction.hash
                 )
                 context.transactions_processor.set_transaction_timestamp_appeal(
                     context.transaction.hash, None
@@ -1787,8 +1787,8 @@ class AcceptedState(TransactionState):
                 context.transaction.hash, False
             )
             context.transaction.appeal_undetermined = False
-            context.transactions_processor.set_transaction_appeal_processing_time(
-                context.transaction.hash, 0
+            context.transactions_processor.reset_transaction_appeal_processing_time(
+                context.transaction.hash
             )
             context.transactions_processor.set_transaction_timestamp_appeal(
                 context.transaction.hash, None

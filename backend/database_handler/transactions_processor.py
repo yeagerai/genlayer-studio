@@ -416,19 +416,19 @@ class TransactionsProcessor:
             )
         transaction.timestamp_appeal = timestamp_appeal
 
-    def set_transaction_appeal_processing_time(
-        self, transaction_hash: str, appeal_processing_time: int | None = None
-    ):
+    def set_transaction_appeal_processing_time(self, transaction_hash: str):
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
-        if appeal_processing_time == 0:
-            transaction.appeal_processing_time = 0
-        else:
-            if appeal_processing_time is None:
-                appeal_processing_time = (
-                    round(time.time()) - transaction.timestamp_appeal
-                )
-            transaction.appeal_processing_time += appeal_processing_time
+        transaction.appeal_processing_time += (
+            round(time.time()) - transaction.timestamp_appeal
+        )
         flag_modified(transaction, "appeal_processing_time")
+        self.session.commit()
+
+    def reset_transaction_appeal_processing_time(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.appeal_processing_time = 0
         self.session.commit()
