@@ -991,6 +991,18 @@ class ConsensusAlgorithm:
                     transaction_hash=transaction.hash,
                 )
             )
+            self.msg_handler.send_message(
+                log_event=LogEvent(
+                    "transaction_appeal_updated",
+                    EventType.INFO,
+                    EventScope.CONSENSUS,
+                    "Set transaction appealed",
+                    {
+                        "transaction_hash": context.transaction.hash,
+                    },
+                ),
+                log_to_terminal=False,
+            )
 
         else:
             # Appeal data member is used in the frontend for both types of appeals
@@ -1081,6 +1093,18 @@ class ConsensusAlgorithm:
                 context.transaction.hash, False, self.msg_handler
             )
             context.transaction.appealed = False
+            self.msg_handler.send_message(
+                log_event=LogEvent(
+                    "transaction_appeal_updated",
+                    EventType.INFO,
+                    EventScope.CONSENSUS,
+                    "Set transaction appealed",
+                    {
+                        "transaction_hash": context.transaction.hash,
+                    },
+                ),
+                log_to_terminal=False,
+            )
         else:
             # Set up the context for the committing state
             context.num_validators = len(context.remaining_validators)
