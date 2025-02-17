@@ -15,7 +15,6 @@ from backend.domain.types import TransactionType
 from web3 import Web3
 from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
-
 from backend.rollup.consensus_service import ConsensusService
 
 
@@ -303,7 +302,7 @@ class TransactionsProcessor:
             or (transaction.status == TransactionStatus.UNDETERMINED)
         ):
             transaction.appealed = appeal
-        self.session.commit()
+            self.session.commit()
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
