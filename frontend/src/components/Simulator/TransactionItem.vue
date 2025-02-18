@@ -100,7 +100,10 @@ function prettifyTxData(x: any): any {
   try {
     const new_eq_outputs = Object.fromEntries(
       Object.entries(oldEqOutputs).map(([k, v]) => {
-        const val = resultToUserFriendlyJson(b64ToArray(v));
+        const arrayBuffer = b64ToArray(String(v));
+        const val = resultToUserFriendlyJson(
+          new TextDecoder().decode(arrayBuffer),
+        );
         return [k, val];
       }),
     );
