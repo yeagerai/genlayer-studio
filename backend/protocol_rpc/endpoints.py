@@ -566,7 +566,7 @@ def set_transaction_appeal(
             EventScope.CONSENSUS,
             "Set transaction appealed",
             {
-                "transaction_hash": transaction_hash,
+                "hash": transaction_hash,
             },
         ),
         log_to_terminal=False,
