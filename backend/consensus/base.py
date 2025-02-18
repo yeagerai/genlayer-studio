@@ -1186,7 +1186,7 @@ class ConsensusAlgorithm:
     @staticmethod
     def get_extra_validators(
         all_validators: List[dict],
-        consensus_history: list[dict],
+        consensus_history: dict,
         consensus_data: ConsensusData,
         appeal_failed: int,
     ):
@@ -1219,7 +1219,7 @@ class ConsensusAlgorithm:
 
         Args:
             all_validators (List[dict]): List of all validators.
-            consensus_history (list[dict]): List of consensus rounds.
+            consensus_history (dict): Dictionary of consensus rounds results and status changes.
             consensus_data (ConsensusData): Data related to the consensus process.
             appeal_failed (int): Number of times the appeal has failed.
 
@@ -1356,7 +1356,7 @@ class ConsensusAlgorithm:
         Get the used leader addresses from the consensus history.
 
         Args:
-            consensus_history (dict): List of consensus rounds results and status changes.
+            consensus_history (dict): Dictionary of consensus rounds results and status changes.
             current_leader_receipt (Receipt | None): Current leader receipt.
 
         Returns:
