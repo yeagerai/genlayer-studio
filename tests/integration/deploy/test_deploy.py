@@ -24,8 +24,8 @@ cur_dir = Path(__file__).parent
 def test_deploy(setup_validators, from_account):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, mode="w") as zip:
-        zip.write(cur_dir.joinpath("src", "__init__.py"), "src/__init__.py")
-        zip.write(cur_dir.joinpath("src", "other.py"), "src/other.py")
+        zip.write(cur_dir.joinpath("src", "__init__.py"), "contract/__init__.py")
+        zip.write(cur_dir.joinpath("src", "other.py"), "contract/other.py")
         zip.write(cur_dir.joinpath("src", "runner.json"), "runner.json")
     buffer.flush()
     contract_code = buffer.getvalue()
