@@ -101,12 +101,14 @@ def contract_snapshot_factory(
     if (
         transaction.type == TransactionType.DEPLOY_CONTRACT
         and contract_address == transaction.to_address
+        and transaction.status != TransactionStatus.ACCEPTED
     ):
         # Create a new ContractSnapshot instance for the new contract
         ret = ContractSnapshot(None, session)
         ret.contract_address = transaction.to_address
         ret.contract_code = transaction.data["contract_code"]
-        ret.encoded_state = {}
+        ret.states = {"accepted": {}, "finalized": {}}
+        ret.encoded_state = ret.states["accepted"]
         return ret
 
     # Return a ContractSnapshot instance for an existing contract
@@ -1816,7 +1818,10 @@ class AcceptedState(TransactionState):
                 new_contract = {
                     "id": context.transaction.data["contract_address"],
                     "data": {
-                        "state": leader_receipt.contract_state,
+                        "state": {
+                            "accepted": leader_receipt.contract_state,
+                            "finalized": {},
+                        },
                         "code": context.transaction.data["contract_code"],
                         "ghost_contract_address": context.transaction.ghost_contract_address,
                     },
@@ -1837,7 +1842,7 @@ class AcceptedState(TransactionState):
             # Update contract state if it is an existing contract
             else:
                 leaders_contract_snapshot.update_contract_state(
-                    leader_receipt.contract_state
+                    accepted_state=leader_receipt.contract_state
                 )
 
         # Set the transaction appeal undetermined status to false and return appeal status
@@ -1940,6 +1945,22 @@ class FinalizingState(TransactionState):
         Returns:
             None: The transaction is finalized.
         """
+        # Retrieve the leader's receipt from the consensus data
+        leader_receipt = context.transaction.consensus_data.leader_receipt
+
+        # Get the contract snapshot for the transaction's target address
+        leaders_contract_snapshot = context.contract_snapshot_factory(
+            context.transaction.to_address
+        )
+
+        # Update contract state
+        if (context.transaction.status == TransactionStatus.ACCEPTED) and (
+            leader_receipt.execution_result == ExecutionResultStatus.SUCCESS
+        ):
+            leaders_contract_snapshot.update_contract_state(
+                finalized_state=leader_receipt.contract_state
+            )
+
         # Update the transaction status to FINALIZED
         ConsensusAlgorithm.dispatch_transaction_status_update(
             context.transactions_processor,
