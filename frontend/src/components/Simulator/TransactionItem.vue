@@ -8,9 +8,13 @@ import JsonViewer from '@/components/JsonViewer/json-viewer.vue';
 import { useUIStore, useNodeStore, useTransactionsStore } from '@/stores';
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/vue/16/solid';
 import CopyTextButton from '../global/CopyTextButton.vue';
-import { FilterIcon } from 'lucide-vue-next';
-import { GavelIcon } from 'lucide-vue-next';
+import { FilterIcon, GavelIcon, UserPen, UserSearch } from 'lucide-vue-next';
 import { abi } from 'genlayer-js';
+import {
+  resultToUserFriendlyJson,
+  b64ToArray,
+  calldataToUserFriendlyJson,
+} from '@/calldata/jsonifier';
 
 const uiStore = useUIStore();
 const nodeStore = useNodeStore();
@@ -59,6 +63,43 @@ watch(
 );
 
 function prettifyTxData(x: any): any {
+  const oldResult = x?.consensus_data?.leader_receipt?.result;
+
+  if (oldResult) {
+    try {
+      x.consensus_data.leader_receipt.result =
+        resultToUserFriendlyJson(oldResult);
+    } catch (e) {
+      console.log(e);
+    }
+  }
+
+  const oldCalldata = x?.consensus_data?.leader_receipt?.calldata;
+
+  if (oldCalldata) {
+    try {
+      x.consensus_data.leader_receipt.calldata = {
+        base64: oldCalldata,
+        ...calldataToUserFriendlyJson(b64ToArray(oldCalldata)),
+      };
+    } catch (e) {
+      console.log(e);
+    }
+  }
+
+  const oldDataCalldata = x?.data?.calldata;
+
+  if (oldDataCalldata) {
+    try {
+      x.data.calldata = {
+        base64: oldDataCalldata,
+        ...calldataToUserFriendlyJson(b64ToArray(oldDataCalldata)),
+      };
+    } catch (e) {
+      console.log(e);
+    }
+  }
+
   const oldEqOutputs = x?.consensus_data?.leader_receipt?.eq_outputs;
   if (oldEqOutputs == undefined) {
     return x;
@@ -66,23 +107,8 @@ function prettifyTxData(x: any): any {
   try {
     const new_eq_outputs = Object.fromEntries(
       Object.entries(oldEqOutputs).map(([k, v]) => {
-        const val = Uint8Array.from(atob(v as string), (c) => c.charCodeAt(0));
-        const rest = new Uint8Array(val).slice(1);
-        if (val[0] == 0) {
-          return [
-            k,
-            {
-              status: 'success',
-              data: abi.calldata.toString(abi.calldata.decode(rest)),
-            },
-          ];
-        } else if (val[0] == 1) {
-          return [
-            k,
-            { status: 'rollback', data: new TextDecoder('utf-8').decode(rest) },
-          ];
-        }
-        return [k, v];
+        const val = resultToUserFriendlyJson(b64ToArray(v));
+        return [k, val];
       }),
     );
     const ret = {
@@ -303,38 +329,88 @@ function prettifyTxData(x: any): any {
           </div>
         </ModalSection>
 
-        <ModalSection v-if="transaction.data.consensus_data">
-          <template #title>Validators</template>
+        <ModalSection
+          v-if="
+            transaction.data.consensus_history &&
+            (transaction.data.consensus_history.consensus_results?.length ||
+              transaction.data.consensus_history.current_status_changes?.length)
+          "
+        >
+          <template #title>Consensus History</template>
 
           <div
-            class="divide-y overflow-hidden rounded border dark:border-gray-600"
+            v-for="(history, index) in transaction.data.consensus_history
+              .consensus_results || []"
+            :key="index"
+            class="mb-4"
           >
-            <div
-              class="flex flex-row items-center justify-between p-2 text-xs font-semibold dark:border-gray-600"
-            >
-              <div>Address</div>
-              <div>Vote</div>
+            <div class="mb-2 flex flex-col gap-1">
+              <span class="font-medium italic">
+                {{ history?.consensus_round || `Consensus Round ${index + 1}` }}
+              </span>
+              <div
+                class="flex items-center gap-2 text-[10px] text-gray-600 dark:text-gray-400"
+              >
+                <template
+                  v-for="(status, sIndex) in history.status_changes"
+                  :key="sIndex"
+                >
+                  <span>{{ status }}</span>
+                  <span
+                    v-if="sIndex < history.status_changes.length - 1"
+                    class="text-gray-400"
+                    >→</span
+                  >
+                </template>
+              </div>
             </div>
 
             <div
-              v-for="(vote, address) in transaction.data.consensus_data.votes"
-              :key="address"
-              class="flex flex-row items-center justify-between p-2 text-xs dark:border-gray-600"
+              class="divide-y overflow-hidden rounded border dark:border-gray-600"
             >
-              <div class="font-mono text-xs">
-                {{ address }}
+              <div
+                v-if="history?.leader_result"
+                class="flex flex-row items-center justify-between p-2 text-xs dark:border-gray-600"
+              >
+                <div class="flex items-center gap-1">
+                  <UserPen class="h-4 w-4" />
+                  <span class="font-mono text-xs">{{
+                    history.leader_result.node_config.address
+                  }}</span>
+                </div>
+                <div class="flex flex-row items-center gap-1 capitalize">
+                  <template v-if="history.leader_result.vote === 'agree'">
+                    <CheckCircleIcon class="h-4 w-4 text-green-500" />
+                    Agree
+                  </template>
+                  <template v-if="history.leader_result.vote === 'disagree'">
+                    <XCircleIcon class="h-4 w-4 text-red-500" />
+                    Disagree
+                  </template>
+                </div>
               </div>
 
-              <div class="flex flex-row items-center gap-1 capitalize">
-                <template v-if="vote === 'agree'">
-                  <CheckCircleIcon class="h-4 w-4 text-green-500" />
-                  Agree
-                </template>
-
-                <template v-if="vote === 'disagree'">
-                  <XCircleIcon class="h-4 w-4 text-red-500" />
-                  Disagree
-                </template>
+              <div
+                v-for="(validator, vIndex) in history?.validator_results || []"
+                :key="vIndex"
+                class="flex flex-row items-center justify-between p-2 text-xs dark:border-gray-600"
+              >
+                <div class="flex items-center gap-1">
+                  <UserSearch class="h-4 w-4" />
+                  <span class="font-mono text-xs">{{
+                    validator.node_config.address
+                  }}</span>
+                </div>
+                <div class="flex flex-row items-center gap-1 capitalize">
+                  <template v-if="validator.vote === 'agree'">
+                    <CheckCircleIcon class="h-4 w-4 text-green-500" />
+                    Agree
+                  </template>
+                  <template v-if="validator.vote === 'disagree'">
+                    <XCircleIcon class="h-4 w-4 text-red-500" />
+                    Disagree
+                  </template>
+                </div>
               </div>
             </div>
           </div>

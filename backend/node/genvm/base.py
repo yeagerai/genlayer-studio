@@ -14,6 +14,7 @@ import backend.node.genvm.origin.base_host as genvmhost
 import collections.abc
 import functools
 import datetime
+import abc
 
 from backend.node.types import (
     PendingTransaction,
@@ -64,10 +65,12 @@ def encode_result_to_bytes(result: ExecutionReturn | ExecutionError) -> bytes:
 
 # Interface for accessing the blockchain state, it is needed to not tangle current (awfully unoptimized)
 # storage format with the genvm source code
-class StateProxy(typing.Protocol):
+class StateProxy(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
     def storage_read(
         self, account: Address, slot: bytes, index: int, le: int, /
     ) -> bytes: ...
+    @abc.abstractmethod
     def storage_write(
         self,
         account: Address,
@@ -76,7 +79,10 @@ class StateProxy(typing.Protocol):
         got: collections.abc.Buffer,
         /,
     ) -> None: ...
+    @abc.abstractmethod
     def get_code(self, addr: Address) -> bytes: ...
+    @abc.abstractmethod
+    def get_balance(self, addr: Address) -> int: ...
 
 
 # GenVM protocol just in case it is needed for mocks or bringing back the old one
@@ -124,6 +130,9 @@ class _StateProxyNone(StateProxy):
         assert addr == self.my_address
         return self.code
 
+    def get_balance(self, addr: Address) -> int:
+        return 0
+
 
 # Actual genvm wrapper that will start process and handle all communication
 class GenVMHost(IGenVM):
@@ -143,9 +152,9 @@ class GenVMHost(IGenVM):
     ) -> ExecutionResult:
         message = {
             "is_init": is_init,
-            "contract_account": contract_address.as_b64,
-            "sender_account": from_address.as_b64,
-            "origin_account": from_address.as_b64,  # FIXME: no origin in simulator #751
+            "contract_address": contract_address.as_b64,
+            "sender_address": from_address.as_b64,
+            "origin_address": from_address.as_b64,  # FIXME: no origin in simulator #751
             "value": None,
             "chain_id": str(
                 chain_id
@@ -154,7 +163,7 @@ class GenVMHost(IGenVM):
         if date is not None:
             assert date.tzinfo is not None
             message["datetime"] = date.isoformat()
-        perms = "rc"  # read/call
+        perms = "rcn"  # read/call/spawn nondet
         if not readonly:
             perms += "ws"  # write/send
         return await _run_genvm_host(
@@ -172,16 +181,16 @@ class GenVMHost(IGenVM):
         NO_ADDR = str(base64.b64encode(b"\x00" * 20), encoding="ascii")
         message = {
             "is_init": False,
-            "contract_account": NO_ADDR,
-            "sender_account": NO_ADDR,
-            "origin_account": NO_ADDR,
+            "contract_address": NO_ADDR,
+            "sender_address": NO_ADDR,
+            "origin_address": NO_ADDR,
             "value": None,
             "chain_id": "0",
         }
         return await _run_genvm_host(
             functools.partial(
                 _Host,
-                calldata_bytes=calldata.encode({"method": "__get_schema__"}),
+                calldata_bytes=calldata.encode({"method": "#get-schema"}),
                 state_proxy=_StateProxyNone(Address(NO_ADDR), contract_code),
                 leader_results=None,
             ),
@@ -283,11 +292,14 @@ class _Host(genvmhost.IHost):
 
     async def get_leader_nondet_result(
         self, call_no: int, /
-    ) -> tuple[ResultCode, collections.abc.Buffer] | None:
+    ) -> tuple[ResultCode, collections.abc.Buffer] | ResultCode:
         leader_results = self._leader_results
         if leader_results is None:
-            return None
-        leader_results_mem = memoryview(leader_results[call_no])
+            return ResultCode.NONE
+        res = leader_results.get(call_no, None)
+        if res is None:
+            return ResultCode.NO_LEADERS
+        leader_results_mem = memoryview(res)
         return (ResultCode(leader_results_mem[0]), leader_results_mem[1:])
 
     async def post_nondet_result(
@@ -298,10 +310,19 @@ class _Host(genvmhost.IHost):
         encoded_result.extend(memoryview(data))
         self._eq_outputs[call_no] = bytes(encoded_result)
 
-    async def post_message(self, account: bytes, calldata: bytes, _data, /) -> None:
+    async def post_message(
+        self, account: bytes, calldata: bytes, data: genvmhost.DefaultTransactionData, /
+    ) -> None:
+        on = data.get("on", "finalized")
+        value = int(data.get("value", "0x0"), 16)
         self._pending_transactions.append(
             PendingTransaction(
-                Address(account).as_hex, calldata, code=None, salt_nonce=0
+                Address(account).as_hex,
+                calldata,
+                code=None,
+                salt_nonce=0,
+                value=value,
+                on=on,
             )
         )
 
@@ -315,12 +336,17 @@ class _Host(genvmhost.IHost):
         data: genvmhost.DeployDefaultTransactionData,
         /,
     ) -> None:
+        on = data.get("on", "finalized")
+        value = int(data.get("value", "0x0"), 16)
+        salt_nonce = int(data.get("salt_nonce", "0x0"), 16)
         self._pending_transactions.append(
             PendingTransaction(
                 address="0x",
                 calldata=calldata,
                 code=code,
-                salt_nonce=data.get("salt_nonce", 0),
+                salt_nonce=salt_nonce,
+                value=value,
+                on=on,
             )
         )
 
@@ -331,6 +357,9 @@ class _Host(genvmhost.IHost):
     async def eth_call(self, account: bytes, calldata: bytes, /) -> bytes:
         # FIXME(core-team): #748
         assert False
+
+    async def get_balance(self, account: bytes, /) -> int:
+        return self._state_proxy.get_balance(Address(account))
 
 
 async def _run_genvm_host(
