@@ -2,7 +2,7 @@ FROM ubuntu:24.04 AS base
 
 ARG TARGETPLATFORM
 
-ARG GENVM_TAG=v0.0.11
+ARG GENVM_TAG=v0.0.15
 
 ARG path=/app
 WORKDIR $path
@@ -36,7 +36,6 @@ ENV HUGGINGFACE_HUB_CACHE /home/backend-user/.cache/huggingface
 
 ENV RUST_BACKTRACE=1
 
-# FIXME(kp2pml30): rewrite when genvm becomes public
 RUN cd /genvm \
     && if [[ "$TARGETPLATFORM" == "linux/amd64" ]] ; \
        then \

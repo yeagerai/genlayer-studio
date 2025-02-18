@@ -4,8 +4,7 @@ from genlayer import *
 import json
 
 
-@gl.contract
-class WizardOfCoin:
+class WizardOfCoin(gl.Contract):
     have_coin: bool
 
     def __init__(self, have_coin: bool):

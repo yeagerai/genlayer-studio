@@ -1,7 +1,7 @@
 """consensus_history
 
 Revision ID: 2de9c3151194
-Revises: a4a32d27dde2
+Revises: 67943badcbe9
 Create Date: 2024-12-25 17:42:40.018638
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "2de9c3151194"
-down_revision: Union[str, None] = "a4a32d27dde2"
+down_revision: Union[str, None] = "67943badcbe9"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -76,6 +76,12 @@ class _SnapshotView(genvmbase.StateProxy):
         data[index : index + len(mem)] = mem
         snap.encoded_state[slot_id] = base64.b64encode(data).decode("utf-8")
 
+    def get_balance(self, addr: Address) -> int:
+        snap = self._get_snapshot(addr)
+        # FIXME(core-team): it is not obvious where `value` is added to `self.balance`
+        # but return must be increased by it
+        return snap.balance
+
 
 class Node:
     def __init__(
@@ -299,6 +305,7 @@ class Node:
             from_address=Address(from_address),
             calldata_raw=calldata,
             is_init=is_init,
+            readonly=readonly,
             leader_results=leader_res,
             config=json.dumps(config),
             date=transaction_datetime,

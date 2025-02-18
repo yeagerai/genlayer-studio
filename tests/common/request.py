@@ -6,13 +6,16 @@ import requests
 import time
 from dotenv import load_dotenv
 from eth_account import Account
-import base64
+from eth_abi import encode
+from web3 import Web3
 
 from tests.common.transactions import sign_transaction, encode_transaction_data
 
 import backend.node.genvm.origin.calldata as calldata
 
 load_dotenv()
+
+ZERO_ADDRESS = "0x" + "0" * 40
 
 
 def payload(function_name: str, *args) -> dict:
@@ -75,44 +78,145 @@ def call_contract_method(
         )
     ).json()
     enc_result = method_response["result"]
-    return calldata.decode(eth_utils.hexadecimal.decode_hex(enc_result))
+    result = calldata.decode(eth_utils.hexadecimal.decode_hex(enc_result))
+    print(f"Result of {method_name}: {result}")
+    return result
 
 
-def send_transaction(
+def _prepare_transaction(
     account: Account,
-    contract_address: str,
+    recipient_address: str | None,
+    genlayer_transaction_data: str | bytes | None,
+    value: int = 0,
+) -> str:
+    """Helper function to prepare a transaction for the consensus contract"""
+    # Get consensus contract address from environment
+    consensus_contract_address = os.environ.get("CONSENSUS_CONTRACT_ADDRESS")
+    if not consensus_contract_address:
+        raise ValueError("CONSENSUS_CONTRACT_ADDRESS not set in environment")
+
+    # Default values from environment or constants
+    num_initial_validators = int(os.environ.get("DEFAULT_NUM_INITIAL_VALIDATORS", 1))
+    max_rotations = int(os.environ.get("DEFAULT_CONSENSUS_MAX_ROTATIONS", 100))
+
+    # Original logic for non-transfer transactions
+    actual_recipient = ZERO_ADDRESS if recipient_address is None else recipient_address
+    # Convert hex string to bytes if it starts with '0x'
+    bytes_param = (
+        b""
+        if genlayer_transaction_data is None
+        else (
+            Web3.to_bytes(hexstr=genlayer_transaction_data)
+            if isinstance(genlayer_transaction_data, str)
+            and genlayer_transaction_data.startswith("0x")
+            else genlayer_transaction_data
+        )
+    )
+
+    params = encode(
+        ["address", "address", "uint256", "uint256", "bytes"],
+        [
+            account.address,
+            actual_recipient,
+            num_initial_validators,
+            max_rotations,
+            bytes_param,
+        ],
+    )
+
+    # Encode the addTransaction function call
+    function_signature = "addTransaction(address,address,uint256,uint256,bytes)"
+    function_selector = eth_utils.keccak(text=function_signature)[:4].hex()
+    encoded_data = "0x" + function_selector + params.hex()
+
+    # Get nonce and send transaction
+    nonce = get_transaction_count(account.address)
+    return sign_transaction(
+        account=account,
+        data=encoded_data,
+        to=consensus_contract_address,
+        value=value,
+        nonce=nonce,
+    )
+
+
+def write_intelligent_contract(
+    account: Account,
+    contract_address: str | None,
     method_name: str | None,
     method_args: list | None,
     value: int = 0,
+    assert_success: bool = True,
 ):
-    call_data = (
-        None
-        if method_name is None and method_args is None
-        else [calldata.encode({"method": method_name, "args": method_args})]
+    # Encode the transaction data for the contract method
+    call_method_data = (
+        [calldata.encode({"method": method_name, "args": method_args})]
+        if method_name is not None and method_args is not None
+        else None
     )
-    nonce = get_transaction_count(account.address)
-    signed_transaction = sign_transaction(
-        account, call_data, contract_address, value, nonce
+
+    genlayer_transaction_data = (
+        encode_transaction_data(call_method_data)
+        if call_method_data is not None
+        else None
     )
-    return send_raw_transaction(signed_transaction)
+    signed_transaction = _prepare_transaction(
+        account, contract_address, genlayer_transaction_data, value
+    )
+    result = send_raw_transaction(signed_transaction)
+    if assert_success and result["consensus_data"]:
+        assert (
+            result["consensus_data"]["leader_receipt"]["execution_result"] == "SUCCESS"
+        ), print(
+            "Send transaction: ",
+            json.dumps(decode_nested_data(result), indent=3),
+        )
+    return result
 
 
 def deploy_intelligent_contract(
-    account: Account, contract_code: str | bytes, method_args: list
+    account: Account,
+    contract_code: str | bytes,
+    method_args: list,
+    assert_success: bool = True,
 ) -> tuple[str, dict]:
-    nonce = get_transaction_count(account.address)
+    # Prepare deploy data
     deploy_data = [
         (
             contract_code.encode("utf-8")
             if isinstance(contract_code, str)
             else contract_code
         ),
-        calldata.encode({"method": "__init__", "args": method_args}),
+        calldata.encode({"args": method_args}),
     ]
-    signed_transaction = sign_transaction(account, deploy_data, nonce=nonce)
+
+    genlayer_transaction_data = encode_transaction_data(deploy_data)
+    signed_transaction = _prepare_transaction(
+        account, ZERO_ADDRESS, genlayer_transaction_data
+    )
+
     result = send_raw_transaction(signed_transaction)
+    if assert_success:
+        assert (
+            result["consensus_data"]["leader_receipt"]["execution_result"] == "SUCCESS"
+        ), print(
+            "Deployed intelligent contract: ",
+            json.dumps(decode_nested_data(result), indent=3),
+        )
     contract_address = result["data"]["contract_address"]
     return contract_address, result
+
+
+def send_transaction(sender: Account, recipient: str, value: int):
+    nonce = get_transaction_count(sender.address)
+    signed_transaction = sign_transaction(
+        account=sender,
+        data=None,
+        to=recipient,
+        value=value,
+        nonce=nonce,
+    )
+    return send_raw_transaction(signed_transaction)
 
 
 def send_raw_transaction(signed_transaction: str):
@@ -120,9 +224,7 @@ def send_raw_transaction(signed_transaction: str):
     raw_response = post_request_localhost(payload_data)
     call_method_response = raw_response.json()
     transaction_hash = call_method_response["result"]
-
-    transaction_response = wait_for_transaction(transaction_hash)
-    return transaction_response
+    return wait_for_transaction(transaction_hash)
 
 
 def wait_for_transaction(transaction_hash: str, interval: int = 10, retries: int = 15):
@@ -138,3 +240,39 @@ def wait_for_transaction(transaction_hash: str, interval: int = 10, retries: int
     raise TimeoutError(
         f"Transaction {transaction_hash} not finalized after {retries} retries"
     )
+
+
+def decode_base64(encoded_str):
+    try:
+        return base64.b64decode(encoded_str).decode("utf-8")
+    except UnicodeDecodeError:
+        return encoded_str
+
+
+def decode_contract_state(contract_state):
+    decoded_state = {}
+    for key, value in contract_state.items():
+        decoded_state[decode_base64(key)] = {
+            decode_base64(k): decode_base64(v) for k, v in value.items()
+        }
+    return decoded_state
+
+
+def decode_nested_data(data):
+    """
+    Helper function to decode data from the transaction response to have more readable output
+    """
+    if isinstance(data, dict):
+        decoded_data = {}
+        for key, value in data.items():
+            if key == "calldata" and isinstance(value, str):
+                decoded_data[key] = calldata.decode(base64.b64decode(value))
+            elif key == "contract_state" and isinstance(value, dict):
+                decoded_data[key] = decode_contract_state(value)
+            else:
+                decoded_data[key] = decode_nested_data(value)
+        return decoded_data
+    elif isinstance(data, list):
+        return [decode_nested_data(item) for item in data]
+    else:
+        return data

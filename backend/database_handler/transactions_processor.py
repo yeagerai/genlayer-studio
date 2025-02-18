@@ -18,6 +18,8 @@ import os
 from sqlalchemy.orm.attributes import flag_modified
 from backend.domain.types import MAX_ROTATIONS
 
+from backend.rollup.consensus_service import ConsensusService
+
 
 class TransactionAddressFilter(Enum):
     ALL = "all"
@@ -67,6 +69,8 @@ class TransactionsProcessor:
             "appeal_failed": transaction_data.appeal_failed,
             "appeal_undetermined": transaction_data.appeal_undetermined,
             "consensus_history": transaction_data.consensus_history,
+            "timestamp_appeal": transaction_data.timestamp_appeal,
+            "appeal_processing_time": transaction_data.appeal_processing_time,
             "config_rotation_rounds": transaction_data.config_rotation_rounds,
         }
 
@@ -150,64 +154,6 @@ class TransactionsProcessor:
         )
         ghost_contract_address = None
 
-        if type == TransactionType.DEPLOY_CONTRACT.value:
-            # Hardhat account
-            account = self.web3.eth.accounts[0]
-            private_key = os.environ.get("HARDHAT_PRIVATE_KEY")
-
-            # Ghost contract
-            # Read contract ABI and bytecode from compiled contract
-            # contract_file = os.path.join(
-            #     os.getcwd(),
-            #     "app/hardhat/artifacts/contracts/GhostContract.sol/GhostContract.json",
-            # )
-
-            # with open(contract_file, "r") as f:
-            #     contract_json = json.loads(f.read())
-            #     abi = contract_json["abi"]
-            #     bytecode = contract_json["bytecode"]
-
-            # # Create the contract instance
-            # contract = self.web3.eth.contract(abi=abi, bytecode=bytecode)
-
-            # # Build the transaction
-            # gas_estimate = self.web3.eth.estimate_gas(
-            #     contract.constructor().build_transaction(
-            #         {
-            #             "from": account,
-            #             "nonce": self.web3.eth.get_transaction_count(account),
-            #             "gasPrice": 0,
-            #         }
-            #     )
-            # )
-            # transaction = contract.constructor().build_transaction(
-            #     {
-            #         "from": account,
-            #         "nonce": self.web3.eth.get_transaction_count(account),
-            #         "gas": gas_estimate,
-            #         "gasPrice": 0,
-            #     }
-            # )
-
-            # # Sign the transaction
-            # signed_tx = self.web3.eth.account.sign_transaction(
-            #     transaction, private_key=private_key
-            # )
-
-            # # Send the transaction
-            # tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-
-            # # Wait for the transaction receipt
-            # receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            # ghost_contract_address = receipt.contractAddress
-
-        elif type == TransactionType.RUN_CONTRACT.value:
-            genlayer_contract_address = to_address
-            # contract_snapshot = ContractSnapshot(
-            #     genlayer_contract_address, self.session
-            # )
-            # ghost_contract_address = contract_snapshot.ghost_contract_address
-
         new_transaction = Transactions(
             hash=transaction_hash,
             from_address=from_address,
@@ -235,16 +181,15 @@ class TransactionsProcessor:
             timestamp_awaiting_finalization=None,
             appeal_failed=0,
             appeal_undetermined=False,
-            consensus_history=None,
+            consensus_history={},
+            timestamp_appeal=None,
+            appeal_processing_time=0,
             config_rotation_rounds=MAX_ROTATIONS,
         )
 
         self.session.add(new_transaction)
 
         self.session.flush()  # So that `created_at` gets set
-
-        if type != TransactionType.SEND.value:
-            self.create_rollup_transaction(new_transaction.hash)
 
         return new_transaction.hash
 
@@ -267,6 +212,18 @@ class TransactionsProcessor:
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.status = new_status
+
+        if "current_status_changes" in transaction.consensus_history:
+            transaction.consensus_history["current_status_changes"].append(
+                new_status.value
+            )
+        else:
+            transaction.consensus_history["current_status_changes"] = [
+                TransactionStatus.PENDING.value,
+                new_status.value,
+            ]
+        flag_modified(transaction, "consensus_history")
+
         self.session.commit()
 
     def set_transaction_result(self, transaction_hash: str, consensus_data: dict):
@@ -288,36 +245,40 @@ class TransactionsProcessor:
         account = self.web3.eth.accounts[0]
         private_key = os.environ.get("HARDHAT_PRIVATE_KEY")
 
-        # gas_estimate = self.web3.eth.estimate_gas(
-        #     {
-        #         "from": account,
-        #         "to": transaction.ghost_contract_address,
-        #         "value": transaction.value,
-        #         "data": rollup_input_data,
-        #     }
-        # )
+        try:
+            gas_estimate = self.web3.eth.estimate_gas(
+                {
+                    "from": account,
+                    "to": transaction.ghost_contract_address,
+                    "value": transaction.value,
+                    "data": rollup_input_data,
+                }
+            )
 
-        # transaction = {
-        #     "from": account,
-        #     "to": transaction.ghost_contract_address,
-        #     "value": transaction.value,
-        #     "data": rollup_input_data,
-        #     "nonce": self.web3.eth.get_transaction_count(account),
-        #     "gas": gas_estimate,
-        #     "gasPrice": 0,
-        # }
+            transaction = {
+                "from": account,
+                "to": transaction.ghost_contract_address,
+                "value": transaction.value,
+                "data": rollup_input_data,
+                "nonce": self.web3.eth.get_transaction_count(account),
+                "gas": gas_estimate,
+                "gasPrice": 0,
+            }
 
-        # # Sign and send the transaction
-        # signed_tx = self.web3.eth.account.sign_transaction(
-        #     transaction, private_key=private_key
-        # )
-        # tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            # Sign and send the transaction
+            signed_tx = self.web3.eth.account.sign_transaction(
+                transaction, private_key=private_key
+            )
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
-        # # Wait for transaction to be actually mined and get the receipt
-        # receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            # Wait for transaction to be actually mined and get the receipt
+            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
-        # # Get full transaction details including input data
-        # transaction = self.web3.eth.get_transaction(tx_hash)
+            # Get full transaction details including input data
+            transaction = self.web3.eth.get_transaction(tx_hash)
+
+        except Exception as e:
+            print(f"Error creating rollup transaction: {e}")
 
     def get_transaction_count(self, address: str) -> int:
         count = (
@@ -358,12 +319,16 @@ class TransactionsProcessor:
         )
         # You can only appeal the transaction if it is in accepted or undetermined state
         # Setting it to false is always allowed
-        if (
-            (not appeal)
-            or (transaction.status == TransactionStatus.ACCEPTED)
-            or (transaction.status == TransactionStatus.UNDETERMINED)
+        if not appeal:
+            transaction.appealed = appeal
+            self.session.commit()
+        elif transaction.status in (
+            TransactionStatus.ACCEPTED,
+            TransactionStatus.UNDETERMINED,
         ):
             transaction.appealed = appeal
+            self.set_transaction_timestamp_appeal(transaction, int(time.time()))
+            self.session.commit()
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
@@ -414,12 +379,13 @@ class TransactionsProcessor:
             .all()
         )
 
-        if not transactions:
-            return None
-
-        block_hash = transactions[0].hash
+        block_hash = "0x" + "0" * 64
         parent_hash = "0x" + "0" * 64  # Placeholder for parent block hash
-        timestamp = transactions[0].timestamp_awaiting_finalization or int(time.time())
+        timestamp = (
+            transactions[0].timestamp_awaiting_finalization
+            if len(transactions) > 0
+            else int(time.time())
+        )
 
         if include_full_tx:
             transaction_data = [self._parse_transaction_data(tx) for tx in transactions]
@@ -447,15 +413,11 @@ class TransactionsProcessor:
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
-        address = transaction.to_address or transaction.from_address
         transactions = (
             self.session.query(Transactions)
             .filter(
                 Transactions.created_at > transaction.created_at,
-                or_(
-                    Transactions.to_address == address,
-                    Transactions.from_address == address,
-                ),
+                Transactions.to_address == transaction.to_address,
             )
             .order_by(Transactions.created_at)
             .all()
@@ -478,10 +440,49 @@ class TransactionsProcessor:
             "consensus_round": consensus_round,
             "leader_result": leader_result.to_dict() if leader_result else None,
             "validator_results": [receipt.to_dict() for receipt in validator_results],
+            "status_changes": (
+                transaction.consensus_history["current_status_changes"]
+                if "current_status_changes" in transaction.consensus_history
+                else []
+            ),
         }
-        if transaction.consensus_history:
-            transaction.consensus_history.append(current_consensus_results)
+
+        if "consensus_results" in transaction.consensus_history:
+            transaction.consensus_history["consensus_results"].append(
+                current_consensus_results
+            )
         else:
-            transaction.consensus_history = [current_consensus_results]
+            transaction.consensus_history["consensus_results"] = [
+                current_consensus_results
+            ]
+
+        transaction.consensus_history["current_status_changes"] = []
+
         flag_modified(transaction, "consensus_history")
+        self.session.commit()
+
+    def set_transaction_timestamp_appeal(
+        self, transaction: Transactions | str, timestamp_appeal: int
+    ):
+        if isinstance(transaction, str):  # hash
+            transaction = (
+                self.session.query(Transactions).filter_by(hash=transaction).one()
+            )
+        transaction.timestamp_appeal = timestamp_appeal
+
+    def set_transaction_appeal_processing_time(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.appeal_processing_time += (
+            round(time.time()) - transaction.timestamp_appeal
+        )
+        flag_modified(transaction, "appeal_processing_time")
+        self.session.commit()
+
+    def reset_transaction_appeal_processing_time(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.appeal_processing_time = 0
         self.session.commit()

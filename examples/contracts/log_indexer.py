@@ -5,13 +5,14 @@
 #   ]
 # }
 
+import numpy as np
 from genlayer import *
 import genlayermodelwrappers
-import numpy as np
 from dataclasses import dataclass
 import typing
 
 
+@allow_storage
 @dataclass
 class StoreValue:
     log_id: u256
@@ -19,8 +20,7 @@ class StoreValue:
 
 
 # contract class
-@gl.contract
-class LogIndexer:
+class LogIndexer(gl.Contract):
     vector_store: VecDB[np.float32, typing.Literal[384], StoreValue]
 
     def __init__(self):
