@@ -2,7 +2,7 @@
 # Trying to follow [hexagonal architecture](https://en.wikipedia.org/wiki/Hexagonal_architecture_(software)) or layered architecture.
 # These types should not depend on any other layer.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import decimal
 from enum import Enum, IntEnum
 
@@ -86,6 +86,7 @@ class Transaction:
     timestamp_awaiting_finalization: int | None = None
     appeal_failed: int = 0
     appeal_undetermined: bool = False
+    consensus_history: dict = field(default_factory=dict)
 
     def to_dict(self):
         return {
@@ -96,7 +97,9 @@ class Transaction:
             "to_address": self.to_address,
             "input_data": self.input_data,
             "data": self.data,
-            "consensus_data": self.consensus_data,
+            "consensus_data": (
+                self.consensus_data.to_dict() if self.consensus_data else None
+            ),
             "nonce": self.nonce,
             "value": self.value,
             "gaslimit": self.gaslimit,
@@ -110,6 +113,7 @@ class Transaction:
             "timestamp_awaiting_finalization": self.timestamp_awaiting_finalization,
             "appeal_failed": self.appeal_failed,
             "appeal_undetermined": self.appeal_undetermined,
+            "consensus_history": self.consensus_history,
         }
 
     @classmethod
@@ -138,4 +142,5 @@ class Transaction:
             ),
             appeal_failed=input.get("appeal_failed", 0),
             appeal_undetermined=input.get("appeal_undetermined", False),
+            consensus_history=input.get("consensus_history"),
         )

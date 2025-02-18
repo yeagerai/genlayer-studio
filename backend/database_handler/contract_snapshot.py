@@ -16,6 +16,8 @@ class ContractSnapshot:
     contract_code: str
     encoded_state: dict[str, str]
     balance: int
+    states: dict[str, dict[str, str]]
+    ghost_contract_address: str | None
 
     def __init__(self, contract_address: str | None, session: Session):
         self.session = session
@@ -26,8 +28,17 @@ class ContractSnapshot:
             contract_account = self._load_contract_account()
             self.contract_data = contract_account.data
             self.contract_code = self.contract_data["code"]
-            self.encoded_state = self.contract_data["state"]
             self.balance = contract_account.balance
+
+            if ("accepted" in self.contract_data["state"]) and (
+                isinstance(self.contract_data["state"]["accepted"], dict)
+            ):
+                self.states = self.contract_data["state"]
+            else:
+                # Convert old state format
+                self.states = {"accepted": self.contract_data["state"], "finalized": {}}
+            self.encoded_state = self.states["accepted"]
+
             self.ghost_contract_address = (
                 self.contract_data["ghost_contract_address"]
                 if "ghost_contract_address" in self.contract_data
@@ -56,10 +67,26 @@ class ContractSnapshot:
         current_contract.data = contract["data"]
         self.session.commit()
 
-    def update_contract_state(self, new_state: dict[str, str]):
+    def update_contract_state(
+        self,
+        accepted_state: dict[str, str] | None = None,
+        finalized_state: dict[str, str] | None = None,
+    ):
         """Update the state of the contract in the database."""
+        new_state = {
+            "accepted": (
+                accepted_state
+                if accepted_state is not None
+                else self.states["accepted"]
+            ),
+            "finalized": (
+                finalized_state
+                if finalized_state is not None
+                else self.states["finalized"]
+            ),
+        }
         new_contract_data = {
-            "code": self.contract_data["code"],
+            "code": self.contract_code,
             "state": new_state,
         }
 
