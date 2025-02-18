@@ -45,18 +45,11 @@ const shortHash = computed(() => {
   return props.transaction.hash?.slice(0, 6);
 });
 
-const appealed = ref(props.transaction.data.appealed);
-
-const handleSetTransactionAppeal = () => {
-  transactionsStore.setTransactionAppeal(props.transaction.hash);
+const handleSetTransactionAppeal = async () => {
+  await transactionsStore.setTransactionAppeal(props.transaction.hash);
 };
 
-watch(
-  () => props.transaction.data.appealed,
-  (newVal) => {
-    appealed.value = newVal;
-  },
-);
+const isAppealed = computed(() => props.transaction.data.appealed);
 
 function prettifyTxData(x: any): any {
   const oldEqOutputs = x?.consensus_data?.leader_receipt?.eq_outputs;
@@ -149,25 +142,29 @@ function prettifyTxData(x: any): any {
         "
       />
 
-      <!-- <TransactionStatusBadge
-        as="button"
-        @click.stop="handleSetTransactionAppeal"
-        :class="{ '!bg-green-500': appealed }"
-        v-if="
-          transaction.data.leader_only == false &&
-          (transaction.status == 'ACCEPTED' ||
-            transaction.status == 'UNDETERMINED') &&
-          Date.now() / 1000 -
-            transaction.data.timestamp_awaiting_finalization <=
-            finalityWindow
-        "
-        v-tooltip="'Appeal transaction'"
-      >
-        <div class="flex items-center gap-1">
-          APPEAL
-          <GavelIcon class="h-3 w-3" />
-        </div>
-      </TransactionStatusBadge> -->
+      <!-- <div @click.stop="">
+        <Btn
+          v-if="
+            transaction.data.leader_only == false &&
+            (transaction.status == 'ACCEPTED' ||
+              transaction.status == 'UNDETERMINED') &&
+            Date.now() / 1000 -
+              transaction.data.timestamp_awaiting_finalization <=
+              finalityWindow
+          "
+          @click="handleSetTransactionAppeal"
+          tiny
+          class="!h-[18px] !px-[4px] !py-[1px] !text-[9px] !font-medium"
+          :data-testid="`appeal-transaction-btn-${transaction.hash}`"
+          :loading="isAppealed"
+          :disabled="isAppealed"
+        >
+          <div class="flex items-center gap-1">
+            {{ isAppealed ? 'APPEALED...' : 'APPEAL' }}
+            <GavelIcon class="h-2.5 w-2.5" />
+          </div>
+        </Btn>
+      </div> -->
 
       <TransactionStatusBadge
         :class="[
@@ -230,25 +227,6 @@ function prettifyTxData(x: any): any {
             >
               {{ transaction.status }}
             </TransactionStatusBadge>
-            <!-- <TransactionStatusBadge
-              as="button"
-              @click.stop="handleSetTransactionAppeal"
-              :class="{ '!bg-green-500': appealed }"
-              v-if="
-                transaction.data.leader_only == false &&
-                (transaction.status == 'ACCEPTED' ||
-                  transaction.status == 'UNDETERMINED') &&
-                Date.now() / 1000 -
-                  transaction.data.timestamp_awaiting_finalization <=
-                  finalityWindow
-              "
-              v-tooltip="'Appeal transaction'"
-            >
-              <div class="flex items-center gap-1">
-                APPEAL
-                <GavelIcon class="h-3 w-3" />
-              </div>
-            </TransactionStatusBadge> -->
           </p>
         </div>
 

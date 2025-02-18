@@ -1000,7 +1000,7 @@ class ConsensusAlgorithm:
                     EventScope.CONSENSUS,
                     "Set transaction appealed",
                     {
-                        "transaction_hash": context.transaction.hash,
+                        "hash": context.transaction.hash,
                     },
                 ),
                 log_to_terminal=False,
@@ -1092,7 +1092,7 @@ class ConsensusAlgorithm:
                 )
             )
             context.transactions_processor.set_transaction_appeal(
-                context.transaction.hash, False, self.msg_handler
+                context.transaction.hash, False
             )
             context.transaction.appealed = False
             self.msg_handler.send_message(
@@ -1102,7 +1102,7 @@ class ConsensusAlgorithm:
                     EventScope.CONSENSUS,
                     "Set transaction appealed",
                     {
-                        "transaction_hash": context.transaction.hash,
+                        "hash": context.transaction.hash,
                     },
                 ),
                 log_to_terminal=False,
