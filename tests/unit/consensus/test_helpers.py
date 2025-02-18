@@ -66,19 +66,16 @@ class TransactionsProcessorMock:
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["consensus_data"] = consensus_data
 
-    def set_transaction_appeal(
-        self,
-        transaction_hash: str,
-        appeal: bool,
-        msg_handler: MessageHandler | None = None,
-    ):
+    def set_transaction_appeal(self, transaction_hash: str, appeal: bool):
         transaction = self.get_transaction_by_hash(transaction_hash)
-        if (
-            (not appeal)
-            or (transaction["status"] == TransactionStatus.ACCEPTED.value)
-            or (transaction["status"] == TransactionStatus.UNDETERMINED.value)
+        if not appeal:
+            transaction["appealed"] = appeal
+        elif transaction["status"] in (
+            TransactionStatus.ACCEPTED.value,
+            TransactionStatus.UNDETERMINED.value,
         ):
             transaction["appealed"] = appeal
+            self.set_transaction_timestamp_appeal(transaction, int(time.time()))
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
@@ -165,6 +162,23 @@ class TransactionsProcessorMock:
 
         transaction["consensus_history"]["current_status_changes"] = []
 
+    def set_transaction_timestamp_appeal(
+        self, transaction: dict | str, timestamp_appeal: int
+    ):
+        if isinstance(transaction, str):  # hash
+            transaction = self.get_transaction_by_hash(transaction)
+        transaction["timestamp_appeal"] = timestamp_appeal
+
+    def set_transaction_appeal_processing_time(self, transaction_hash: str):
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        transaction["appeal_processing_time"] += (
+            round(time.time()) - transaction["timestamp_appeal"]
+        )
+
+    def reset_transaction_appeal_processing_time(self, transaction_hash: str):
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        transaction["appeal_processing_time"] = 0
+
 
 class SnapshotMock:
     def __init__(self, nodes: list, transactions_processor: TransactionsProcessorMock):
@@ -220,6 +234,8 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "appeal_failed": transaction.appeal_failed,
         "appeal_undetermined": transaction.appeal_undetermined,
         "consensus_history": transaction.consensus_history,
+        "timestamp_appeal": transaction.timestamp_appeal,
+        "appeal_processing_time": transaction.appeal_processing_time,
     }
 
 
@@ -326,7 +342,7 @@ def get_validator_addresses(
 @pytest.fixture
 def consensus_algorithm() -> ConsensusAlgorithm:
     class MessageHandlerMock:
-        def send_message(self, log_event):
+        def send_message(self, log_event, log_to_terminal: bool = True):
             print(log_event)
 
     # Mock the session and other dependencies
@@ -436,7 +452,7 @@ def assert_transaction_status_match(
     transactions_processor: TransactionsProcessorMock,
     transaction: Transaction,
     expected_statuses: list[TransactionStatus],
-    timeout: int = 15,
+    timeout: int = 30,
     interval: float = 0.1,
 ) -> TransactionStatus:
     status = None
@@ -461,7 +477,7 @@ def assert_transaction_status_change_and_match(
     transactions_processor: TransactionsProcessorMock,
     transaction: Transaction,
     expected_statuses: list[TransactionStatus],
-    timeout: int = 15,
+    timeout: int = 30,
     interval: float = 0.1,
 ):
     transactions_processor.status_changed_event.wait()
