@@ -1,8 +1,7 @@
 from genlayer import *
 
 
-@gl.contract
-class Contract:
+class Contract(gl.Contract):
     other_addr: Address
 
     def __init__(self):
