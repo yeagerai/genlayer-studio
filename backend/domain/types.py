@@ -89,6 +89,8 @@ class Transaction:
     appeal_failed: int = 0
     appeal_undetermined: bool = False
     consensus_history: dict = field(default_factory=dict)
+    timestamp_appeal: int | None = None
+    appeal_processing_time: int = 0
     config_rotation_rounds: int | None = MAX_ROTATIONS
 
     def to_dict(self):
@@ -117,6 +119,8 @@ class Transaction:
             "appeal_failed": self.appeal_failed,
             "appeal_undetermined": self.appeal_undetermined,
             "consensus_history": self.consensus_history,
+            "timestamp_appeal": self.timestamp_appeal,
+            "appeal_processing_time": self.appeal_processing_time,
             "config_rotation_rounds": self.config_rotation_rounds,
         }
 
@@ -147,5 +151,7 @@ class Transaction:
             appeal_failed=input.get("appeal_failed", 0),
             appeal_undetermined=input.get("appeal_undetermined", False),
             consensus_history=input.get("consensus_history"),
+            timestamp_appeal=input.get("timestamp_appeal"),
+            appeal_processing_time=input.get("appeal_processing_time", 0),
             config_rotation_rounds=input.get("config_rotation_rounds"),
         )

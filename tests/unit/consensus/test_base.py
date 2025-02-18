@@ -230,6 +230,13 @@ async def test_exec_accepted_appeal_fail(consensus_algorithm):
             ]
             == timestamp_awaiting_finalization_1
         )
+
+        assert (
+            transactions_processor.get_transaction_by_hash(transaction.hash)[
+                "appeal_processing_time"
+            ]
+            > 0
+        )
     finally:
         cleanup_threads(event, threads)
 
@@ -294,6 +301,12 @@ async def test_exec_accepted_appeal_no_extra_validators(consensus_algorithm):
                 "timestamp_awaiting_finalization"
             ]
             == timestamp_awaiting_finalization_1
+        )
+        assert (
+            transactions_processor.get_transaction_by_hash(transaction.hash)[
+                "appeal_processing_time"
+            ]
+            > 0
         )
     finally:
         cleanup_threads(event, threads)
@@ -420,6 +433,13 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
 
         assert new_leader_address != old_leader_address
         assert new_leader_address in validator_set_addresses
+
+        assert (
+            transactions_processor.get_transaction_by_hash(transaction.hash)[
+                "appeal_processing_time"
+            ]
+            == 0
+        )
     finally:
         cleanup_threads(event, threads)
 
@@ -795,6 +815,12 @@ async def test_exec_accepted_appeal_fail_three_times(consensus_algorithm):
         )
         leader_address = get_leader_address(transaction, transactions_processor)
 
+        appeal_processing_time_temp = transactions_processor.get_transaction_by_hash(
+            transaction.hash
+        )["appeal_processing_time"]
+        assert appeal_processing_time_temp == 0
+        timestamp_appeal_temp = 0
+
         for appeal_failed in range(3):
             assert (
                 transactions_processor.get_transaction_by_hash(transaction.hash)[
@@ -808,6 +834,18 @@ async def test_exec_accepted_appeal_fail_three_times(consensus_algorithm):
             assert_transaction_status_change_and_match(
                 transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
             )
+
+            appeal_processing_time_new = transactions_processor.get_transaction_by_hash(
+                transaction.hash
+            )["appeal_processing_time"]
+            assert appeal_processing_time_new > appeal_processing_time_temp
+            appeal_processing_time_temp = appeal_processing_time_new
+
+            timestamp_appeal_new = transactions_processor.get_transaction_by_hash(
+                transaction.hash
+            )["timestamp_appeal"]
+            assert timestamp_appeal_new > timestamp_appeal_temp
+            timestamp_appeal_temp = timestamp_appeal_new
 
             assert (
                 transactions_processor.get_transaction_by_hash(transaction.hash)[
@@ -1223,6 +1261,19 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
         check_validator_count(transaction, transactions_processor, nb_validators)
         assert len(created_nodes) == nb_created_nodes
 
+        assert (
+            transactions_processor.get_transaction_by_hash(transaction.hash)[
+                "appeal_processing_time"
+            ]
+            > 0
+        )
+        assert (
+            transactions_processor.get_transaction_by_hash(transaction.hash)[
+                "timestamp_appeal"
+            ]
+            is not None
+        )
+
         appeal(transaction, transactions_processor)
         assert_transaction_status_match(
             transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
@@ -1245,6 +1296,19 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
         nb_created_nodes += nb_validators * 3
         check_validator_count(transaction, transactions_processor, nb_validators)
         assert len(created_nodes) == nb_created_nodes
+
+        assert (
+            transactions_processor.get_transaction_by_hash(transaction.hash)[
+                "appeal_processing_time"
+            ]
+            == 0
+        )
+        assert (
+            transactions_processor.get_transaction_by_hash(transaction.hash)[
+                "timestamp_appeal"
+            ]
+            is None
+        )
 
         appeal(transaction, transactions_processor)
         current_status = assert_transaction_status_match(
@@ -1317,5 +1381,18 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
         nb_created_nodes += nb_validators * (transaction.config_rotation_rounds + 1)
         check_validator_count(transaction, transactions_processor, nb_validators)
         assert len(created_nodes) == nb_created_nodes
+
+        assert (
+            transactions_processor.get_transaction_by_hash(transaction.hash)[
+                "appeal_processing_time"
+            ]
+            > 0
+        )
+        assert (
+            transactions_processor.get_transaction_by_hash(transaction.hash)[
+                "timestamp_appeal"
+            ]
+            is not None
+        )
     finally:
         cleanup_threads(event, threads)

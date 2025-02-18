@@ -69,6 +69,8 @@ class TransactionsProcessor:
             "appeal_failed": transaction_data.appeal_failed,
             "appeal_undetermined": transaction_data.appeal_undetermined,
             "consensus_history": transaction_data.consensus_history,
+            "timestamp_appeal": transaction_data.timestamp_appeal,
+            "appeal_processing_time": transaction_data.appeal_processing_time,
             "config_rotation_rounds": transaction_data.config_rotation_rounds,
         }
 
@@ -180,6 +182,8 @@ class TransactionsProcessor:
             appeal_failed=0,
             appeal_undetermined=False,
             consensus_history={},
+            timestamp_appeal=None,
+            appeal_processing_time=0,
             config_rotation_rounds=MAX_ROTATIONS,
         )
 
@@ -315,12 +319,15 @@ class TransactionsProcessor:
         )
         # You can only appeal the transaction if it is in accepted or undetermined state
         # Setting it to false is always allowed
-        if (
-            (not appeal)
-            or (transaction.status == TransactionStatus.ACCEPTED)
-            or (transaction.status == TransactionStatus.UNDETERMINED)
+        if not appeal:
+            transaction.appealed = appeal
+            self.session.commit()
+        elif transaction.status in (
+            TransactionStatus.ACCEPTED,
+            TransactionStatus.UNDETERMINED,
         ):
             transaction.appealed = appeal
+            self.set_transaction_timestamp_appeal(transaction, int(time.time()))
             self.session.commit()
 
     def set_transaction_timestamp_awaiting_finalization(
@@ -452,4 +459,30 @@ class TransactionsProcessor:
         transaction.consensus_history["current_status_changes"] = []
 
         flag_modified(transaction, "consensus_history")
+        self.session.commit()
+
+    def set_transaction_timestamp_appeal(
+        self, transaction: Transactions | str, timestamp_appeal: int
+    ):
+        if isinstance(transaction, str):  # hash
+            transaction = (
+                self.session.query(Transactions).filter_by(hash=transaction).one()
+            )
+        transaction.timestamp_appeal = timestamp_appeal
+
+    def set_transaction_appeal_processing_time(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.appeal_processing_time += (
+            round(time.time()) - transaction.timestamp_appeal
+        )
+        flag_modified(transaction, "appeal_processing_time")
+        self.session.commit()
+
+    def reset_transaction_appeal_processing_time(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.appeal_processing_time = 0
         self.session.commit()
