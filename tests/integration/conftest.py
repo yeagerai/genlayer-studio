@@ -23,7 +23,6 @@ def setup_validators():
 
 
 def setup_mock_validators(responses, comparison_result):
-
     # First delete any existing mock providers
     providers_response = post_request_localhost(
         payload("sim_getProvidersAndModels")

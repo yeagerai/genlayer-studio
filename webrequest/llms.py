@@ -296,14 +296,13 @@ class MockPlugin:
         regex: Optional[str],
         return_streaming_channel: Optional[asyncio.Queue],
     ) -> str:
-        def compare_with_template(template, actual):
+        def compare_with_template(template: str, actual: str) -> bool:
             parts = template.split("{")
             constants = [parts[0]] + [
                 part.split("}")[-1] for part in parts[1:] if "}" in part
             ]
             return all(part in actual for part in constants if part)
 
-        model = node_config.get("model", "default")
         cfg = node_config.get("config", {})
         responses = cfg.get("responses", {})
         comparison_result = cfg.get("comparison_result", False)

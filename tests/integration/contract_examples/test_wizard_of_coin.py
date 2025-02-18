@@ -27,12 +27,12 @@ import re
 
 def test_wizard_of_coin(from_account):
     # Get contract schema
-
     contract_code = open("examples/contracts/wizard_of_coin.py", "r").read()
-    print("contract_code", contract_code)
-    prompts = re.findall(r'prompt\s*=\s*f?"""(.*?)"""', contract_code, re.DOTALL)
-    print("prompts", prompts)
 
+    # Parse prompts from contract code
+    prompts = re.findall(r'prompt\s*=\s*f?"""(.*?)"""', contract_code, re.DOTALL)
+
+    # Mock the validator responses
     responses = {
         prompts[0]: {
             "reasoning": "I am a wise wizard and must protect the coin.",
@@ -40,6 +40,7 @@ def test_wizard_of_coin(from_account):
         },
     }
     setup_mock_validators(responses, True)
+
     result_schema = post_request_localhost(
         payload(
             "gen_getContractSchemaForCode",
