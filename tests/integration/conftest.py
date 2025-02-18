@@ -22,6 +22,68 @@ def setup_validators():
     assert has_success_status(delete_validators_result)
 
 
+def setup_mock_validators(responses, comparison_result):
+
+    # First delete any existing mock providers
+    providers_response = post_request_localhost(
+        payload("sim_getProvidersAndModels")
+    ).json()
+    assert has_success_status(providers_response)
+
+    for provider in providers_response["result"]:
+        if provider["provider"] == "mock":
+            response = post_request_localhost(
+                payload("sim_deleteProvider", provider["id"])
+            ).json()
+            assert has_success_status(response)
+
+    # Create 5 different mock providers with unique model names
+    mock_provider = {
+        "provider": "mock",
+        "model": "mock-model",  # Unique model name per validator
+        "config": {},
+        "plugin": "mock",
+        "plugin_config": {},
+    }
+    response = post_request_localhost(payload("sim_addProvider", mock_provider)).json()
+    assert has_success_status(response)
+
+    for i in range(5):
+        result = post_request_localhost(
+            payload(
+                "sim_createValidator",
+                8,
+                "mock",
+                f"mock-model-{i}",
+                {"responses": responses, "comparison_result": comparison_result},
+                "mock",
+                {},
+            )
+        ).json()
+        assert has_success_status(result)
+
+
+def cleanup_mock_validators():
+    # Cleanup
+    delete_validators_result = post_request_localhost(
+        payload("sim_deleteAllValidators")
+    ).json()
+    assert has_success_status(delete_validators_result)
+
+    # Clean up mock providers
+    providers_response = post_request_localhost(
+        payload("sim_getProvidersAndModels")
+    ).json()
+    assert has_success_status(providers_response)
+
+    for provider in providers_response["result"]:
+        if provider["provider"] == "mock":
+            response = post_request_localhost(
+                payload("sim_deleteProvider", provider["id"])
+            ).json()
+            assert has_success_status(response)
+
+
 @pytest.fixture
 def from_account() -> Iterator[Account]:
     account = create_new_account()

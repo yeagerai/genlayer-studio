@@ -21,10 +21,25 @@ from tests.common.response import (
     has_success_status,
 )
 
+from tests.integration.conftest import setup_mock_validators, cleanup_mock_validators
+import re
 
-def test_wizard_of_coin(setup_validators, from_account):
+
+def test_wizard_of_coin(from_account):
     # Get contract schema
+
     contract_code = open("examples/contracts/wizard_of_coin.py", "r").read()
+    print("contract_code", contract_code)
+    prompts = re.findall(r'prompt\s*=\s*f?"""(.*?)"""', contract_code, re.DOTALL)
+    print("prompts", prompts)
+
+    responses = {
+        prompts[0]: {
+            "reasoning": "I am a wise wizard and must protect the coin.",
+            "give_coin": False,
+        },
+    }
+    setup_mock_validators(responses, True)
     result_schema = post_request_localhost(
         payload(
             "gen_getContractSchemaForCode",
@@ -51,3 +66,5 @@ def test_wizard_of_coin(setup_validators, from_account):
 
     # Assert format
     assert_dict_struct(transaction_response_call_1, call_contract_function_response)
+
+    cleanup_mock_validators()
