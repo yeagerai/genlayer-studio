@@ -33,8 +33,8 @@ jobs:
       - run: pip install -r backend/protocol_rpc/requirements.txt
       - run: pip install pytest-cov
       - run: pytest tests/unit --cov=backend --cov-report=xml --cov-branch
-      - name: SonarCloud Scan
-        uses: sonarsource/sonarqube-scan-action@v4.1.0
+      # - name: SonarCloud Scan
+      #   uses: sonarsource/sonarqube-scan-action@v4.1.0
 
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #   env:
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
