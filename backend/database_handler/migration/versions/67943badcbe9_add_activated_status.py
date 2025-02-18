@@ -21,7 +21,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE transaction_status ADD VALUE 'ACTIVATED' AFTER 'PENDING'")
+    # Check if ACTIVATED exists in the enum
+    conn = op.get_bind()
+    result = conn.execute(
+        sa.text(
+            "SELECT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'ACTIVATED' AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'transaction_status'))"
+        )
+    ).scalar()
+
+    if not result:
+        op.execute(
+            sa.text(
+                "ALTER TYPE transaction_status ADD VALUE 'ACTIVATED' AFTER 'PENDING'"
+            )
+        )
 
 
 def downgrade() -> None:
