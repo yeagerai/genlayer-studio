@@ -1,7 +1,7 @@
 """appeal_processing_time
 
 Revision ID: d932a5fef8b1
-Revises: 67943badcbe9
+Revises: 2de9c3151194
 Create Date: 2025-01-31 15:39:44.618075
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "d932a5fef8b1"
-down_revision: Union[str, None] = "67943badcbe9"
+down_revision: Union[str, None] = "2de9c3151194"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
