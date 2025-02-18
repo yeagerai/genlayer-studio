@@ -1472,22 +1472,13 @@ class PendingState(TransactionState):
                 )
 
         # Transition to the ProposingState
-        return ProposingState(leader_rotation=False)
+        return ProposingState()
 
 
 class ProposingState(TransactionState):
     """
     Class representing the proposing state of a transaction.
     """
-
-    def __init__(self, leader_rotation: bool):
-        """
-        Initialize the ProposingState.
-
-        Args:
-            leader_rotation (bool): Indicates if the ProposingState was called to do a leader rotation.
-        """
-        self.leader_rotation = leader_rotation
 
     async def handle(self, context):
         """
