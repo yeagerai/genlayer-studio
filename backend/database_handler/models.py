@@ -97,6 +97,7 @@ class Transactions(Base):
     v: Mapped[Optional[int]] = mapped_column(Integer)
     ghost_contract_address: Mapped[Optional[str]] = mapped_column(String(255))
     appeal_failed: Mapped[Optional[int]] = mapped_column(Integer)
+    consensus_history: Mapped[Optional[dict]] = mapped_column(JSONB)
     timestamp_appeal: Mapped[Optional[int]] = mapped_column(BigInteger)
     appeal_processing_time: Mapped[Optional[int]] = mapped_column(Integer)
 
