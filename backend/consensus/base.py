@@ -1011,7 +1011,7 @@ class ConsensusAlgorithm:
                     EventScope.CONSENSUS,
                     "Set transaction appealed",
                     {
-                        "transaction_hash": context.transaction.hash,
+                        "hash": context.transaction.hash,
                     },
                 ),
                 log_to_terminal=False,
@@ -1113,7 +1113,7 @@ class ConsensusAlgorithm:
                     EventScope.CONSENSUS,
                     "Set transaction appealed",
                     {
-                        "transaction_hash": context.transaction.hash,
+                        "hash": context.transaction.hash,
                     },
                 ),
                 log_to_terminal=False,
