@@ -240,21 +240,8 @@ class TransactionParser:
             leader_only=leader_only,
         )
 
-    def decode_method_call_data(data: str) -> DecodedMethodCallData:
-        data_bytes = HexBytes(data)
-
-        try:
-            data_decoded = rlp.decode(data_bytes, MethodCallTransactionPayload)
-        except rlp.exceptions.DeserializationError as e:
-            print("WARN | falling back to default decode method call data:", e)
-            data_decoded = rlp.decode(data_bytes, MethodCallTransactionPayloadDefault)
-
-        state_status = getattr(data_decoded, "state_status", "accepted")
-
-        return DecodedMethodCallData(
-            calldata=data_decoded["calldata"],
-            state_status=state_status,
-        )
+    def decode_method_call_data(self, data: str) -> DecodedMethodCallData:
+        return DecodedMethodCallData(eth_utils.hexadecimal.decode_hex(data))
 
     def decode_deployment_data(self, data: str) -> DecodedDeploymentData:
         data_bytes = HexBytes(data)
@@ -312,19 +299,6 @@ class MethodSendTransactionPayload(rlp.Serializable):
 
 
 class MethodSendTransactionPayloadDefault(rlp.Serializable):
-    fields = [
-        ("calldata", binary),
-    ]
-
-
-class MethodCallTransactionPayload(rlp.Serializable):
-    fields = [
-        ("calldata", binary),
-        ("state_status", text),
-    ]
-
-
-class MethodCallTransactionPayloadDefault(rlp.Serializable):
     fields = [
         ("calldata", binary),
     ]

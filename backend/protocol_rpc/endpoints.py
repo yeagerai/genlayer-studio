@@ -449,6 +449,68 @@ async def get_contract_schema_for_code(
     return json.loads(schema)
 
 
+async def gen_call(
+    session: Session,
+    accounts_manager: AccountsManager,
+    msg_handler: MessageHandler,
+    transactions_parser: TransactionParser,
+    params: dict,
+) -> str:
+    to_address = params["to"]
+    from_address = params["from"] if "from" in params else None
+    data = params["data"]
+    block_id = params["block_id"] if "block_id" in params else None
+    leader_results = params["leaderResults"] if "leaderResults" in params else None
+
+    if from_address is None:
+        return base64.b64encode(b"\x00' * 31 + b'\x01").decode(
+            "ascii"
+        )  # Return '1' as a uint256
+
+    if from_address and not accounts_manager.is_valid_address(from_address):
+        raise InvalidAddressError(from_address)
+
+    if not accounts_manager.is_valid_address(to_address):
+        raise InvalidAddressError(to_address)
+
+    if block_id == "latest-nonfinal":
+        state_status = "accepted"
+    else:
+        state_status = "finalized"  # waiting for Node to know the default
+
+    decoded_data = transactions_parser.decode_method_call_data(data)
+
+    node = Node(  # Mock node just to get the data from the GenVM
+        contract_snapshot=ContractSnapshot(to_address, session),
+        contract_snapshot_factory=partial(ContractSnapshot, session=session),
+        validator_mode=ExecutionMode.LEADER,
+        validator=Validator(
+            address="",
+            stake=0,
+            llmprovider=LLMProvider(
+                provider="",
+                model="",
+                config={},
+                plugin="",
+                plugin_config={},
+            ),
+        ),
+        leader_receipt=None,
+        msg_handler=msg_handler.with_client_session(get_client_session_id()),
+    )
+
+    receipt = await node.get_contract_data(
+        from_address="0x" + "00" * 20,
+        calldata=decoded_data.calldata,
+        state_status=state_status,
+    )
+    if receipt.execution_result != ExecutionResultStatus.SUCCESS:
+        raise JSONRPCError(
+            message="running contract failed", data={"receipt": receipt.to_dict()}
+        )
+    return eth_utils.hexadecimal.encode_hex(receipt.result[1:])
+
+
 ####### ETH ENDPOINTS #######
 def get_balance(
     accounts_manager: AccountsManager, account_address: str, block_tag: str = "latest"
@@ -467,7 +529,7 @@ def get_transaction_by_hash(
     return transactions_processor.get_transaction_by_hash(transaction_hash)
 
 
-async def call(
+async def eth_call(
     session: Session,
     accounts_manager: AccountsManager,
     msg_handler: MessageHandler,
@@ -512,9 +574,7 @@ async def call(
     )
 
     receipt = await node.get_contract_data(
-        from_address="0x" + "00" * 20,
-        calldata=decoded_data.calldata,
-        state_status=decoded_data.state_status,
+        from_address="0x" + "00" * 20, calldata=decoded_data.calldata
     )
     if receipt.execution_result != ExecutionResultStatus.SUCCESS:
         raise JSONRPCError(
@@ -855,6 +915,16 @@ def register_all_rpc_endpoints(
         partial(get_contract_schema_for_code, msg_handler),
         method_name="gen_getContractSchemaForCode",
     )
+    register_rpc_endpoint(
+        partial(
+            gen_call,
+            request_session,
+            accounts_manager,
+            msg_handler,
+            transactions_parser,
+        ),
+        method_name="gen_call",
+    )
 
     # Eth methods
     register_rpc_endpoint(
@@ -867,7 +937,11 @@ def register_all_rpc_endpoints(
     )
     register_rpc_endpoint(
         partial(
-            call, request_session, accounts_manager, msg_handler, transactions_parser
+            eth_call,
+            request_session,
+            accounts_manager,
+            msg_handler,
+            transactions_parser,
         ),
         method_name="eth_call",
     )

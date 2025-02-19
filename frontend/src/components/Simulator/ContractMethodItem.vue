@@ -62,8 +62,9 @@ const handleCallReadMethod = async () => {
       const result = await callReadMethod(
         props.name,
         unfoldArgsData(calldataArguments.value),
-        i === 0 ? 'accepted' : 'finalized',
+        i === 0 ? 'latest-nonfinal' : 'latest-final',
       );
+      console.log('result', result);
 
       if (result !== undefined) {
         const resultString = abi.calldata.toString(result);

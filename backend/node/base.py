@@ -197,7 +197,7 @@ class Node:
         self,
         from_address: str,
         calldata: bytes,
-        state_status: str,
+        state_status: str | None = None,
     ) -> Receipt:
         return await self._run_genvm(
             from_address,
