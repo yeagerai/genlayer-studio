@@ -133,7 +133,9 @@ export function useContractQueries() {
         contract_name: contract.value?.name || '',
       });
 
-      transactionsStore.clearTransactionsForContract(contract.value?.id ?? '');
+      await transactionsStore.clearTransactionsForContract(
+        contract.value?.id ?? '',
+      ); // await this to avoid race condition causing the added transaction below to be erased
       transactionsStore.addTransaction(tx);
       contractsStore.removeDeployedContract(contract.value?.id ?? '');
       return tx;

@@ -48,6 +48,7 @@ from flask import request
 from flask_jsonrpc.exceptions import JSONRPCError
 import base64
 import os
+from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
 
 
 ####### WRAPPER TO BLOCK ENDPOINTS FOR HOSTED ENVIRONMENT #######
@@ -554,14 +555,32 @@ def get_transactions_for_address(
 
 
 def set_transaction_appeal(
-    transactions_processor: TransactionsProcessor, transaction_hash: str
+    transactions_processor: TransactionsProcessor,
+    msg_handler: MessageHandler,
+    transaction_hash: str,
 ) -> None:
     transactions_processor.set_transaction_appeal(transaction_hash, True)
+    msg_handler.send_message(
+        log_event=LogEvent(
+            "transaction_appeal_updated",
+            EventType.INFO,
+            EventScope.CONSENSUS,
+            "Set transaction appealed",
+            {
+                "hash": transaction_hash,
+            },
+        ),
+        log_to_terminal=False,
+    )
 
 
 @check_forbidden_method_in_hosted_studio
 def set_finality_window_time(consensus: ConsensusAlgorithm, time: int) -> None:
     consensus.set_finality_window_time(time)
+
+
+def get_finality_window_time(consensus: ConsensusAlgorithm) -> int:
+    return consensus.finality_window_time
 
 
 def get_chain_id() -> str:
@@ -842,12 +861,16 @@ def register_all_rpc_endpoints(
         method_name="sim_getTransactionsForAddress",
     )
     register_rpc_endpoint(
-        partial(set_transaction_appeal, transactions_processor),
+        partial(set_transaction_appeal, transactions_processor, msg_handler),
         method_name="sim_appealTransaction",
     )
     register_rpc_endpoint(
         partial(set_finality_window_time, consensus),
         method_name="sim_setFinalityWindowTime",
+    )
+    register_rpc_endpoint(
+        partial(get_finality_window_time, consensus),
+        method_name="sim_getFinalityWindowTime",
     )
     register_rpc_endpoint(
         partial(get_contract, consensus_service),

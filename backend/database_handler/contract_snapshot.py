@@ -15,6 +15,7 @@ class ContractSnapshot:
 
     contract_address: str
     contract_code: str
+    balance: int
     states: dict[str, dict[str, str]]
     ghost_contract_address: str | None
 
@@ -27,6 +28,8 @@ class ContractSnapshot:
             contract_account = self._load_contract_account()
             self.contract_data = contract_account.data
             self.contract_code = self.contract_data["code"]
+            self.balance = contract_account.balance
+
             if ("accepted" in self.contract_data["state"]) and (
                 isinstance(self.contract_data["state"]["accepted"], dict)
             ):

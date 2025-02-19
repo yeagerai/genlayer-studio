@@ -3,8 +3,7 @@
 from genlayer import *
 
 
-@gl.contract
-class UserStorage:
+class UserStorage(gl.Contract):
     storage: TreeMap[Address, str]
 
     # constructor
@@ -22,4 +21,4 @@ class UserStorage:
 
     @gl.public.write
     def update_storage(self, new_storage: str) -> None:
-        self.storage[gl.message.sender_account] = new_storage
+        self.storage[gl.message.sender_address] = new_storage

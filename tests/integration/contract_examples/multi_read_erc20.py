@@ -3,9 +3,11 @@
 from genlayer import *
 
 
-@gl.contract
-class multi_read_erc20:
+class multi_read_erc20(gl.Contract):
     balances: TreeMap[Address, TreeMap[Address, u256]]
+
+    def __init__(self):
+        pass
 
     @gl.public.write
     def update_token_balances(
