@@ -459,8 +459,10 @@ async def gen_call(
     to_address = params["to"]
     from_address = params["from"] if "from" in params else None
     data = params["data"]
-    block_id = params["block_id"] if "block_id" in params else None
+    block_id = params["blockId"] if "blockId" in params else None
     leader_results = params["leaderResults"] if "leaderResults" in params else None
+
+    print("block_id", block_id)
 
     if from_address is None:
         return base64.b64encode(b"\x00' * 31 + b'\x01").decode(
@@ -540,6 +542,8 @@ async def eth_call(
     to_address = params["to"]
     from_address = params["from"] if "from" in params else None
     data = params["data"]
+
+    print("calling eth_call")
 
     if from_address is None:
         return base64.b64encode(b"\x00' * 31 + b'\x01").decode(
