@@ -90,7 +90,7 @@ async function main() {
   const deployTx = await consensusMain.addTransaction(
     ethers.ZeroAddress,
     ethers.ZeroAddress,
-    5, // Actualizado a 5 validadores
+    5,
     maxRotations,
     "0x1234"
   );
@@ -133,7 +133,7 @@ async function main() {
   // 3. Create dummy call through ghost contract
   console.log("\n3. Creating dummy call through ghost contract...");
   const dummyCallTx = await ghost.addTransaction(
-    5, // Actualizado a 5 validadores
+    5,
     maxRotations,
     ethers.keccak256(ethers.toUtf8Bytes("dummyFunction()"))
   );

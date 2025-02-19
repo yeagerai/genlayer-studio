@@ -1,181 +1,138 @@
 const hre = require("hardhat");
-const { ethers } = hre;
-
-//
-// ================ Auxiliares ================
-//
 
 async function generateSignature(signer, currentSeed) {
   const seedBytes = ethers.zeroPadValue(ethers.toBeHex(currentSeed), 32);
-  return await signer.signMessage(ethers.getBytes(seedBytes));
+  const vrfProof = await signer.signMessage(ethers.getBytes(seedBytes));
+  return vrfProof;
 }
 
-function findSignerByAddress(validators, address) {
-  const validator = validators.find(
-    (v) => v.address.toLowerCase() === address.toLowerCase()
-  );
-  if (!validator) {
-    throw new Error(`No validator found for address ${address}`);
-  }
-  return validator;
-}
-
-/**
- * Realiza el flujo:
- *   1) activateTransaction
- *   2) proposeReceipt
- *   3) commitVote (todos)
- *   4) revealVote (todos)
- *   5) (opcional) finalizeTransaction si mayoría es Agree
- *
- * @param {Array<number>} votes Array con un voto por cada validador (ej: [2,2,2,1,1])
- *                              donde 1=Agree,2=Disagree.
- */
-async function runConsensusRound(
+async function completeConsensusFlow(
   consensusMain,
   genManager,
   txId,
   ghostAddress,
   activator,
   vrfProofActivate,
-  allValidators,
+  validators,
   messages,
-  votes
+  voteType
 ) {
-  // 1) Activate
-  const activateTx = await consensusMain
-    .connect(activator)
-    .activateTransaction(txId, vrfProofActivate);
+  let skipFinalize = false
+	if (voteType > 10) {
+		skipFinalize = true
+		voteType = voteType - 10
+	}
+  // 1. Activate transaction
+  const activateTx = await consensusMain.connect(activator).activateTransaction(txId, vrfProofActivate);
   const activationReceipt = await activateTx.wait();
   const activationEvent = activationReceipt.logs?.find(
-    (log) => consensusMain.interface.parseLog(log)?.name === "TransactionActivated"
-  );
-  if (!activationEvent) {
-    // Podría significar que la tx ya estaba en "Proposing" (si no se regresa a Pending)
-    throw new Error("TransactionActivated event not found");
-  }
+		(log) => consensusMain.interface.parseLog(log)?.name === "TransactionActivated"
+	)
+	if (!activationEvent) throw new Error("TransactionActivated event not found");
   const activationParsedLog = consensusMain.interface.parseLog(activationEvent);
+  console.log("Messages", messages);
+	console.log("validators", validators.map((v) => v.address));
 
-  // Extraemos líder y validadores (normalmente 5 en tu implementación)
-  const leaderAddr = activationParsedLog.args[1];
-  const leader = findSignerByAddress(allValidators, leaderAddr);
+  // Get leader from activation event
+  const leader = validators.find((v) => v.address === activationParsedLog?.args[1]);
+	const validatorsForTx = activationParsedLog?.args[2].map((v) => findSignerByAddress(validators, v));
 
-  const valAddrsForTx = activationParsedLog.args[2];
-  const validatorsForTx = valAddrsForTx.map((addr) => findSignerByAddress(allValidators, addr));
-  console.log(">> Round validators assigned by contract:", validatorsForTx.map((v) => v.address));
-
-  // 2) Propose
   const currentSeed = await genManager.recipientRandomSeed(ghostAddress);
-  const vrfProofPropose = await generateSignature(leader, BigInt(currentSeed));
-  await consensusMain.connect(leader).proposeReceipt(txId, "0x123456", messages, vrfProofPropose);
+	const vrfProofPropose1 = await generateSignature(leader, BigInt(currentSeed));
 
-  // 3) Commit (todos)
-  // Asegúrate de usar un array `nonces` de la misma longitud
-  // que la cantidad de validadores en la ronda
-  const nonces = [111, 222, 333, 444, 555]; // 5 nonces
+  // 2. Leader proposes receipt
+  await consensusMain.connect(leader).proposeReceipt(txId, "0x123456", messages, vrfProofPropose1);
+
+  // 3. Commit votes
+  const nonces = [123, 456, 789, 1011, 1213];
   for (let i = 0; i < validatorsForTx.length; i++) {
-    const voteType = votes[i]; // p.ej, 1=Agree, 2=Disagree
-    const voteHash = ethers.solidityPackedKeccak256(
-      ["address", "uint8", "uint256"],
-      [validatorsForTx[i].address, voteType, nonces[i]]
-    );
-    await consensusMain.connect(validatorsForTx[i]).commitVote(txId, voteHash);
-  }
+		const voteHash = ethers.solidityPackedKeccak256(
+			["address", "uint8", "uint256"],
+			[validatorsForTx[i].address, voteType, nonces[i]]
+		);
+		await consensusMain.connect(validatorsForTx[i]).commitVote(txId, voteHash);
+	}
 
-  // 4) Reveal (todos)
-  // Tras el último reveal se decide si se rota líder, se pasa a "Accepted", etc.
-  let receipt;
+  // 4. Reveal votes
+  let tx = ""
+  let receipt = ""
   for (let i = 0; i < validatorsForTx.length; i++) {
-    const voteType = votes[i];
-    const voteHash = ethers.solidityPackedKeccak256(
-      ["address", "uint8", "uint256"],
-      [validatorsForTx[i].address, voteType, nonces[i]]
-    );
-    const revealTx = await consensusMain
-      .connect(validatorsForTx[i])
-      .revealVote(txId, voteHash, voteType, nonces[i]);
-    // Esperar a que minen
-    receipt = await revealTx.wait();
-  }
+		const voteHash = ethers.solidityPackedKeccak256(
+			["address", "uint8", "uint256"],
+			[validatorsForTx[i].address, voteType, nonces[i]]
+		);
+		tx = await consensusMain.connect(validatorsForTx[i]).revealVote(txId, voteHash, voteType, nonces[i]);
+	}
 
-  return [receipt, leader, validatorsForTx];
+  // 5. Finalize transaction
+  if (voteType === 1 && !skipFinalize) {
+		// Agree Majority
+		tx = await consensusMain.finalizeTransaction(txId);
+		receipt = await tx.wait();
+	} else if (voteType === 2) {
+		// Disagree Majority
+		receipt = await tx.wait();
+	} else {
+		receipt = await tx.wait();
+	}
+
+	return [receipt, leader];
 }
 
-//
-// ================ MAIN SCRIPT ================
-//
-
 async function main() {
-  console.log("\n=== Iniciando flow de despliegue de Ghost + rotación de líder ===\n");
+  console.log("Starting ghost deployment and call flow...");
 
-  // 1. Obtener signers
-  const [
-    owner,
-    validator1,
-    validator2,
-    validator3,
-    validator4,
-    validator5,
-  ] = await hre.ethers.getSigners();
+  // Get signers
+  const [owner, validator1, validator2, validator3, validator4, validator5] = await hre.ethers.getSigners();
   const validators = [validator1, validator2, validator3, validator4, validator5];
-  console.log("Validators addresses:", validators.map((v) => v.address));
 
-  // 2. Instanciamos los contratos desde /deployments/localhost
+  // Get contract instances
   const consensusMainAddress = require("../deployments/localhost/ConsensusMain.json").address;
   const consensusMain = await hre.ethers.getContractAt("ConsensusMain", consensusMainAddress);
-
-  const genManagerAddress = require("../deployments/localhost/ConsensusManager.json").address;
-  const genManager = await hre.ethers.getContractAt("ConsensusManager", genManagerAddress);
-
-  const genTransactionsAddress = require("../deployments/localhost/Transactions.json").address;
-  const genTransactions = await hre.ethers.getContractAt("Transactions", genTransactionsAddress);
 
   const consensusDataAddress = require("../deployments/localhost/ConsensusData.json").address;
   const consensusData = await hre.ethers.getContractAt("ConsensusData", consensusDataAddress);
 
-  // 3. Deploy de un token dummy
-  console.log("\nDeploying test ERC20 (BasicERC20)...");
-  const BasicERC20 = await ethers.getContractFactory("BasicERC20");
-  const token = await BasicERC20.deploy("Test Token", "TEST", owner.address);
-  await token.mint(owner.address, ethers.parseEther("1000"));
-  console.log("- ERC20 token address:", token.target);
+  const genManagerAddress = require("../deployments/localhost/ConsensusManager.json").address;
+  const genManager = await hre.ethers.getContractAt("ConsensusManager", genManagerAddress);
 
-  // 4. Crear transacción para desplegar ghost
-  console.log("\nCreating transaction to deploy Ghost contract...");
-  const numVoters = 3; // se ignora en tu code, pero lo pasamos igual
+  const BasicERC20 = require("../deployments/localhost/BasicERC20.json").address;
+  const BasicERC20Contract = await hre.ethers.getContractAt("BasicERC20", BasicERC20);
+
+  // Deploy a dummy ERC20 token
+  const token = await BasicERC20Contract.deploy("Test Token", "TEST", owner.address);
+  await token.mint(owner.address, ethers.parseEther("1000"));
+
   const maxRotations = 2;
 
+  // 1. Deploy ghost contract
+  console.log("\n1. Deploying ghost contract...");
   const deployTx = await consensusMain.addTransaction(
     ethers.ZeroAddress,
     ethers.ZeroAddress,
-    numVoters,
+    3,
     maxRotations,
-    "0x1234" // initCode
+    "0x1234"
   );
   const deployReceipt = await deployTx.wait();
+
   const deployEvent = deployReceipt.logs?.find(
     (log) => consensusMain.interface.parseLog(log)?.name === "NewTransaction"
   );
-  if (!deployEvent) throw new Error("NewTransaction event not found");
-
   const deployParsedLog = consensusMain.interface.parseLog(deployEvent);
   const deployTxId = deployParsedLog.args[0];
   const ghostAddress = deployParsedLog.args[1];
-  const activatorAddress = deployParsedLog.args[2];
-
-  console.log("- DeployTxID:", deployTxId);
-  console.log("- GhostAddress:", ghostAddress);
-  console.log("- Activator Address:", activatorAddress);
-
-  // 5. Activator y VRF
-  const deployActivator = findSignerByAddress(validators, activatorAddress);
+  const deployActivator = validators.find((v) => v.address === deployParsedLog.args[2]);
   let currentSeed = await genManager.recipientRandomSeed(ghostAddress);
-  let vrfProofActivate = await generateSignature(deployActivator, BigInt(currentSeed));
+  const vrfProofActivate = await generateSignature(deployActivator, BigInt(currentSeed));
 
-  // 6. 1.ª ronda de consensus => todos "Agree"
-  console.log("\nCompleting consensus for ghost deployment...");
-  const votePatternAllAgree = [1,1,1,1,1]; // 5 validators => all "Agree"
-  await runConsensusRound(
+  console.log("- Deploy Transaction ID:", deployTxId);
+  console.log("- Ghost Address:", ghostAddress);
+  console.log("- Deploy Activator:", deployActivator.address);
+
+  // 2. Complete consensus flow for ghost deployment
+  console.log("\n2. Completing consensus flow for ghost deployment...");
+  const deployStatus = await completeConsensusFlow(
     consensusMain,
     genManager,
     deployTxId,
@@ -183,172 +140,126 @@ async function main() {
     deployActivator,
     vrfProofActivate,
     validators,
-    [], // no messages
-    votePatternAllAgree
+    [],
+    1
   );
 
-  // Finalizamos la transacción (porque todos “Agree” => Accepted => se puede finalizar).
-  let finalizeTx = await consensusMain.finalizeTransaction(deployTxId);
-  await finalizeTx.wait();
-
-  // 7. Fund ghost
-  console.log("\nFunding ghost contract...");
+  // 3. Fund the ghost contract
   await token.transfer(ghostAddress, ethers.parseEther("100"));
 
-  // 8. Crear transacción de transferencia desde ghost
-  const GhostBlueprint = await ethers.getContractFactory("GhostBlueprint");
+  // 4. Create transfer transaction through ghost contract
+  const GhostBlueprintAddress = require("../deployments/localhost/GhostBlueprint.json").address;
+  const GhostBlueprint = await hre.ethers.getContractAt("GhostBlueprint", GhostBlueprintAddress);
   const ghost = GhostBlueprint.attach(ghostAddress);
 
+  // 5. Encode the transfer function call
   const transferAmount = ethers.parseEther("50");
   const recipient = owner.address;
   const transferData = token.interface.encodeFunctionData("transfer", [recipient, transferAmount]);
 
-  console.log("\nCreating transfer transaction through ghost...");
+  // 6. Add transaction through ghost
   const ghostTx = await ghost.addTransaction(numVoters, maxRotations, transferData);
   const ghostReceipt = await ghostTx.wait();
   const ghostEvent = ghostReceipt.logs?.find(
     (log) => consensusMain.interface.parseLog(log)?.name === "NewTransaction"
   );
   const ghostParsedLog = consensusMain.interface.parseLog(ghostEvent);
-  const ghostTxId = ghostParsedLog.args[0];
-  const ghostActivatorAddr = ghostParsedLog.args[2];
-  const ghostActivator = findSignerByAddress(validators, ghostActivatorAddr);
 
-  // Mensaje a emitir onAcceptance
+  const ghostTxId = ghostParsedLog?.args[0];
+  const ghostActivator = validators.find((v) => v.address === ghostParsedLog?.args[2]);
+
+  // 7. Create message to be emitted on acceptance
   const abiCoder = new ethers.AbiCoder();
   const messageData = abiCoder.encode(["address", "bytes"], [token.target, transferData]);
+
   const message = {
     messageType: 0, // External
     recipient: ghostAddress,
     value: 0,
     data: messageData,
-    onAcceptance: true,
+    onAcceptance: true, // Set to true to emit on acceptance
   };
-
-  // 9. Ronda con "Disagree" MAYORITARIO (no unánime).
-  // => 3 votan 2 (Disagree), 2 votan 1 (Agree) => "MajorityDisagree"
-  const votePatternMajorityDisagree = [2,2,2,1,1];
   currentSeed = await genManager.recipientRandomSeed(ghostAddress);
-  vrfProofActivate = await generateSignature(ghostActivator, BigInt(currentSeed));
+  const vrfProofActivate2 = await generateSignature(ghostActivator, BigInt(currentSeed));
 
-  console.log("\nCompleting consensus with majority Disagree votes...");
-  let [receipt, oldLeader] = await runConsensusRound(
+  // 8. Complete consensus for transfer with Disagree votes
+  const voteType = 2 // Disagree
+  const [receipt, leader] = await completeConsensusFlow(
     consensusMain,
     genManager,
     ghostTxId,
     ghostAddress,
     ghostActivator,
-    vrfProofActivate,
+    vrfProofActivate2,
     validators,
     [message],
-    votePatternMajorityDisagree
+    voteType
   );
 
-  // Tras la última revelación, si hay "MajorityDisagree", el contrato hace 1 rotación
-  // y deja la transacción en estado `Proposing` (o `Undetermined` si no más rotaciones).
-  // Chequeamos el evento de rotación:
-  let rotationEvent = receipt.logs?.find(
+  // 9. Check for TransactionLeaderRotated event
+  if (!receipt) throw new Error("Receipt not found");
+  if (receipt.logs?.length === 0) throw new Error("No logs found in receipt");
+  const event = receipt.logs?.find(
     (log) => consensusMain.interface.parseLog(log)?.name === "TransactionLeaderRotated"
   );
-  if (!rotationEvent) {
-    throw new Error("TransactionLeaderRotated event not found (did it Disagree?).");
-  }
-  let leaderRotatedParsedLog = consensusMain.interface.parseLog(rotationEvent);
-  let newLeaderAddr = leaderRotatedParsedLog.args[1];
-  let newLeader = findSignerByAddress(validators, newLeaderAddr);
+  if (!event) throw new Error("TransactionLeaderRotated event not found");
+  const leaderRotatedParsedLog = consensusMain.interface.parseLog(event);
+  const newLeader = validators.find((v) => v.address === leaderRotatedParsedLog?.args[1]);
+  console.log("newLeader", newLeader.address);
 
-  console.log("\nLeader rotation occurred:");
-  console.log("- Old leader:", oldLeader.address);
-  console.log("- New leader:", newLeader.address);
+  // 10. Verify the transfer did not occur
+  console.log("token balance of ghost", await token.balanceOf(ghostAddress));
+  console.log("token balance of recipient", await token.balanceOf(recipient));
 
-  // 10. En este punto, el round se "reinicia" con nuevo líder y validadores.
-  // => Hacemos propose de nuevo.
-  // => PERO tu contrato ya lo hace AUTOMÁTICAMENTE tras la rotación en reveal
-  //    (ver si necesita .activateTransaction? A veces re-entra en "Pending"?).
-  //
-  //   En tu code, la transacción pasa a "Proposing" con nuevo líder,
-  //   pero NO se hace proposeReceipt si no lo llamas.
-  //   Sin embargo, el test simplifica llamando a `proposeReceipt` manualmente:
-  //
+  // 11. Get validators for the transaction, excluding the leader
+  const txValidators = await consensusData.getValidatorsForLastRound(ghostTxId);
 
-  console.log("\nNew leader proposing new receipt...");
+  console.log("txValidators", txValidators);
+  const voters = txValidators.map((v) => findSignerByAddress(validators, v));
+
+  // 12. New leader proposes new receipt
+  const newProposedReceipt = "0x4567";
   const currentSeed2 = await genManager.recipientRandomSeed(ghostAddress);
-  const vrfProofPropose2 = await generateSignature(newLeader, BigInt(currentSeed2));
+  const vrfProofPropose = await generateSignature(newLeader, BigInt(currentSeed2));
+  await consensusMain.connect(newLeader).proposeReceipt(ghostTxId, newProposedReceipt, [message], vrfProofPropose);
 
-  // Esta proposeReceipt la llamas SÓLO si tu contract está en estado "Proposing".
-  // Sino necesitarías volver a "activateTransaction". Depende la lógica interna.
-  await consensusMain
-    .connect(newLeader)
-    .proposeReceipt(ghostTxId, "0x4567", [message], vrfProofPropose2);
-
-  // 11. Commit + reveal con "Agree" total
-  const votePatternAllAgreeAgain = [1,1,1,1,1];
-  // Para ello, el round actual ya se habrá registrado en `genTransactions`,
-  // con sus validadores. Tomamos esos validadores:
-  const txValidators = await genTransactions.getValidatorsForLastRound(ghostTxId);
-  const voters = txValidators.map((addr) => findSignerByAddress(validators, addr));
-  console.log(">> Round validators (new rotation):", voters.map((v) => v.address));
-
-  // commit
-  const nonces2 = [999, 1000, 1001, 1002, 1003];
+  // 13. Vote with Agree
+  const agreeVoteType = 1;
+  console.log("voters length", voters.length);
   for (let i = 0; i < voters.length; i++) {
-    const vtype = votePatternAllAgreeAgain[i];
+    const nonce = 1234 + i;
     const voteHash = ethers.solidityPackedKeccak256(
       ["address", "uint8", "uint256"],
-      [voters[i].address, vtype, nonces2[i]]
+      [voters[i].address, agreeVoteType, nonce]
     );
     await consensusMain.connect(voters[i]).commitVote(ghostTxId, voteHash);
   }
 
-  // reveal
-  let lastRevealReceipt;
   for (let i = 0; i < voters.length; i++) {
-    const vtype = votePatternAllAgreeAgain[i];
+    const nonce = 1234 + i;
     const voteHash = ethers.solidityPackedKeccak256(
       ["address", "uint8", "uint256"],
-      [voters[i].address, vtype, nonces2[i]]
+      [voters[i].address, agreeVoteType, nonce]
     );
-    const rvTx = await consensusMain
-      .connect(voters[i])
-      .revealVote(ghostTxId, voteHash, vtype, nonces2[i]);
-    lastRevealReceipt = await rvTx.wait();
+    await consensusMain.connect(voters[i]).revealVote(ghostTxId, voteHash, agreeVoteType, nonce);
   }
 
-  // Verificamos si se emite "TransactionAccepted"
-  // y luego finalizamos.
-  // (O si se rota de nuevo, algo anda mal)
-  let acceptEvent = lastRevealReceipt.logs?.find(
-    (log) => consensusMain.interface.parseLog(log)?.name === "TransactionAccepted"
-  );
-  if (!acceptEvent) {
-    throw new Error("No 'TransactionAccepted' event found (did it fail?).");
-  }
+  // const txData = await consensusData.getTransactionData(ghostTxId)
+  // expect(txData.revealedVotesCount).to.equal(voters.length)
+  // expect(txData.status).to.equal(5) // Accepted
+  const txStatus = await consensusData.getTransactionStatus(ghostTxId);
+  console.log("txStatus", txStatus);
+  // 14. Finalize
+  const tx = await consensusMain.finalizeTransaction(ghostTxId);
+  const receiptFinalization = await tx.wait();
+  console.log("receiptFinalization", receiptFinalization);
+  console.log("txStatus", await consensusData.getTransactionStatus(ghostTxId));
 
-  console.log("\nFinalizing transaction...");
-  const txFinal = await consensusMain.finalizeTransaction(ghostTxId);
-  await txFinal.wait();
-
-  // 12. Comprobar el estado final
-  const finalTxData = await consensusData.getTransactionData(ghostTxId);
-  console.log("Final transaction status:", finalTxData.status.toString());
-
-  // 13. Comprobar balances
-  const ghostBalance = await token.balanceOf(ghostAddress);
-  const recipientBalance = await token.balanceOf(recipient);
-  console.log("\nFinal balances:");
-  console.log("- Ghost contract:", ethers.formatEther(ghostBalance), "TEST");
-  console.log("- Recipient:", ethers.formatEther(recipientBalance), "TEST");
-
-  if (finalTxData.status.toString() === "7") {
-    console.log("\n¡Ghost deployment and leader rotation completed successfully! ✓");
-  } else {
-    throw new Error("Unexpected final status: " + finalTxData.status.toString());
-  }
+  // Verify the transfer occurred
+  console.log("token balance of ghost", await token.balanceOf(ghostAddress));
+  console.log("token balance of recipient", await token.balanceOf(recipient));
 }
 
-//
-// ================ Ejecución ================
-//
 main()
   .then(() => process.exit(0))
   .catch((error) => {
