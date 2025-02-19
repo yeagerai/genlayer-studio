@@ -10,12 +10,6 @@ services:
       - ./traefik.yaml:/etc/traefik/traefik.yaml:ro
 
   frontend:
-    build:
-      context: ./
-      dockerfile: ./docker/Dockerfile.frontend
-      target: ${FRONTEND_BUILD_TARGET:-final}
-      args:
-        - VITE_*
     ports:
       - "${FRONTEND_PORT}:8080"
     volumes:
@@ -43,10 +37,6 @@ services:
       traefik.http.routers.frontend.tls: true
 
   jsonrpc:
-    build:
-      context: ./
-      dockerfile: ./docker/Dockerfile.backend
-      target: ${BACKEND_BUILD_TARGET:-prod}
     environment:
       - FLASK_SERVER_PORT=${RPCPORT}
       # TODO: remove this in production
@@ -95,9 +85,6 @@ services:
       traefik.http.routers.jsonrpc.tls: true
 
   webrequest:
-    build:
-      context: ./
-      dockerfile: ./docker/Dockerfile.webrequest
     shm_size: 2gb
     volumes:
       - ./.env:/app/webrequest/.env
@@ -165,9 +152,6 @@ services:
      - "./data/postgres:/var/lib/postgresql/data"
 
   database-migration:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.database-migration
     environment:
       - DB_URL=postgresql://${DBUSER}:${DBUSER}@postgres/${DBNAME}
       - WEBREQUESTPORT=${WEBREQUESTPORT}
@@ -180,9 +164,6 @@ services:
         condition: service_healthy
 
   hardhat:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.hardhat
     ports:
       - "${HARDHAT_PORT:-8545}:8545"
     volumes:
