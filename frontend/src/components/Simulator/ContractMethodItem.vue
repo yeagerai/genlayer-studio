@@ -64,7 +64,6 @@ const handleCallReadMethod = async () => {
         unfoldArgsData(calldataArguments.value),
         i === 0 ? 'latest-nonfinal' : 'latest-final',
       );
-      console.log('result', result);
 
       if (result !== undefined) {
         const resultString = abi.calldata.toString(result);
