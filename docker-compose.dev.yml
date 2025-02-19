@@ -1,0 +1,32 @@
+# Usage in dev:
+# docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+services:
+  frontend:
+    build:
+      context: ./
+      dockerfile: ./docker/Dockerfile.frontend
+      target: ${FRONTEND_BUILD_TARGET:-final}
+      args:
+        - VITE_*
+
+  jsonrpc:
+    build:
+      context: ./
+      dockerfile: ./docker/Dockerfile.backend
+      target: ${BACKEND_BUILD_TARGET:-prod}
+  
+  webrequest:
+    build:
+      context: ./
+      dockerfile: ./docker/Dockerfile.webrequest
+
+  database-migration:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.database-migration
+
+  hardhat:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.hardhat

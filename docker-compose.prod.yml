@@ -1,0 +1,24 @@
+# Usage in prod:
+# docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+# docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  frontend:
+    build: # https://github.com/yeagerai/genlayer-simulator-infra/issues/72#issuecomment-2626876413
+      context: ./
+      dockerfile: ./docker/Dockerfile.frontend
+      target: ${FRONTEND_BUILD_TARGET:-final}
+      args:
+        - VITE_*
+
+  jsonrpc:
+    image: ${STUDIO_JSONRPC_IMAGE:-yeagerai/simulator-jsonrpc:latest}
+  
+  webrequest:
+    image: ${STUDIO_WEBREQUEST_IMAGE:-yeagerai/simulator-webrequest:latest}
+
+  database-migration:
+    image: ${STUDIO_DATABASE_MIGRATION_IMAGE:-yeagerai/simulator-database-migration:latest}
+
+  hardhat:
+    image: ${STUDIO_HARDHAT_IMAGE:-yeagerai/simulator-hardhat:latest}
