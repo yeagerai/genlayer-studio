@@ -459,8 +459,8 @@ async def gen_call(
     to_address = params["to"]
     from_address = params["from"] if "from" in params else None
     data = params["data"]
-    block_id = params["blockId"] if "blockId" in params else None
-    leader_results = params["leaderResults"] if "leaderResults" in params else None
+    block_id = params["block_id"] if "block_id" in params else None
+    leader_results = params["leader_results"] if "leader_results" in params else None
 
     print("block_id", block_id)
 
