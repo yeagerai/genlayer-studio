@@ -1678,7 +1678,6 @@ class RevealingState(TransactionState):
         )
 
         if context.transaction.appealed:
-            majority_agrees = False
 
             # Update the consensus results with all new votes and validators
             context.consensus_data.votes = (
