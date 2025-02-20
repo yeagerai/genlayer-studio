@@ -236,6 +236,7 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "consensus_history": transaction.consensus_history,
         "timestamp_appeal": transaction.timestamp_appeal,
         "appeal_processing_time": transaction.appeal_processing_time,
+        "config_rotation_rounds": transaction.config_rotation_rounds,
     }
 
 

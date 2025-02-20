@@ -9,6 +9,8 @@ from enum import Enum, IntEnum
 from backend.database_handler.models import TransactionStatus
 from backend.database_handler.types import ConsensusData
 
+MAX_ROTATIONS = 3
+
 
 @dataclass()
 class LLMProvider:
@@ -89,6 +91,7 @@ class Transaction:
     consensus_history: dict = field(default_factory=dict)
     timestamp_appeal: int | None = None
     appeal_processing_time: int = 0
+    config_rotation_rounds: int | None = MAX_ROTATIONS
 
     def to_dict(self):
         return {
@@ -118,6 +121,7 @@ class Transaction:
             "consensus_history": self.consensus_history,
             "timestamp_appeal": self.timestamp_appeal,
             "appeal_processing_time": self.appeal_processing_time,
+            "config_rotation_rounds": self.config_rotation_rounds,
         }
 
     @classmethod
@@ -149,4 +153,5 @@ class Transaction:
             consensus_history=input.get("consensus_history"),
             timestamp_appeal=input.get("timestamp_appeal"),
             appeal_processing_time=input.get("appeal_processing_time", 0),
+            config_rotation_rounds=input.get("config_rotation_rounds"),
         )
