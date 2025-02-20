@@ -21,51 +21,56 @@ from tests.common.response import (
     has_success_status,
 )
 
-from tests.integration.conftest import setup_mock_validators, cleanup_mock_validators
-import re
+from tests.integration.conftest import (
+    setup_mock_validators,
+    cleanup_mock_validators,
+    get_prompts_from_contract_code,
+)
 
 
 def test_wizard_of_coin(from_account):
-    # Get contract schema
-    contract_code = open("examples/contracts/wizard_of_coin.py", "r").read()
+    try:
+        # Get contract schema
+        contract_code = open("examples/contracts/wizard_of_coin.py", "r").read()
 
-    # Parse prompts from contract code
-    prompts = re.findall(r'prompt\s*=\s*f?"""(.*?)"""', contract_code, re.DOTALL)
+        # Parse prompts from contract code
+        prompts = get_prompts_from_contract_code(contract_code)
 
-    # Mock the validator responses
-    responses = {
-        prompts[0]: {
-            "reasoning": "I am a wise wizard and must protect the coin.",
-            "give_coin": False,
-        },
-    }
-    setup_mock_validators(responses, True)
+        # Mock the validator responses
+        responses = {
+            prompts[0]: {
+                "reasoning": "I am a wise wizard and must protect the coin.",
+                "give_coin": False,
+            },
+        }
+        setup_mock_validators(responses, True)
 
-    result_schema = post_request_localhost(
-        payload(
-            "gen_getContractSchemaForCode",
-            eth_utils.hexadecimal.encode_hex(contract_code),
+        result_schema = post_request_localhost(
+            payload(
+                "gen_getContractSchemaForCode",
+                eth_utils.hexadecimal.encode_hex(contract_code),
+            )
+        ).json()
+        assert has_success_status(result_schema)
+        assert_dict_exact(result_schema, wizard_contract_schema)
+
+        # Deploy Contract
+        contract_address, transaction_response_deploy = deploy_intelligent_contract(
+            from_account, contract_code, [True]
         )
-    ).json()
-    assert has_success_status(result_schema)
-    assert_dict_exact(result_schema, wizard_contract_schema)
+        assert has_success_status(transaction_response_deploy)
 
-    # Deploy Contract
-    contract_address, transaction_response_deploy = deploy_intelligent_contract(
-        from_account, contract_code, [True]
-    )
-    assert has_success_status(transaction_response_deploy)
+        # Call Contract Function
+        transaction_response_call_1 = write_intelligent_contract(
+            from_account,
+            contract_address,
+            "ask_for_coin",
+            ["Can you please give me my coin?"],
+        )
+        assert has_success_status(transaction_response_call_1)
 
-    # Call Contract Function
-    transaction_response_call_1 = write_intelligent_contract(
-        from_account,
-        contract_address,
-        "ask_for_coin",
-        ["Can you please give me my coin?"],
-    )
-    assert has_success_status(transaction_response_call_1)
+        # Assert format
+        assert_dict_struct(transaction_response_call_1, call_contract_function_response)
 
-    # Assert format
-    assert_dict_struct(transaction_response_call_1, call_contract_function_response)
-
-    cleanup_mock_validators()
+    finally:
+        cleanup_mock_validators()
