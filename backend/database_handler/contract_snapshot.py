@@ -1,6 +1,7 @@
 # database_handler/contract_snapshot.py
 from .models import CurrentState
 from sqlalchemy.orm import Session
+from typing import Optional
 
 
 # TODO: should ContractSnapshot be a dataclass with just the contract data? Snapshots shouldn't be allowed to be modified, so it doesn't make sense to modify the database
@@ -9,12 +10,11 @@ class ContractSnapshot:
     """
     Warning: if you initialize this class with a contract_address:
     - The contract_address must exist in the database.
-    - `self.contract_data`, `self.contract_code` and `self.encoded_state` will be loaded from the database **only once** at initialization.
+    - `self.contract_data`, `self.contract_code` and `self.states` will be loaded from the database **only once** at initialization.
     """
 
     contract_address: str
     contract_code: str
-    encoded_state: dict[str, str]
     balance: int
     states: dict[str, dict[str, str]]
     ghost_contract_address: str | None
@@ -37,13 +37,36 @@ class ContractSnapshot:
             else:
                 # Convert old state format
                 self.states = {"accepted": self.contract_data["state"], "finalized": {}}
-            self.encoded_state = self.states["accepted"]
-
             self.ghost_contract_address = (
                 self.contract_data["ghost_contract_address"]
                 if "ghost_contract_address" in self.contract_data
                 else None
             )
+
+    def to_dict(self):
+        return {
+            "contract_address": (
+                self.contract_address if self.contract_address else None
+            ),
+            "contract_code": self.contract_code if self.contract_code else None,
+            "states": self.states if self.states else {"accepted": {}, "finalized": {}},
+            "ghost_contract_address": (
+                self.ghost_contract_address if self.ghost_contract_address else None
+            ),
+        }
+
+    @classmethod
+    def from_dict(cls, input: dict | None) -> Optional["ContractSnapshot"]:
+        if input:
+            instance = cls.__new__(cls)
+            instance.session = None
+            instance.contract_address = input.get("contract_address", None)
+            instance.contract_code = input.get("contract_code", None)
+            instance.states = input.get("states", {"accepted": {}, "finalized": {}})
+            instance.ghost_contract_address = input.get("ghost_contract_address", None)
+            return instance
+        else:
+            return None
 
     def _load_contract_account(self) -> CurrentState:
         """Load and return the current state of the contract from the database."""
