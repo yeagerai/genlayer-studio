@@ -11,7 +11,6 @@ from typing import Callable, Iterator, List, Iterable, Literal
 import time
 from abc import ABC, abstractmethod
 import threading
-import copy
 
 from sqlalchemy.orm import Session
 from backend.consensus.vrf import get_validators_for_transaction
@@ -1196,6 +1195,11 @@ class ConsensusAlgorithm:
                 context.msg_handler,
             )
 
+            # Reset the contract snapshot for the transaction
+            context.transactions_processor.set_transaction_contract_snapshot(
+                future_transaction["hash"], None
+            )
+
         # Start the queue loop again
         self.start_pending_queue_task(address)
 
@@ -1454,13 +1458,6 @@ class PendingState(TransactionState):
         # Set up the iterator for rotating through the involved validators
         context.iterator_rotation = rotate(involved_validators)
 
-        # Reset the contract snapshot for the transaction
-        if not context.transaction.appeal_undetermined:
-            context.transactions_processor.set_transaction_contract_snapshot(
-                context.transaction.hash, None
-            )
-            context.transaction.contract_snapshot = None
-
         # Transition to the ProposingState
         return ProposingState(leader_rotation=False)
 
@@ -1533,24 +1530,11 @@ class ProposingState(TransactionState):
             context.transaction.to_address
         )
 
-        # Set the contract snapshot for the transaction
-        if context.transaction.contract_snapshot is None:
-            context.transactions_processor.set_transaction_contract_snapshot(
-                context.transaction.hash, contract_snapshot_supplier().to_dict()
-            )
-
-        # Get the contract snapshot for the transaction, to not use the overwritten one
-        context.transaction.contract_snapshot = (
-            context.transactions_processor.get_transaction_contract_snapshot(
-                context.transaction.hash
-            )
-        )
-
         # Create a leader node for executing the transaction
         leader_node = context.node_factory(
             leader,
             ExecutionMode.LEADER,
-            context.transaction.contract_snapshot,
+            contract_snapshot_supplier(),
             None,
             context.msg_handler,
             context.contract_snapshot_factory,
@@ -1610,9 +1594,7 @@ class CommittingState(TransactionState):
             context.node_factory(
                 validator,
                 ExecutionMode.VALIDATOR,
-                context.transactions_processor.get_transaction_contract_snapshot(
-                    context.transaction.hash
-                ),
+                context.contract_snapshot_supplier(),
                 context.consensus_data.leader_receipt,
                 context.msg_handler,
                 context.contract_snapshot_factory,
@@ -1695,6 +1677,7 @@ class RevealingState(TransactionState):
         )
 
         if context.transaction.appealed:
+
             # Update the consensus results with all new votes and validators
             context.consensus_data.votes = (
                 context.transaction.consensus_data.votes | context.votes
@@ -1868,11 +1851,16 @@ class AcceptedState(TransactionState):
 
         # Do not deploy or update the contract if validator appeal failed
         if not context.transaction.appealed:
+            # Get the contract snapshot for the transaction's target address
+            leaders_contract_snapshot = context.contract_snapshot_supplier()
+
+            # Set the contract snapshot for the transaction for a future rollback
+            context.transactions_processor.set_transaction_contract_snapshot(
+                context.transaction.hash, leaders_contract_snapshot.to_dict()
+            )
+
             # Do not deploy or update the contract if the execution failed
             if leader_receipt.execution_result == ExecutionResultStatus.SUCCESS:
-                # Get the contract snapshot for the transaction's target address
-                leaders_contract_snapshot = context.contract_snapshot_supplier()
-
                 # Register contract if it is a new contract
                 if context.transaction.type == TransactionType.DEPLOY_CONTRACT:
                     new_contract = {
