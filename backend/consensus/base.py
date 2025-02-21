@@ -1880,6 +1880,13 @@ class AcceptedState(TransactionState):
             context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
                 context.transaction.hash
             )
+            context.transactions_processor.reset_transaction_appeal_processing_time(
+                context.transaction.hash
+            )
+            context.transactions_processor.set_transaction_timestamp_appeal(
+                context.transaction.hash, None
+            )
+            context.transaction.timestamp_appeal = None
         elif not context.transaction.appealed:
             consensus_round = "Accepted"
             context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
@@ -1892,6 +1899,11 @@ class AcceptedState(TransactionState):
                 context.transaction.hash, False
             )
             context.transaction.appealed = False
+
+            # Increment the appeal processing time when the transaction was appealed
+            context.transactions_processor.set_transaction_appeal_processing_time(
+                context.transaction.hash
+            )
 
         # Set the transaction result
         context.transactions_processor.set_transaction_result(
@@ -1988,20 +2000,8 @@ class AcceptedState(TransactionState):
                 context.transaction.hash, False
             )
             context.transaction.appeal_undetermined = False
-            context.transactions_processor.reset_transaction_appeal_processing_time(
-                context.transaction.hash
-            )
-            context.transactions_processor.set_transaction_timestamp_appeal(
-                context.transaction.hash, None
-            )
-            context.transaction.timestamp_appeal = None
             return "leader_appeal_success"
         else:
-            # Increment the appeal processing time when the transaction was appealed
-            if context.transaction.timestamp_appeal is not None:
-                context.transactions_processor.set_transaction_appeal_processing_time(
-                    context.transaction.hash
-                )
             return None
 
 
@@ -2057,6 +2057,12 @@ class UndeterminedState(TransactionState):
             context.consensus_data.to_dict(),
         )
 
+        # Increment the appeal processing time when the transaction was appealed
+        if context.transaction.timestamp_appeal is not None:
+            context.transactions_processor.set_transaction_appeal_processing_time(
+                context.transaction.hash
+            )
+
         # Update the transaction status to undetermined
         ConsensusAlgorithm.dispatch_transaction_status_update(
             context.transactions_processor,
@@ -2075,12 +2081,6 @@ class UndeterminedState(TransactionState):
         context.transactions_processor.create_rollup_transaction(
             context.transaction.hash
         )
-
-        # Increment the appeal processing time when the transaction was appealed
-        if context.transaction.timestamp_appeal is not None:
-            context.transactions_processor.set_transaction_appeal_processing_time(
-                context.transaction.hash
-            )
 
         return None
 
