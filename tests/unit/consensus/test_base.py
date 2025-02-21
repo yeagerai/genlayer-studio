@@ -793,6 +793,8 @@ async def test_exec_accepted_appeal_fail_three_times(consensus_algorithm):
     transactions_processor = TransactionsProcessorMock(
         [transaction_to_dict(transaction)]
     )
+    consensus_algorithm.consensus_sleep_time = 5
+    consensus_algorithm.finality_window_time = 15
 
     def get_vote():
         return Vote.AGREE
