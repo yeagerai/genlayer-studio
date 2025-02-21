@@ -25,8 +25,6 @@ from tests.common.response import (
 from tests.common.accounts import create_new_account
 from tests.common.request import call_contract_method
 
-import json
-from backend.node.types import Address
 
 INITIAL_STATE_USER_A = "user_a_initial_state"
 UPDATED_STATE_USER_A = "user_a_updated_state"
@@ -50,7 +48,6 @@ def test_user_storage(setup_validators):
     assert has_success_status(result_schema)
     assert_dict_exact(result_schema, user_storage_contract_schema)
 
-    # Deploy Contract
     # Deploy Contract
     contract_address, transaction_response_deploy = deploy_intelligent_contract(
         from_account_a, contract_code, []
@@ -81,7 +78,6 @@ def test_user_storage(setup_validators):
     contract_state_2_1 = call_contract_method(
         contract_address, from_account_a, "get_complete_storage", []
     )
-    print(contract_state_2_1)
     assert contract_state_2_1[from_account_a.address] == INITIAL_STATE_USER_A
 
     # Get Updated State
