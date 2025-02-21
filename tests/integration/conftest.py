@@ -27,7 +27,7 @@ def setup_validators():
     delete_validators()
 
 
-def setup_mock_validators(responses, comparison_result):
+def setup_mock_validators(responses, eq_result=True):
     mock_provider = {
         "provider": "mock",
         "model": "mock-model",
@@ -46,7 +46,7 @@ def setup_mock_validators(responses, comparison_result):
                 8,
                 "mock",
                 f"mock-model-{i}",
-                {"responses": responses, "comparison_result": comparison_result},
+                {"responses": responses, "eq_result": eq_result},
                 "mock",
                 {},
             )
@@ -73,7 +73,7 @@ def cleanup_mock_validators():
 
 
 def get_prompts_from_contract_code(contract_code: str) -> list[str]:
-    prompts = re.findall(r'prompt\s*=\s*f?"""(.*?)"""', contract_code, re.DOTALL)
+    prompts = re.findall(r'=\s*f?"""(.*?)"""', contract_code, re.DOTALL)
     return prompts
 
 

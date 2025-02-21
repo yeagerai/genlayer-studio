@@ -303,18 +303,21 @@ class MockPlugin:
             ]
             return all(part in actual for part in constants if part)
 
-        cfg = node_config.get("config", {})
-        responses = cfg.get("responses", {})
-        comparison_result = cfg.get("comparison_result", False)
+        cfg = node_config.get("config")
+        responses = cfg.get("responses")
+        eq_result = cfg.get("eq_result")
 
         if not responses:
             return ""
 
-        for response in responses:
-            if compare_with_template(response, prompt):
-                return json.dumps(responses[response])
+        for contract_prompt, response in responses.items():
+            if compare_with_template(contract_prompt, prompt):
+                if "<output>" in prompt:  # non-comparative
+                    return str(eq_result)
+                else:
+                    return json.dumps(response)
         else:
-            return str(comparison_result)
+            return str(eq_result)
 
     def is_available(self) -> bool:
         return True

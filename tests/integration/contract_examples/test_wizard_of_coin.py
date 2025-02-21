@@ -43,7 +43,7 @@ def test_wizard_of_coin(from_account):
                 "give_coin": False,
             },
         }
-        setup_mock_validators(responses, True)
+        setup_mock_validators(responses)
 
         result_schema = post_request_localhost(
             payload(
