@@ -74,8 +74,6 @@ jobs:
 
       - name: Run Docker Compose
         run: docker compose up -d
-        env:
-          TEST_WITH_MOCK_LLMS: "false"
 
       - name: Wait for services to be up
         timeout-minutes: 5
@@ -111,7 +109,7 @@ jobs:
 
       - name: Run tests
         env:
-          TEST_WITH_MOCK_LLMS: "true"
+          TEST_WITH_MOCK_LLMS: "falsee"
         run: pytest tests/integration/ -svv
 
       - name: Dump Docker Compose logs

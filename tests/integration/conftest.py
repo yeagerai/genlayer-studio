@@ -66,11 +66,7 @@ def cleanup_mock_validators():
 
 
 def mock_llms():
-    env_var = os.getenv("TEST_WITH_MOCK_LLMS")  # default no mocking
-    if env_var is None:
-        print("env_var not set!")
-        env_var = "true"
-
+    env_var = os.getenv("TEST_WITH_MOCK_LLMS", "false")  # default no mocking
     if env_var == "true":
         return True
     elif env_var == "false":
@@ -83,7 +79,7 @@ def mock_llms():
 def setup_validators():
     def _setup(responses=None, eq_result=True):
         print(
-            f"setup_validators - mock_llms: {mock_llms()}; responses: {responses}; eq_result: {eq_result}"
+            f"setup_validators - mock_llms: {mock_llms()};  eq_result: {eq_result}; responses: {responses}"
         )
         if mock_llms():
             setup_mock_validators(responses if responses else {}, eq_result)
