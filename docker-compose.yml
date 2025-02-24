@@ -210,10 +210,6 @@ services:
       traefik.http.routers.hardhat.entrypoints: websecure
       traefik.http.routers.hardhat.tls: true
 
-  tests:
-    environment:
-      - TEST_WITH_MOCK_LLMS=false
-
 volumes:
   hardhat_artifacts:
   hardhat_cache:

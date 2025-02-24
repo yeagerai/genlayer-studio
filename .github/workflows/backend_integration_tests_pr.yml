@@ -49,6 +49,7 @@ jobs:
           OPENAIKEY: ${{ secrets.OPENAIKEY }}
         run: |
           sed -i "s/<add_your_openai_api_key_here>/${OPENAIKEY}/g" .env
+          sed -i "s/FINALITY_WINDOW =.*/FINALITY_WINDOW = 10/" .env
 
       - name: Set TEST_WITH_MOCK_LLMS in .env file
         run: |
