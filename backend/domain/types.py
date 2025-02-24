@@ -10,6 +10,8 @@ from backend.database_handler.models import TransactionStatus
 from backend.database_handler.types import ConsensusData
 from backend.database_handler.contract_snapshot import ContractSnapshot
 
+MAX_ROTATIONS = 3
+
 
 @dataclass()
 class LLMProvider:
@@ -91,6 +93,7 @@ class Transaction:
     timestamp_appeal: int | None = None
     appeal_processing_time: int = 0
     contract_snapshot: ContractSnapshot | None = None
+    config_rotation_rounds: int | None = MAX_ROTATIONS
 
     def to_dict(self):
         return {
@@ -123,6 +126,7 @@ class Transaction:
             "contract_snapshot": (
                 self.contract_snapshot.to_dict() if self.contract_snapshot else None
             ),
+            "config_rotation_rounds": self.config_rotation_rounds,
         }
 
     @classmethod
@@ -157,4 +161,5 @@ class Transaction:
             contract_snapshot=ContractSnapshot.from_dict(
                 input.get("contract_snapshot")
             ),
+            config_rotation_rounds=input.get("config_rotation_rounds"),
         )

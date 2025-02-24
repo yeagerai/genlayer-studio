@@ -16,6 +16,7 @@ from web3 import Web3
 from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
 from sqlalchemy.orm.attributes import flag_modified
+from backend.domain.types import MAX_ROTATIONS
 
 from backend.rollup.consensus_service import ConsensusService
 
@@ -71,6 +72,7 @@ class TransactionsProcessor:
             "timestamp_appeal": transaction_data.timestamp_appeal,
             "appeal_processing_time": transaction_data.appeal_processing_time,
             "contract_snapshot": transaction_data.contract_snapshot,
+            "config_rotation_rounds": transaction_data.config_rotation_rounds,
         }
 
     @staticmethod
@@ -184,6 +186,7 @@ class TransactionsProcessor:
             timestamp_appeal=None,
             appeal_processing_time=0,
             contract_snapshot=None,
+            config_rotation_rounds=MAX_ROTATIONS,
         )
 
         self.session.add(new_transaction)
