@@ -3,6 +3,7 @@ from eth_account import Account
 import pytest
 import re
 import os
+from dotenv import load_dotenv
 
 from tests.common.accounts import create_new_account
 from tests.common.request import payload, post_request_localhost
@@ -65,7 +66,11 @@ def cleanup_mock_validators():
 
 
 def mock_llms():
-    env_var = os.getenv("TEST_WITH_MOCK_LLMS", "true")  # default no mocking
+    env_var = os.getenv("TEST_WITH_MOCK_LLMS")  # default no mocking
+    if env_var is None:
+        print("env_var not set!")
+        env_var = "true"
+
     if env_var == "true":
         return True
     elif env_var == "false":
@@ -101,3 +106,7 @@ def get_prompts_from_contract_code(contract_code: str) -> list[str]:
 def from_account() -> Iterator[Account]:
     account = create_new_account()
     yield account
+
+
+def pytest_configure(config):
+    load_dotenv(override=True)

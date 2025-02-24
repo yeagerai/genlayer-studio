@@ -51,7 +51,10 @@ jobs:
           sed -i "s/<add_your_openai_api_key_here>/${OPENAIKEY}/g" .env
 
       - name: Set TEST_WITH_MOCK_LLMS in .env file
-        run: echo "TEST_WITH_MOCK_LLMS=false" >> .env
+        run: |
+          echo "TEST_WITH_MOCK_LLMS=true" >> .env
+          echo "Content of .env file:"
+          cat .env
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -69,6 +72,8 @@ jobs:
 
       - name: Run Docker Compose
         run: docker compose up -d
+        env:
+          TEST_WITH_MOCK_LLMS: "false"
 
       - name: Wait for services to be up
         timeout-minutes: 5
@@ -103,6 +108,8 @@ jobs:
           pip install -r requirements.test.txt
 
       - name: Run tests
+        env:
+          TEST_WITH_MOCK_LLMS: "true"
         run: pytest tests/integration/ -svv
 
       - name: Dump Docker Compose logs
