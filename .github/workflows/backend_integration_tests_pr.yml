@@ -53,6 +53,7 @@ jobs:
 
       - name: Set TEST_WITH_MOCK_LLMS in .env file
         run: |
+          echo >> .env
           echo "TEST_WITH_MOCK_LLMS=true" >> .env
           echo "Content of .env file:"
           cat .env
