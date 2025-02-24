@@ -14,6 +14,7 @@ from backend.domain.types import Transaction, TransactionType
 from backend.node.base import Node
 from backend.node.types import ExecutionMode, ExecutionResultStatus, Receipt, Vote
 from backend.protocol_rpc.message_handler.base import MessageHandler
+from typing import Optional
 
 DEFAULT_FINALITY_WINDOW = 5
 DEFAULT_CONSENSUS_SLEEP_TIME = 2
@@ -186,6 +187,14 @@ class TransactionsProcessorMock:
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["appeal_processing_time"] = 0
 
+    def set_transaction_contract_snapshot(
+        self, transaction_hash: str, contract_snapshot: dict
+    ):
+        pass
+
+    def get_transaction_contract_snapshot(self, transaction_hash: str):
+        return None
+
 
 class SnapshotMock:
     def __init__(self, nodes: list, transactions_processor: TransactionsProcessorMock):
@@ -216,6 +225,20 @@ class ContractSnapshotMock:
     ):
         pass
 
+    def to_dict(self):
+        return {
+            "address": (self.address if self.address else None),
+        }
+
+    @classmethod
+    def from_dict(cls, input: dict | None) -> Optional["ContractSnapshotMock"]:
+        if input:
+            instance = cls.__new__(cls)
+            instance.address = input.get("address", None)
+            return instance
+        else:
+            return None
+
 
 def transaction_to_dict(transaction: Transaction) -> dict:
     return {
@@ -225,7 +248,9 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "to_address": transaction.to_address,
         "input_data": transaction.input_data,
         "data": transaction.data,
-        "consensus_data": transaction.consensus_data,
+        "consensus_data": (
+            transaction.consensus_data.to_dict() if transaction.consensus_data else None
+        ),
         "nonce": transaction.nonce,
         "value": transaction.value,
         "type": transaction.type.value,
@@ -243,6 +268,11 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "consensus_history": transaction.consensus_history,
         "timestamp_appeal": transaction.timestamp_appeal,
         "appeal_processing_time": transaction.appeal_processing_time,
+        "contract_snapshot": (
+            transaction.contract_snapshot.to_dict()
+            if transaction.contract_snapshot
+            else None
+        ),
         "config_rotation_rounds": transaction.config_rotation_rounds,
     }
 

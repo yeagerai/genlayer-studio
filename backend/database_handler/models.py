@@ -100,6 +100,7 @@ class Transactions(Base):
     consensus_history: Mapped[Optional[dict]] = mapped_column(JSONB)
     timestamp_appeal: Mapped[Optional[int]] = mapped_column(BigInteger)
     appeal_processing_time: Mapped[Optional[int]] = mapped_column(Integer)
+    contract_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB)
     config_rotation_rounds: Mapped[Optional[int]] = mapped_column(Integer)
 
     # Relationship for triggered transactions

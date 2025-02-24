@@ -71,6 +71,7 @@ class TransactionsProcessor:
             "consensus_history": transaction_data.consensus_history,
             "timestamp_appeal": transaction_data.timestamp_appeal,
             "appeal_processing_time": transaction_data.appeal_processing_time,
+            "contract_snapshot": transaction_data.contract_snapshot,
             "config_rotation_rounds": transaction_data.config_rotation_rounds,
         }
 
@@ -184,6 +185,7 @@ class TransactionsProcessor:
             consensus_history={},
             timestamp_appeal=None,
             appeal_processing_time=0,
+            contract_snapshot=None,
             config_rotation_rounds=MAX_ROTATIONS,
         )
 
@@ -486,3 +488,20 @@ class TransactionsProcessor:
         )
         transaction.appeal_processing_time = 0
         self.session.commit()
+
+    def set_transaction_contract_snapshot(
+        self, transaction_hash: str, contract_snapshot: dict | None
+    ):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.contract_snapshot = contract_snapshot
+        self.session.commit()
+
+    def get_transaction_contract_snapshot(
+        self, transaction_hash: str
+    ) -> ContractSnapshot | None:
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        return ContractSnapshot.from_dict(transaction.contract_snapshot)
