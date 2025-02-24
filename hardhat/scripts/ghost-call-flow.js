@@ -70,7 +70,7 @@ async function main() {
   console.log("Starting ghost deployment and call flow...");
 
   // Get signers
-  const [owner, validator1, validator2, validator3, validator4, validator5] = await hre.ethers.getSigners();
+  const [owner, validator1, validator2, validator3, validator4, validator5, sender] = await hre.ethers.getSigners();
   const validators = [validator1, validator2, validator3, validator4, validator5];
 
   // Get contract instances
@@ -88,7 +88,7 @@ async function main() {
   // 1. Deploy ghost contract
   console.log("\n1. Deploying ghost contract...");
   const deployTx = await consensusMain.addTransaction(
-    ethers.ZeroAddress,
+    sender.address,
     ethers.ZeroAddress,
     5,
     maxRotations,
