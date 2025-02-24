@@ -37,6 +37,7 @@ class TransactionsProcessorMock:
         self.transactions = transactions or []
         self.updated_transaction_status_history = defaultdict(list)
         self.status_changed_event = threading.Event()
+        self.status_update_lock = threading.Lock()
 
     def get_transaction_by_hash(self, transaction_hash: str) -> dict:
         for transaction in self.transactions:
@@ -47,21 +48,27 @@ class TransactionsProcessorMock:
     def update_transaction_status(
         self, transaction_hash: str, new_status: TransactionStatus
     ):
-        transaction = self.get_transaction_by_hash(transaction_hash)
-        transaction["status"] = new_status.value
-        self.updated_transaction_status_history[transaction_hash].append(new_status)
+        with self.status_update_lock:
+            transaction = self.get_transaction_by_hash(transaction_hash)
+            transaction["status"] = new_status.value
+            self.updated_transaction_status_history[transaction_hash].append(new_status)
 
-        if "current_status_changes" in transaction["consensus_history"]:
-            transaction["consensus_history"]["current_status_changes"].append(
-                new_status.value
-            )
-        else:
-            transaction["consensus_history"]["current_status_changes"] = [
-                TransactionStatus.PENDING.value,
-                new_status.value,
-            ]
+            if "current_status_changes" in transaction["consensus_history"]:
+                transaction["consensus_history"]["current_status_changes"].append(
+                    new_status.value
+                )
+            else:
+                transaction["consensus_history"]["current_status_changes"] = [
+                    TransactionStatus.PENDING.value,
+                    new_status.value,
+                ]
 
-        self.status_changed_event.set()
+            self.status_changed_event.set()
+
+    def wait_for_status_change(self, timeout: float = 0.1) -> bool:
+        result = self.status_changed_event.wait(timeout)
+        self.status_changed_event.clear()
+        return result
 
     def set_transaction_result(self, transaction_hash: str, consensus_data: dict):
         transaction = self.get_transaction_by_hash(transaction_hash)
@@ -266,6 +273,7 @@ def transaction_to_dict(transaction: Transaction) -> dict:
             if transaction.contract_snapshot
             else None
         ),
+        "config_rotation_rounds": transaction.config_rotation_rounds,
     }
 
 
@@ -467,17 +475,6 @@ def cleanup_threads(event: threading.Event, threads: list[threading.Thread]):
         thread.join()
 
 
-def wait_for_condition(
-    condition_func: Callable[[], bool], timeout: int = 5, interval: float = 0.1
-):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        if condition_func():
-            return True
-        time.sleep(interval)
-    return False
-
-
 def assert_transaction_status_match(
     transactions_processor: TransactionsProcessorMock,
     transaction: Transaction,
@@ -485,22 +482,26 @@ def assert_transaction_status_match(
     timeout: int = 30,
     interval: float = 0.1,
 ) -> TransactionStatus:
-    status = None
+    last_status = None
+    start_time = time.time()
 
-    def condition():
-        nonlocal status
-        status = transactions_processor.get_transaction_by_hash(transaction.hash)[
-            "status"
-        ]
-        return status in expected_statuses
+    while time.time() - start_time < timeout:
+        current_status = transactions_processor.get_transaction_by_hash(
+            transaction.hash
+        )["status"]
 
-    assert wait_for_condition(
-        condition,
-        timeout=timeout,
-        interval=interval,
-    ), f"Transaction did not reach {expected_statuses}"
+        if current_status in expected_statuses:
+            return current_status
 
-    return status
+        if current_status != last_status:
+            last_status = current_status
+
+        # Wait for next status change
+        transactions_processor.wait_for_status_change(interval)
+
+    raise AssertionError(
+        f"Transaction did not reach {expected_statuses} within {timeout} seconds. Last status: {last_status}"
+    )
 
 
 def assert_transaction_status_change_and_match(
