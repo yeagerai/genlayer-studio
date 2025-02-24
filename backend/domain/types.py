@@ -8,6 +8,7 @@ from enum import Enum, IntEnum
 
 from backend.database_handler.models import TransactionStatus
 from backend.database_handler.types import ConsensusData
+from backend.database_handler.contract_snapshot import ContractSnapshot
 
 
 @dataclass()
@@ -87,6 +88,9 @@ class Transaction:
     appeal_failed: int = 0
     appeal_undetermined: bool = False
     consensus_history: dict = field(default_factory=dict)
+    timestamp_appeal: int | None = None
+    appeal_processing_time: int = 0
+    contract_snapshot: ContractSnapshot | None = None
 
     def to_dict(self):
         return {
@@ -114,6 +118,11 @@ class Transaction:
             "appeal_failed": self.appeal_failed,
             "appeal_undetermined": self.appeal_undetermined,
             "consensus_history": self.consensus_history,
+            "timestamp_appeal": self.timestamp_appeal,
+            "appeal_processing_time": self.appeal_processing_time,
+            "contract_snapshot": (
+                self.contract_snapshot.to_dict() if self.contract_snapshot else None
+            ),
         }
 
     @classmethod
@@ -143,4 +152,9 @@ class Transaction:
             appeal_failed=input.get("appeal_failed", 0),
             appeal_undetermined=input.get("appeal_undetermined", False),
             consensus_history=input.get("consensus_history"),
+            timestamp_appeal=input.get("timestamp_appeal"),
+            appeal_processing_time=input.get("appeal_processing_time", 0),
+            contract_snapshot=ContractSnapshot.from_dict(
+                input.get("contract_snapshot")
+            ),
         )
