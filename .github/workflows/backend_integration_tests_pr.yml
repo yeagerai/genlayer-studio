@@ -44,19 +44,18 @@ jobs:
 
       # TODO: we should also add also heuristai and anthropic keys to the e2e tests and test all providers
 
-      - name: Set OPENAIKEY in the .env file so it can be loaded from the environment
+      - name: Set OPENAIKEY, FINALITY_WINDOW and TEST_WITH_MOCK_LLMSin the .env file so they can be loaded from the environment
         env:
           OPENAIKEY: ${{ secrets.OPENAIKEY }}
         run: |
           sed -i "s/<add_your_openai_api_key_here>/${OPENAIKEY}/g" .env
           sed -i "s/FINALITY_WINDOW =.*/FINALITY_WINDOW = 10/" .env
-
-      - name: Set TEST_WITH_MOCK_LLMS in .env file
-        run: |
           echo >> .env
-          echo "TEST_WITH_MOCK_LLMS=true" >> .env
-          echo "Content of .env file:"
-          cat .env
+          if [[ "${{ needs.triggers.outputs.is_pull_request_review_approved }}" == "true" ]]; then
+            echo "TEST_WITH_MOCK_LLMS=false" >> .env
+          else
+            echo "TEST_WITH_MOCK_LLMS=true" >> .env
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -108,8 +107,6 @@ jobs:
           pip install -r requirements.test.txt
 
       - name: Run tests
-        env:
-          TEST_WITH_MOCK_LLMS: "falsee"
         run: pytest tests/integration/ -svv
 
       - name: Dump Docker Compose logs
