@@ -2,12 +2,15 @@
 # Trying to follow [hexagonal architecture](https://en.wikipedia.org/wiki/Hexagonal_architecture_(software)) or layered architecture.
 # These types should not depend on any other layer.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 import os
 
 from backend.database_handler.models import TransactionStatus
 from backend.database_handler.types import ConsensusData
+from backend.database_handler.contract_snapshot import ContractSnapshot
+
+MAX_ROTATIONS = 3
 
 
 @dataclass()
@@ -86,6 +89,11 @@ class Transaction:
     timestamp_awaiting_finalization: int | None = None
     appeal_failed: int = 0
     appeal_undetermined: bool = False
+    consensus_history: dict = field(default_factory=dict)
+    timestamp_appeal: int | None = None
+    appeal_processing_time: int = 0
+    contract_snapshot: ContractSnapshot | None = None
+    config_rotation_rounds: int | None = MAX_ROTATIONS
     config_appeal_rounds: int | None = int(os.getenv("VITE_MAX_APPEALS", 3))
     appeal_round: int = 0
 
@@ -98,7 +106,9 @@ class Transaction:
             "to_address": self.to_address,
             "input_data": self.input_data,
             "data": self.data,
-            "consensus_data": self.consensus_data,
+            "consensus_data": (
+                self.consensus_data.to_dict() if self.consensus_data else None
+            ),
             "nonce": self.nonce,
             "value": self.value,
             "gaslimit": self.gaslimit,
@@ -112,6 +122,13 @@ class Transaction:
             "timestamp_awaiting_finalization": self.timestamp_awaiting_finalization,
             "appeal_failed": self.appeal_failed,
             "appeal_undetermined": self.appeal_undetermined,
+            "consensus_history": self.consensus_history,
+            "timestamp_appeal": self.timestamp_appeal,
+            "appeal_processing_time": self.appeal_processing_time,
+            "contract_snapshot": (
+                self.contract_snapshot.to_dict() if self.contract_snapshot else None
+            ),
+            "config_rotation_rounds": self.config_rotation_rounds,
             "config_appeal_rounds": self.config_appeal_rounds,
             "appeal_round": self.appeal_round,
         }
@@ -142,6 +159,13 @@ class Transaction:
             ),
             appeal_failed=input.get("appeal_failed", 0),
             appeal_undetermined=input.get("appeal_undetermined", False),
+            consensus_history=input.get("consensus_history"),
+            timestamp_appeal=input.get("timestamp_appeal"),
+            appeal_processing_time=input.get("appeal_processing_time", 0),
+            contract_snapshot=ContractSnapshot.from_dict(
+                input.get("contract_snapshot")
+            ),
+            config_rotation_rounds=input.get("config_rotation_rounds"),
             config_appeal_rounds=input.get("config_appeal_rounds"),
             appeal_round=input.get("appeal_round"),
         )
