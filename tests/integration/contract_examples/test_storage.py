@@ -23,13 +23,14 @@ from tests.common.response import (
 
 from tests.common.request import call_contract_method
 
-import json
 
 INITIAL_STATE = "a"
 UPDATED_STATE = "b"
 
 
 def test_storage(setup_validators, from_account):
+    setup_validators()
+
     # Get contract schema
     contract_code = open("examples/contracts/storage.py", "r").read()
     result_schema = post_request_localhost(
