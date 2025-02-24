@@ -2,7 +2,7 @@ from enum import IntEnum
 
 
 class Methods(IntEnum):
-    APPEND_CALLDATA = 0
+    GET_CALLDATA = 0
     GET_CODE = 1
     STORAGE_READ = 2
     STORAGE_WRITE = 3
@@ -14,3 +14,4 @@ class Methods(IntEnum):
     DEPLOY_CONTRACT = 9
     ETH_CALL = 10
     ETH_SEND = 11
+    GET_BALANCE = 12
