@@ -313,11 +313,11 @@ class MockPlugin:
         for contract_prompt, response in responses.items():
             if compare_with_template(contract_prompt, prompt):
                 if "<output>" in prompt:  # non-comparative
-                    return str(eq_result)
+                    return json.dumps({"result": eq_result})
                 else:
                     return json.dumps(response)
         else:
-            return str(eq_result)
+            return json.dumps({"result": eq_result})
 
     def is_available(self) -> bool:
         return True
