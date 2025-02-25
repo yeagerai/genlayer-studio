@@ -171,7 +171,7 @@ function prettifyTxData(x: any): any {
         "
       />
 
-      <!-- <div @click.stop="">
+      <div @click.stop="">
         <Btn
           v-if="
             transaction.data.leader_only == false &&
@@ -193,7 +193,7 @@ function prettifyTxData(x: any): any {
             <GavelIcon class="h-2.5 w-2.5" />
           </div>
         </Btn>
-      </div> -->
+      </div>
 
       <TransactionStatusBadge
         :class="[
