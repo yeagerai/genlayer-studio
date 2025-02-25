@@ -7,5 +7,5 @@ eth-hash[pycryptodome]
 jsonschema==4.23.0
 aiohttp==3.11.13
 openai==1.64.0
-anthropic==0.47.0
+anthropic==0.47.2
 python-dotenv==1.0.1
