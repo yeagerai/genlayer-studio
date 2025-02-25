@@ -200,6 +200,7 @@ class TransactionParser:
 
         sender = rollup_transaction.data.args.sender
         recipient = rollup_transaction.data.args.recipient
+        max_rotations = rollup_transaction.data.args.max_rotations
         type = self._get_genlayer_transaction_type(recipient)
         data = self._get_genlayer_transaction_data(type, rollup_transaction.data.args)
 
@@ -207,6 +208,7 @@ class TransactionParser:
             from_address=sender,
             to_address=recipient,
             type=type,
+            max_rotations=max_rotations,
             data=DecodedGenlayerTransactionData(
                 contract_code=(
                     data.contract_code if hasattr(data, "contract_code") else None
