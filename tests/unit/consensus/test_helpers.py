@@ -180,7 +180,7 @@ class TransactionsProcessorMock:
     def set_transaction_appeal_processing_time(self, transaction_hash: str):
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["appeal_processing_time"] += (
-            round(time.time()) - transaction["timestamp_appeal"]
+            round(time.time()) - transaction["timestamp_appeal"] + 1
         )
 
     def reset_transaction_appeal_processing_time(self, transaction_hash: str):
