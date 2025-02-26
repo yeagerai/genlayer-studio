@@ -6,6 +6,8 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "./interfaces/ITransactions.sol";
 import "./interfaces/IMessages.sol";
+import "./utils/Errors.sol";
+import "./interfaces/IGenStaking.sol";
 
 contract Transactions is
 	Initializable,
@@ -13,20 +15,42 @@ contract Transactions is
 	ReentrancyGuardUpgradeable,
 	AccessControlUpgradeable
 {
-	bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
-	bytes32 public constant VALIDATOR_ROLE = keccak256("VALIDATOR_ROLE");
+	// Rounds of validators per round
+	// normal rounds are VALIDATORS_PER_ROUND[2n+1], n = 0, 1, 2, 3, ...
+	// appeal rounds are VALIDATORS_PER_ROUND[2n], n = 1, 2, 3, ...
+	uint[] public VALIDATORS_PER_ROUND = [
+		5,
+		7,
+		11,
+		13,
+		23,
+		25,
+		47,
+		49,
+		95,
+		97,
+		191,
+		193,
+		383,
+		385,
+		767,
+		769,
+		1535,
+		1537
+	];
 
-	error CallerNotConsensus();
-	error VoteAlreadyCommitted();
 	mapping(bytes32 => ITransactions.Transaction) public transactions;
-	mapping(bytes32 => mapping(address => uint)) public validatorIndexInTx;
-	mapping(bytes32 => uint) public alreadyEmittedMessages;
 
 	address public genConsensus;
-
+	IGenStaking public genStaking;
 	event GenConsensusSet(address indexed genConsensus);
 
-	receive() external payable {}
+	modifier onlyGenConsensus() {
+		if (msg.sender != genConsensus) {
+			revert Errors.CallerNotConsensus();
+		}
+		_;
+	}
 
 	function initialize(address _genConsensus) public initializer {
 		__Ownable2Step_init();
@@ -36,26 +60,30 @@ contract Transactions is
 		genConsensus = _genConsensus;
 	}
 
-	function hasOnAcceptanceMessages(
-		bytes32 _tx_id
-	) external view returns (bool itHasMessagesOnAcceptance) {
-		itHasMessagesOnAcceptance = transactions[_tx_id].onAcceptanceMessages;
+	receive() external payable {}
+
+	function getTransactionRecipient(
+		bytes32 txId
+	) external view returns (address recipient) {
+		recipient = transactions[txId].recipient;
+	}
+
+	function getTransaction(
+		bytes32 txId
+	) external view returns (ITransactions.Transaction memory) {
+		return transactions[txId];
 	}
 
 	function hasMessagesOnFinalization(
 		bytes32 _tx_id
 	) external view returns (bool itHasMessagesOnFinalization) {
-		itHasMessagesOnFinalization =
-			transactions[_tx_id].messages.length -
-				alreadyEmittedMessages[_tx_id] >
-			0;
+		itHasMessagesOnFinalization = transactions[_tx_id].messages.length > 0;
 	}
 
-	function getAppealInfo(
+	function getMessagesForTransaction(
 		bytes32 _tx_id
-	) external view returns (uint256 minAppealBond, bytes32 randomSeed) {
-		minAppealBond = _calculateMinAppealBond(_tx_id);
-		randomSeed = transactions[_tx_id].randomSeed;
+	) external view returns (IMessages.SubmittedMessage[] memory) {
+		return transactions[_tx_id].messages;
 	}
 
 	function addNewTransaction(
@@ -66,31 +94,136 @@ contract Transactions is
 		return txId;
 	}
 
+	function activateTransaction(
+		bytes32 _txId,
+		address _activator,
+		bytes32 _randomSeed
+	)
+		external
+		returns (
+			address recepient,
+			uint256 leaderIndex,
+			address[] memory validators
+		)
+	{
+		ITransactions.TransactionStatus status = transactions[_txId].status;
+		if (status != ITransactions.TransactionStatus.Pending) {
+			revert Errors.TransactionNotPending();
+		}
+		transactions[_txId].status = ITransactions.TransactionStatus.Proposing;
+		uint round = transactions[_txId].roundData.length > 0
+			? transactions[_txId].roundData.length - 1
+			: 0;
+		if (round == 0) {
+			_checkActivator(_txId, _activator);
+		}
+		(validators, leaderIndex) = _createNewRound(
+			_txId,
+			round,
+			0,
+			_randomSeed,
+			2,
+			false
+		);
+		transactions[_txId].activationTimestamp = block.timestamp;
+		transactions[_txId].randomSeed = _randomSeed;
+		transactions[_txId].status = ITransactions.TransactionStatus.Proposing;
+		recepient = transactions[_txId].recipient;
+	}
+
 	function proposeTransactionReceipt(
 		bytes32 _tx_id,
+		address _leader,
 		bytes calldata _txReceipt,
 		IMessages.SubmittedMessage[] calldata _messages
-	) external onlyGenConsensus {
-		transactions[_tx_id].txReceipt = _txReceipt;
-		transactions[_tx_id].messages = _messages;
-		for (uint i = 0; i < _messages.length; i++) {
-			if (_messages[i].onAcceptance) {
-				transactions[_tx_id].onAcceptanceMessages = true;
-				break;
+	)
+		external
+		onlyGenConsensus
+		returns (
+			address recipient,
+			bool leaderTimeout,
+			address newLeader,
+			uint round
+		)
+	{
+		if (_leader != _getLatestRoundLeader(_tx_id)) {
+			revert Errors.CallerNotLeader();
+		}
+		if (
+			transactions[_tx_id].status !=
+			ITransactions.TransactionStatus.Proposing
+		) {
+			revert Errors.TransactionNotProposing();
+		}
+		round = transactions[_tx_id].roundData.length - 1;
+		if (_txReceipt.length == 0) {
+			uint256 rotations = transactions[_tx_id]
+				.roundData[round]
+				.rotationsLeft;
+			if (rotations == 0) {
+				transactions[_tx_id].status = ITransactions
+					.TransactionStatus
+					.Undetermined;
+			} else {
+				newLeader = _rotateLeader(_tx_id, round, rotations);
+			}
+			leaderTimeout = true;
+		} else {
+			transactions[_tx_id].status = ITransactions
+				.TransactionStatus
+				.Committing;
+			transactions[_tx_id].txReceipt = _txReceipt;
+			transactions[_tx_id].messages = _messages;
+			for (uint i = 0; i < _messages.length; i++) {
+				if (_messages[i].onAcceptance) {
+					transactions[_tx_id].onAcceptanceMessages = true;
+					break;
+				}
 			}
 		}
+		recipient = transactions[_tx_id].recipient;
 	}
 
 	function commitVote(
 		bytes32 _tx_id,
 		bytes32 _commitHash,
 		address _validator
-	) external onlyGenConsensus {
-		transactions[_tx_id].validators.push(_validator);
-		transactions[_tx_id].validatorVotesHash.push(_commitHash);
-		validatorIndexInTx[_tx_id][_validator] = transactions[_tx_id]
-			.validators
-			.length;
+	) external onlyGenConsensus returns (bool isLastVote) {
+		uint round = transactions[_tx_id].roundData.length - 1;
+		ITransactions.RoundData memory roundData = transactions[_tx_id]
+			.roundData[round];
+		ITransactions.TransactionStatus status = transactions[_tx_id].status;
+		uint votesCommitted = ++transactions[_tx_id]
+			.roundData[round]
+			.votesCommitted;
+		if (votesCommitted == roundData.roundValidators.length) {
+			isLastVote = true;
+			transactions[_tx_id].status = round % 2 == 0
+				? ITransactions.TransactionStatus.Revealing
+				: ITransactions.TransactionStatus.AppealRevealing;
+		} else if (votesCommitted > roundData.roundValidators.length) {
+			revert Errors.VoteAlreadyCommitted();
+		}
+		_checkStatusCommittedOrRevealed(round, status, true);
+		// Get validator index in current round validators array
+		(uint validatorIndex, bool isFirstValidator) = _getValidatorIndex(
+			_tx_id,
+			round,
+			_validator
+		);
+		if (validatorIndex == 0 && !isFirstValidator) {
+			revert Errors.ValidValidatorNotFound();
+		}
+		if (
+			transactions[_tx_id].roundData[round].validatorVotesHash[
+				validatorIndex
+			] != bytes32(0)
+		) {
+			revert Errors.VoteAlreadyCommitted();
+		}
+		transactions[_tx_id].roundData[round].validatorVotesHash[
+			validatorIndex
+		] = _commitHash;
 	}
 
 	function revealVote(
@@ -101,55 +234,234 @@ contract Transactions is
 	)
 		external
 		onlyGenConsensus
-		returns (bool isLastVote, ITransactions.ResultType majorVoted)
+		returns (
+			bool isLastVote,
+			ITransactions.ResultType majorVoted,
+			address recipient,
+			uint round,
+			bool hasMessagesOnAcceptance,
+			uint rotationsLeft,
+			ITransactions.NewRoundData memory newRoundData
+		)
 	{
-		uint votesRevealed = transactions[_tx_id].validatorVotes.length;
-		uint validatorIndex = validatorIndexInTx[_tx_id][_validator] > 0
-			? validatorIndexInTx[_tx_id][_validator] - 1
-			: 0;
-		if (
-			transactions[_tx_id].validators[validatorIndex] == _validator &&
-			transactions[_tx_id].validatorVotesHash[validatorIndex] == _voteHash
-		) {
-			if (votesRevealed > 0 && votesRevealed > validatorIndex) {
-				revert VoteAlreadyCommitted();
-			} else {
-				transactions[_tx_id].validatorVotes.push(_voteType);
-			}
+		round = transactions[_tx_id].roundData.length - 1;
+		ITransactions.RoundData memory roundData = transactions[_tx_id]
+			.roundData[round];
+		ITransactions.TransactionStatus status = transactions[_tx_id].status;
+		_checkStatusCommittedOrRevealed(round, status, false);
+		uint votesRevealed = ++transactions[_tx_id]
+			.roundData[round]
+			.votesRevealed;
+		if (votesRevealed == roundData.roundValidators.length) {
+			isLastVote = true;
+		} else if (votesRevealed > roundData.roundValidators.length) {
+			revert Errors.VoteAlreadyRevealed();
 		}
-		isLastVote =
-			transactions[_tx_id].validatorVotes.length ==
-			transactions[_tx_id].validators.length;
+		(uint validatorIndex, bool isFirstValidator) = _getValidatorIndex(
+			_tx_id,
+			round,
+			_validator
+		);
+		if (validatorIndex == 0 && !isFirstValidator) {
+			revert Errors.ValidValidatorNotFound();
+		}
+		if (roundData.validatorVotesHash[validatorIndex] != _voteHash) {
+			revert Errors.InvalidVote();
+		}
+		transactions[_tx_id].roundData[round].validatorVotes[
+			validatorIndex
+		] = _voteType;
 		majorVoted = ITransactions.ResultType(0);
 		if (isLastVote) {
-			majorVoted = _getMajorityVote(_tx_id);
-			transactions[_tx_id].result = majorVoted;
+			majorVoted = _getMajorityVote(
+				transactions[_tx_id].roundData[round]
+			);
+			transactions[_tx_id].roundData[round].result = majorVoted;
+			if (
+				majorVoted == ITransactions.ResultType.MajorityAgree ||
+				majorVoted == ITransactions.ResultType.Agree
+			) {
+				if (round % 2 == 0) {
+					transactions[_tx_id].status = ITransactions
+						.TransactionStatus
+						.Accepted;
+					hasMessagesOnAcceptance = transactions[_tx_id]
+						.onAcceptanceMessages;
+				} else {
+					transactions[_tx_id].status = transactions[_tx_id]
+						.previousStatus;
+					transactions[_tx_id].previousStatus = ITransactions
+						.TransactionStatus
+						.AppealRevealing;
+				}
+			} else {
+				if (round % 2 == 0) {
+					transactions[_tx_id].status = ITransactions
+						.TransactionStatus
+						.Undetermined;
+				} else {
+					// Successfully appealed
+					transactions[_tx_id].status = ITransactions
+						.TransactionStatus
+						.Proposing;
+					(
+						newRoundData.roundValidators,
+						newRoundData.leaderIndex
+					) = _createNewRound(
+						_tx_id,
+						round + 1,
+						0,
+						transactions[_tx_id].randomSeed,
+						2,
+						false
+					);
+					newRoundData.round = round + 1;
+				}
+			}
 			transactions[_tx_id].lastVoteTimestamp = block.timestamp;
 		}
+		recipient = transactions[_tx_id].recipient;
+		rotationsLeft = transactions[_tx_id].roundData[round].rotationsLeft;
 	}
 
-	function setAppealData(
+	function finalizeTransaction(
+		bytes32 _tx_id
+	) external returns (address recipient, uint256 lastVoteTimestamp) {
+		ITransactions.TransactionStatus status = transactions[_tx_id].status;
+		if (
+			status != ITransactions.TransactionStatus.Accepted &&
+			status != ITransactions.TransactionStatus.Undetermined
+		) {
+			revert Errors.TransactionNotAcceptedOrUndetermined();
+		}
+		transactions[_tx_id].status = ITransactions.TransactionStatus.Finalized;
+		recipient = transactions[_tx_id].recipient;
+		lastVoteTimestamp = transactions[_tx_id].lastVoteTimestamp;
+	}
+
+	function cancelTransaction(
 		bytes32 _tx_id,
-		address[] memory _validators
-	) external returns (uint256 appealIndex) {
-		transactions[_tx_id].validators = _concatArrays(
-			transactions[_tx_id].validators,
-			_validators
+		address _sender
+	) external onlyGenConsensus returns (address recipient) {
+		if (
+			transactions[_tx_id].status !=
+			ITransactions.TransactionStatus.Pending
+		) {
+			revert Errors.TransactionNotPending();
+		}
+		if (transactions[_tx_id].sender != _sender) {
+			revert Errors.CallerNotSender();
+		}
+		transactions[_tx_id].status = ITransactions.TransactionStatus.Canceled;
+		recipient = transactions[_tx_id].recipient;
+	}
+
+	function submitAppeal(
+		bytes32 _tx_id,
+		uint256 _appealBond
+	) external returns (address[] memory appealValidators, uint round) {
+		round = transactions[_tx_id].roundData.length - 1;
+		// bool lastRoundLeaderTimeout = transactions[_tx_id].txReceipt.length ==
+		// 	0;
+		ITransactions.TransactionStatus status = transactions[_tx_id].status;
+		if (
+			status != ITransactions.TransactionStatus.Undetermined &&
+			status != ITransactions.TransactionStatus.Accepted
+		) {
+			revert Errors.CanNotAppeal();
+		}
+		if (round % 2 == 1) {
+			_createAnEmptyRound(_tx_id);
+			round++;
+		}
+		if (
+			// !lastRoundLeaderTimeout &&
+			_appealBond < _calculateMinAppealBond(_tx_id, round + 1)
+		) {
+			revert Errors.AppealBondTooLow();
+		}
+		(appealValidators, ) = _createNewRound(
+			_tx_id,
+			round + 1,
+			_appealBond,
+			transactions[_tx_id].randomSeed,
+			2,
+			false
 		);
-		//TODO: Implement appeal logic
-		appealIndex = 1;
+		transactions[_tx_id].consumedValidators = _concatArraysAndDropIndex(
+			transactions[_tx_id].consumedValidators,
+			appealValidators,
+			transactions[_tx_id].consumedValidators.length
+		);
+		transactions[_tx_id].previousStatus = transactions[_tx_id].status;
+		transactions[_tx_id].status = ITransactions
+			.TransactionStatus
+			.AppealCommitting;
+		++round;
+	}
+
+	function rotateLeader(
+		bytes32 txId
+	) external onlyGenConsensus returns (address newLeader) {
+		uint256 round = transactions[txId].roundData.length - 1;
+		uint256 rotationsLeft = transactions[txId]
+			.roundData[round]
+			.rotationsLeft;
+		if (rotationsLeft == 0) {
+			revert Errors.NoRotationsLeft();
+		}
+		newLeader = _rotateLeader(txId, round, rotationsLeft);
+	}
+
+	function _rotateLeader(
+		bytes32 txId,
+		uint256 round,
+		uint256 rotationsLeft
+	) internal returns (address newLeader) {
+		(address[] memory newValidators, uint256 leaderIndex) = _createNewRound(
+			txId,
+			round,
+			0,
+			transactions[txId].randomSeed,
+			rotationsLeft - 1,
+			true
+		);
+		--transactions[txId].roundData[round].rotationsLeft;
+		newLeader = newValidators[leaderIndex];
+		transactions[txId].status = ITransactions.TransactionStatus.Proposing;
+	}
+
+	function _getValidatorIndex(
+		bytes32 _txId,
+		uint256 _round,
+		address _validator
+	) internal view returns (uint256 validatorIndex, bool isFirstValidator) {
+		for (
+			uint256 i = 0;
+			i < transactions[_txId].roundData[_round].roundValidators.length;
+			i++
+		) {
+			if (
+				transactions[_txId].roundData[_round].roundValidators[i] ==
+				_validator
+			) {
+				validatorIndex = i;
+				isFirstValidator = i == 0;
+				break;
+			}
+		}
 	}
 
 	function _getMajorityVote(
-		bytes32 _tx_id
-	) private view returns (ITransactions.ResultType result) {
+		ITransactions.RoundData memory roundData
+	) internal pure returns (ITransactions.ResultType result) {
 		result = ITransactions.ResultType.Idle;
-		uint validatorCount = transactions[_tx_id].validators.length;
+		uint validatorCount = roundData.roundValidators.length;
 		uint[] memory voteCounts = new uint[](
 			uint(type(ITransactions.VoteType).max) + 1
 		);
-		for (uint i = 0; i < transactions[_tx_id].validatorVotes.length; i++) {
-			voteCounts[uint(transactions[_tx_id].validatorVotes[i])]++;
+		for (uint i = 0; i < roundData.validatorVotes.length; i++) {
+			voteCounts[uint(roundData.validatorVotes[i])]++;
 		}
 
 		uint maxVotes = 0;
@@ -183,80 +495,285 @@ contract Transactions is
 		}
 	}
 
-	function getTransaction(
+	function _getLatestRoundLeader(
 		bytes32 txId
-	) external view returns (ITransactions.Transaction memory) {
-		return transactions[txId];
+	) private view returns (address) {
+		uint latestRound = transactions[txId].roundData.length - 1;
+		ITransactions.RoundData memory roundData = transactions[txId].roundData[
+			latestRound
+		];
+		return roundData.roundValidators[roundData.leaderIndex];
 	}
 
-	function getTransactionLastVoteTimestamp(
-		bytes32 txId
-	) external view returns (uint256) {
-		return transactions[txId].lastVoteTimestamp;
+	function _createNewRound(
+		bytes32 _tx_id,
+		uint256 _round,
+		uint256 _appealBond,
+		bytes32 _randomSeed,
+		uint256 _rotationsLeft,
+		bool isRotation
+	) internal returns (address[] memory roundValidators, uint256 leaderIndex) {
+		if (isRotation) {
+			(roundValidators, leaderIndex) = _getValidatorsAndLeaderIndex(
+				_randomSeed,
+				1,
+				transactions[_tx_id].consumedValidators
+			);
+			transactions[_tx_id].consumedValidators.push(roundValidators[0]);
+			roundValidators = _concatArraysAndDropIndex(
+				transactions[_tx_id].roundData[_round].roundValidators,
+				roundValidators,
+				transactions[_tx_id].roundData[_round].leaderIndex
+			);
+			leaderIndex = _randomlySelectLeaderIndex(
+				_randomSeed,
+				transactions[_tx_id].consumedValidators.length,
+				roundValidators.length,
+				leaderIndex
+			);
+			transactions[_tx_id].roundData[_round] = ITransactions.RoundData(
+				_round,
+				leaderIndex,
+				0,
+				0,
+				_appealBond,
+				_rotationsLeft,
+				ITransactions.ResultType(0),
+				roundValidators,
+				new bytes32[](roundValidators.length),
+				new ITransactions.VoteType[](roundValidators.length)
+			);
+		} else {
+			if (_round % 2 == 0 && _round > 0) {
+				address[] memory missingValidators;
+				(
+					roundValidators,
+					missingValidators
+				) = _getPreviousRoundValidators(_tx_id, _round, _randomSeed);
+				transactions[_tx_id]
+					.consumedValidators = _concatArraysAndDropIndex(
+					transactions[_tx_id].consumedValidators,
+					missingValidators,
+					transactions[_tx_id].consumedValidators.length
+				);
+				leaderIndex = _randomlySelectLeaderIndex(
+					_randomSeed,
+					transactions[_tx_id].consumedValidators.length,
+					roundValidators.length,
+					leaderIndex
+				);
+			} else {
+				(roundValidators, leaderIndex) = _getValidatorsAndLeaderIndex(
+					_randomSeed,
+					VALIDATORS_PER_ROUND[_round],
+					transactions[_tx_id].consumedValidators
+				);
+				transactions[_tx_id]
+					.consumedValidators = _concatArraysAndDropIndex(
+					transactions[_tx_id].consumedValidators,
+					roundValidators,
+					transactions[_tx_id].consumedValidators.length
+				);
+			}
+			// Set the round data
+			// Resets in case of rotation
+			transactions[_tx_id].roundData.push(
+				ITransactions.RoundData(
+					_round,
+					leaderIndex,
+					0,
+					0,
+					_appealBond,
+					_rotationsLeft,
+					ITransactions.ResultType(0),
+					roundValidators,
+					new bytes32[](roundValidators.length),
+					new ITransactions.VoteType[](roundValidators.length)
+				)
+			);
+		}
 	}
 
-	function getTransactionActivationInfo(
-		bytes32 txId
+	function _createAnEmptyRound(bytes32 _tx_id) internal {
+		transactions[_tx_id].roundData.push(
+			ITransactions.RoundData(
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				ITransactions.ResultType(0),
+				new address[](0),
+				new bytes32[](0),
+				new ITransactions.VoteType[](0)
+			)
+		);
+	}
+
+	function _getPreviousRoundValidators(
+		bytes32 _tx_id,
+		uint256 _round,
+		bytes32 _randomSeed
 	)
-		external
+		internal
 		view
-		returns (ITransactions.ActivationInfo memory activationInfo)
+		returns (
+			address[] memory previousRoundValidators,
+			address[] memory missingValidators
+		)
 	{
-		activationInfo.recepientAddress = transactions[txId].recipient;
-		activationInfo.numOfInitialValidators = transactions[txId]
-			.numOfInitialValidators;
-		activationInfo.initialActivation =
-			transactions[txId].activationTimestamp == 0;
-		activationInfo.rotationsLeft = transactions[txId].rotationsLeft;
-	}
-
-	function getTransactionResult(
-		bytes32 txId
-	) external view returns (ITransactions.ResultType result) {
-		result = transactions[txId].result;
-	}
-
-	function getTransactionRecipient(
-		bytes32 txId
-	) external view returns (address recipient) {
-		recipient = transactions[txId].recipient;
-	}
-
-	function getTransactionSeed(
-		bytes32 txId
-	) external view returns (bytes32 seed) {
-		seed = transactions[txId].randomSeed;
+		uint256 previousRoundValidatorsLength = transactions[_tx_id]
+			.roundData[_round - 2]
+			.roundValidators
+			.length;
+		if (previousRoundValidatorsLength > 0) {
+			previousRoundValidators = _concatArraysAndDropIndex(
+				transactions[_tx_id].roundData[_round - 2].roundValidators,
+				transactions[_tx_id].roundData[_round - 1].roundValidators,
+				transactions[_tx_id].roundData[_round - 2].leaderIndex
+			);
+		} else {
+			uint validPreviousRound = 0;
+			for (uint256 i = _round - 2; i > 0; i - 2) {
+				if (
+					transactions[_tx_id].roundData[i].roundValidators.length > 0
+				) {
+					validPreviousRound = i;
+					break;
+				}
+			}
+			uint256 missingValidatorsLength = VALIDATORS_PER_ROUND[_round] -
+				transactions[_tx_id]
+					.roundData[validPreviousRound]
+					.roundValidators
+					.length -
+				transactions[_tx_id]
+					.roundData[_round - 1]
+					.roundValidators
+					.length;
+			(missingValidators, ) = _getValidatorsAndLeaderIndex(
+				_randomSeed,
+				missingValidatorsLength,
+				transactions[_tx_id].consumedValidators
+			);
+			previousRoundValidators = _concatArraysAndDropIndex(
+				transactions[_tx_id]
+					.roundData[validPreviousRound]
+					.roundValidators,
+				transactions[_tx_id].roundData[_round - 1].roundValidators,
+				transactions[_tx_id].roundData[validPreviousRound].leaderIndex
+			);
+			previousRoundValidators = _concatArraysAndDropIndex(
+				previousRoundValidators,
+				missingValidators,
+				previousRoundValidators.length
+			);
+		}
 	}
 
 	function _calculateMinAppealBond(
-		bytes32 _tx_id
+		bytes32 _tx_id,
+		uint256 _round
 	) internal view returns (uint256 minAppealBond) {
 		// TODO: Implement the logic to calculate the minimum appeal bond
 		minAppealBond = 0;
 	}
 
-	function _concatArrays(
+	function _concatArraysAndDropIndex(
 		address[] memory _array1,
-		address[] memory _array2
-	) internal pure returns (address[] memory) {
-		address[] memory result = new address[](
-			_array1.length + _array2.length
-		);
+		address[] memory _array2,
+		uint256 _indexToDrop
+	) internal pure returns (address[] memory result) {
+		uint256 reduceLength = _array1.length > 0 &&
+			_indexToDrop < _array1.length
+			? 1
+			: 0;
+		result = new address[](_array1.length + _array2.length - reduceLength);
+		uint resultIndex = 0;
 		for (uint i = 0; i < _array1.length; i++) {
-			result[i] = _array1[i];
+			if (i != _indexToDrop) {
+				result[resultIndex] = _array1[i];
+				resultIndex++;
+			}
 		}
 		for (uint i = 0; i < _array2.length; i++) {
-			result[_array1.length + i] = _array2[i];
+			result[resultIndex] = _array2[i];
+			resultIndex++;
 		}
-		return result;
 	}
 
-	function setActivationData(
-		bytes32 txId,
-		bytes32 randomSeed
-	) external onlyGenConsensus {
-		transactions[txId].activationTimestamp = block.timestamp;
-		transactions[txId].randomSeed = randomSeed;
+	function _randomlySelectLeaderIndex(
+		bytes32 _randomSeed,
+		uint256 _consumedValidatorsLength,
+		uint256 _roundValidatorsLength,
+		uint256 _addedRandomness
+	) internal pure returns (uint256 leaderIndex) {
+		leaderIndex =
+			uint256(
+				keccak256(
+					abi.encodePacked(
+						_randomSeed,
+						_consumedValidatorsLength,
+						_addedRandomness
+					)
+				)
+			) %
+			_roundValidatorsLength;
+	}
+
+	function _checkActivator(bytes32 _txId, address _activator) internal view {
+		if (transactions[_txId].activator != _activator) {
+			revert Errors.CallerNotActivator();
+		}
+		// TODO: Check if it is the next activator
+	}
+
+	function _checkStatusCommittedOrRevealed(
+		uint round,
+		ITransactions.TransactionStatus status,
+		bool checkCommitted
+	) internal pure {
+		bool isRegularRound = round % 2 == 0;
+		if (checkCommitted) {
+			if (isRegularRound) {
+				// regular round
+				if (status != ITransactions.TransactionStatus.Committing) {
+					revert Errors.TransactionNotCommitting();
+				}
+			} else {
+				// appeal round
+				if (
+					status != ITransactions.TransactionStatus.AppealCommitting
+				) {
+					revert Errors.TransactionNotAppealCommitting();
+				}
+			}
+		} else {
+			if (isRegularRound) {
+				// regular round
+				if (status != ITransactions.TransactionStatus.Revealing) {
+					revert Errors.TransactionNotRevealing();
+				}
+			} else {
+				// appeal round
+				if (status != ITransactions.TransactionStatus.AppealRevealing) {
+					revert Errors.TransactionNotAppealRevealing();
+				}
+			}
+		}
+	}
+
+	function _getValidatorsAndLeaderIndex(
+		bytes32 _randomSeed,
+		uint256 numValidators,
+		address[] memory consumedValidators
+	) internal view returns (address[] memory validators, uint256 leaderIndex) {
+		(validators, leaderIndex) = genStaking.getValidatorsForTx(
+			_randomSeed,
+			numValidators,
+			consumedValidators
+		);
 	}
 
 	function setGenConsensus(address _genConsensus) external onlyOwner {
@@ -264,97 +781,7 @@ contract Transactions is
 		emit GenConsensusSet(_genConsensus);
 	}
 
-	modifier onlyGenConsensus() {
-		if (msg.sender != genConsensus) {
-			revert CallerNotConsensus();
-		}
-		_;
-	}
-
-	function decreaseRotationsLeft(bytes32 txId) external onlyGenConsensus {
-		transactions[txId].rotationsLeft--;
-	}
-
-	function popLastValidator(bytes32 txId) external onlyGenConsensus {
-		transactions[txId].validators.pop();
-	}
-
-	function addValidator(
-		bytes32 txId,
-		address validator
-	) external onlyGenConsensus {
-		transactions[txId].validators.push(validator);
-	}
-
-	function addConsumedValidator(
-		bytes32 txId,
-		address validator
-	) external onlyGenConsensus {
-		transactions[txId].consumedValidators.push(validator);
-	}
-
-	function setValidators(
-		bytes32 txId,
-		address[] memory validators
-	) external onlyGenConsensus {
-		transactions[txId].validators = validators;
-		transactions[txId].validatorVotesHash = new bytes32[](
-			validators.length
-		);
-		transactions[txId].validatorVotes = new ITransactions.VoteType[](
-			validators.length
-		);
-	}
-
-	function getValidators(
-		bytes32 txId
-	) external view returns (address[] memory) {
-		return transactions[txId].validators;
-	}
-
-	function getValidatorsLen(bytes32 txId) external view returns (uint256) {
-		return transactions[txId].validators.length;
-	}
-
-	function getValidator(
-		bytes32 txId,
-		uint256 index
-	) external view returns (address) {
-		return transactions[txId].validators[index];
-	}
-
-	function resetVotes(bytes32 txId) external onlyGenConsensus {
-		transactions[txId].validatorVotes = new ITransactions.VoteType[](0);
-		transactions[txId].validatorVotesHash = new bytes32[](0);
-		transactions[txId].validators = new address[](0);
-	}
-
-	function getConsumedValidators(
-		bytes32 txId
-	) external view returns (address[] memory) {
-		return transactions[txId].consumedValidators;
-	}
-
-	function getConsumedValidatorsLen(
-		bytes32 txId
-	) external view returns (uint256) {
-		return transactions[txId].consumedValidators.length;
-	}
-
-	function rotateLeader(
-		bytes32 txId,
-		address leader
-	) external onlyGenConsensus {
-		transactions[txId].rotationsLeft--;
-		transactions[txId].consumedValidators.push(leader);
-	}
-
-	function addConsumedValidators(
-		bytes32 txId,
-		address[] memory validators
-	) external onlyGenConsensus {
-		for (uint i = 0; i < validators.length; i++) {
-			transactions[txId].consumedValidators.push(validators[i]);
-		}
+	function setGenStaking(address _genStaking) external onlyOwner {
+		genStaking = IGenStaking(_genStaking);
 	}
 }
