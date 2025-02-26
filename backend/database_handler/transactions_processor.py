@@ -73,6 +73,8 @@ class TransactionsProcessor:
             "appeal_processing_time": transaction_data.appeal_processing_time,
             "contract_snapshot": transaction_data.contract_snapshot,
             "config_rotation_rounds": transaction_data.config_rotation_rounds,
+            "config_appeal_rounds": transaction_data.config_appeal_rounds,
+            "appeal_round": transaction_data.appeal_round,
         }
 
     @staticmethod
@@ -187,6 +189,8 @@ class TransactionsProcessor:
             appeal_processing_time=0,
             contract_snapshot=None,
             config_rotation_rounds=MAX_ROTATIONS,
+            config_appeal_rounds=3,  # should come from the frontend/wallet
+            appeal_round=0,
         )
 
         self.session.add(new_transaction)
@@ -328,9 +332,13 @@ class TransactionsProcessor:
             TransactionStatus.ACCEPTED,
             TransactionStatus.UNDETERMINED,
         ):
-            transaction.appealed = appeal
-            self.set_transaction_timestamp_appeal(transaction, int(time.time()))
-            self.session.commit()
+            if transaction.appeal_round < transaction.config_appeal_rounds:
+                transaction.appealed = appeal
+                self.set_transaction_timestamp_appeal(transaction, int(time.time()))
+                self.session.commit()
+            raise ValueError(
+                "Transaction has already been appealed the maximum number of times"
+            )
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
@@ -505,3 +513,12 @@ class TransactionsProcessor:
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         return ContractSnapshot.from_dict(transaction.contract_snapshot)
+
+    def set_transaction_appeal_round(self, transaction_hash: str, appeal_round: int):
+        if appeal_round < 0:
+            raise ValueError("appeal_round must be a non-negative integer")
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.appeal_round = appeal_round
+        self.session.commit()

@@ -82,8 +82,13 @@ class TransactionsProcessorMock:
             TransactionStatus.ACCEPTED.value,
             TransactionStatus.UNDETERMINED.value,
         ):
-            transaction["appealed"] = appeal
-            self.set_transaction_timestamp_appeal(transaction, int(time.time()))
+            if transaction["appeal_round"] < transaction["config_appeal_rounds"]:
+                transaction["appealed"] = appeal
+                self.set_transaction_timestamp_appeal(transaction, int(time.time()))
+            else:
+                raise ValueError(
+                    "Transaction has already been appealed the maximum number of times"
+                )
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
@@ -195,6 +200,12 @@ class TransactionsProcessorMock:
     def get_transaction_contract_snapshot(self, transaction_hash: str):
         return None
 
+    def set_transaction_appeal_round(self, transaction_hash: str, appeal_round: int):
+        if appeal_round < 0:
+            raise ValueError("appeal_round must be a non-negative integer")
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        transaction["appeal_round"] = appeal_round
+
 
 class SnapshotMock:
     def __init__(self, nodes: list, transactions_processor: TransactionsProcessorMock):
@@ -274,6 +285,8 @@ def transaction_to_dict(transaction: Transaction) -> dict:
             else None
         ),
         "config_rotation_rounds": transaction.config_rotation_rounds,
+        "config_appeal_rounds": transaction.config_appeal_rounds,
+        "appeal_round": transaction.appeal_round,
     }
 
 

@@ -1178,6 +1178,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
     """
     transaction = init_dummy_transaction()
     transaction.config_rotation_rounds = 4
+    transaction.config_appeal_rounds = 4
     nodes = get_nodes_specs(
         2 * (2 * (2 * (2 * DEFAULT_VALIDATORS_COUNT + 2) + 2) + 2)
         + 2

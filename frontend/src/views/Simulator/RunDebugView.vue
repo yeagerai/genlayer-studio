@@ -82,7 +82,7 @@ function isFinalityWindowValid(value: number) {
               required
               testId="input-finalityWindow"
               :disabled="false"
-              class="w-20"
+              class="h-6 w-20"
               tiny
             />
           </div>

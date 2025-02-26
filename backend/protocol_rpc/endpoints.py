@@ -558,7 +558,11 @@ def set_transaction_appeal(
     msg_handler: MessageHandler,
     transaction_hash: str,
 ) -> None:
-    transactions_processor.set_transaction_appeal(transaction_hash, True)
+    try:
+        transactions_processor.set_transaction_appeal(transaction_hash, True)
+    except ValueError as e:
+        raise JSONRPCError(str(e))
+
     msg_handler.send_message(
         log_event=LogEvent(
             "transaction_appeal_updated",

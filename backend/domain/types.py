@@ -3,8 +3,8 @@
 # These types should not depend on any other layer.
 
 from dataclasses import dataclass, field
-import decimal
-from enum import Enum, IntEnum
+from enum import IntEnum
+import os
 
 from backend.database_handler.models import TransactionStatus
 from backend.database_handler.types import ConsensusData
@@ -94,6 +94,8 @@ class Transaction:
     appeal_processing_time: int = 0
     contract_snapshot: ContractSnapshot | None = None
     config_rotation_rounds: int | None = MAX_ROTATIONS
+    config_appeal_rounds: int | None = int(os.getenv("VITE_MAX_APPEALS", 3))
+    appeal_round: int = 0
 
     def to_dict(self):
         return {
@@ -127,6 +129,8 @@ class Transaction:
                 self.contract_snapshot.to_dict() if self.contract_snapshot else None
             ),
             "config_rotation_rounds": self.config_rotation_rounds,
+            "config_appeal_rounds": self.config_appeal_rounds,
+            "appeal_round": self.appeal_round,
         }
 
     @classmethod
@@ -162,4 +166,6 @@ class Transaction:
                 input.get("contract_snapshot")
             ),
             config_rotation_rounds=input.get("config_rotation_rounds"),
+            config_appeal_rounds=input.get("config_appeal_rounds"),
+            appeal_round=input.get("appeal_round"),
         )

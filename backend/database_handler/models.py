@@ -102,6 +102,8 @@ class Transactions(Base):
     appeal_processing_time: Mapped[Optional[int]] = mapped_column(Integer)
     contract_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB)
     config_rotation_rounds: Mapped[Optional[int]] = mapped_column(Integer)
+    config_appeal_rounds: Mapped[Optional[int]] = mapped_column(Integer)
+    appeal_round: Mapped[Optional[int]] = mapped_column(Integer)
 
     # Relationship for triggered transactions
     triggered_by_hash: Mapped[Optional[str]] = mapped_column(
