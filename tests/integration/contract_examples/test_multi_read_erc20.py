@@ -1,6 +1,4 @@
-import json
 import os
-from backend.node.types import Address
 
 from tests.common.accounts import create_new_account
 from tests.common.request import (
@@ -24,6 +22,7 @@ def test_multi_read_erc20(setup_validators):
 
     This test demonstrates the integration contract to contract reads
     """
+    setup_validators()
     TOKEN_TOTAL_SUPPLY = 1000
     from_account_doge = create_new_account()
     from_account_shiba = create_new_account()
