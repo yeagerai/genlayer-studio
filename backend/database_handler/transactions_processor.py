@@ -1,7 +1,8 @@
 # consensus/services/transactions_db_service.py
 from enum import Enum
 import rlp
-
+import ast
+import re
 from .models import Transactions
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, desc
@@ -42,6 +43,13 @@ class TransactionsProcessor:
 
     @staticmethod
     def _parse_transaction_data(transaction_data: Transactions) -> dict:
+        result = (
+            transaction_data.consensus_data.get("leader_receipt", {}).get(
+                "eq_outputs", {}
+            )
+            if transaction_data.consensus_data
+            else transaction_data.consensus_data
+        )
         return {
             "hash": transaction_data.hash,
             "from_address": transaction_data.from_address,
@@ -50,6 +58,7 @@ class TransactionsProcessor:
             "value": transaction_data.value,
             "type": transaction_data.type,
             "status": transaction_data.status.value,
+            "result": TransactionsProcessor._decode_base64_data(result),
             "consensus_data": transaction_data.consensus_data,
             "gaslimit": transaction_data.nonce,
             "nonce": transaction_data.nonce,
@@ -92,6 +101,36 @@ class TransactionsProcessor:
             raise TypeError("Can't encode #{d}")
 
         return json.dumps(data, default=data_encode)
+
+    @staticmethod
+    def _decode_base64_data(data: dict | str) -> dict | str:
+        def decode_value(value):
+            """Helper function to decode Base64-encoded values if they are strings."""
+            if isinstance(value, str) and value:
+                try:
+                    byte_content = re.sub(r"^[\x00-\x1f]+", "", value)
+                    if byte_content:
+                        decoded_str = base64.b64decode(
+                            bytes(byte_content, encoding="utf-8")
+                        ).decode("utf-8", errors="ignore")
+                    else:
+                        decoded_str = base64.b64decode(
+                            bytes(value, encoding="utf-8")
+                        ).decode("utf-8", errors="ignore")
+                    return decoded_str
+                except (ValueError, UnicodeDecodeError):
+                    return value  # Return original if decoding fails
+
+            return value  # Return unchanged for non-strings
+
+        if isinstance(data, dict):
+            return {k: decode_value(v) for k, v in data.items()}
+        elif isinstance(data, str):
+            return decode_value(data)
+        elif data is None:
+            return None
+        else:
+            raise TypeError(f"Can't decode unsupported type: {type(data).__name__}")
 
     @staticmethod
     def _generate_transaction_hash(
