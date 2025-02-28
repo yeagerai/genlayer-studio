@@ -5,12 +5,11 @@ import json
 from genlayer import *
 
 
-@gl.contract
-class LlmErc20:
+class LlmErc20(gl.Contract):
     balances: TreeMap[Address, u256]
 
     def __init__(self, total_supply: int) -> None:
-        self.balances[gl.message.sender_account] = u256(total_supply)
+        self.balances[gl.message.sender_address] = u256(total_supply)
 
     @gl.public.write
     def transfer(self, amount: int, to_address: str) -> None:
@@ -19,7 +18,7 @@ You keep track of transactions between users and their balance in coins.
 The current balance for all users in JSON format is:
 {json.dumps(self.get_balances())}
 The transaction to compute is: {{
-sender: "{gl.message.sender_account.as_hex}",
+sender: "{gl.message.sender_address.as_hex}",
 recipient: "{Address(to_address).as_hex}",
 amount: {amount},
 }}

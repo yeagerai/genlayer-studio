@@ -165,10 +165,12 @@ thread_socketio.start()
 thread_crawl_snapshot = threading.Thread(target=consensus.run_crawl_snapshot_loop)
 thread_crawl_snapshot.start()
 
-# Thread for the run_consensus method
-thread_consensus = threading.Thread(target=consensus.run_consensus_loop)
-thread_consensus.start()
+# Thread for the process_pending_transactions method
+thread_process_pending_transactions = threading.Thread(
+    target=consensus.run_process_pending_transactions_loop
+)
+thread_process_pending_transactions.start()
 
 # Thread for the appeal_window method
-thread_consensus = threading.Thread(target=consensus.run_appeal_window_loop)
-thread_consensus.start()
+thread_appeal_window = threading.Thread(target=consensus.run_appeal_window_loop)
+thread_appeal_window.start()

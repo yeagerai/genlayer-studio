@@ -3,8 +3,7 @@
 from genlayer import *
 
 
-@gl.contract
-class read_erc20:
+class read_erc20(gl.Contract):
     token_contract: Address
 
     def __init__(self, token_contract: str):

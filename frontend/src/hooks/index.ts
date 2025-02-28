@@ -11,3 +11,4 @@ export * from './useGenlayer';
 export * from './useShortAddress';
 export * from './useConfig';
 export * from './useTransactionListener';
+export * from './useContractListener';

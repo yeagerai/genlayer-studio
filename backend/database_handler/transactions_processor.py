@@ -15,6 +15,8 @@ from backend.domain.types import TransactionType
 from web3 import Web3
 from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
+from sqlalchemy.orm.attributes import flag_modified
+from backend.domain.types import MAX_ROTATIONS
 
 from backend.rollup.consensus_service import ConsensusService
 
@@ -63,8 +65,14 @@ class TransactionsProcessor:
             ],
             "ghost_contract_address": transaction_data.ghost_contract_address,
             "appealed": transaction_data.appealed,
-            "timestamp_accepted": transaction_data.timestamp_accepted,
+            "timestamp_awaiting_finalization": transaction_data.timestamp_awaiting_finalization,
             "appeal_failed": transaction_data.appeal_failed,
+            "appeal_undetermined": transaction_data.appeal_undetermined,
+            "consensus_history": transaction_data.consensus_history,
+            "timestamp_appeal": transaction_data.timestamp_appeal,
+            "appeal_processing_time": transaction_data.appeal_processing_time,
+            "contract_snapshot": transaction_data.contract_snapshot,
+            "config_rotation_rounds": transaction_data.config_rotation_rounds,
         }
 
     @staticmethod
@@ -171,8 +179,14 @@ class TransactionsProcessor:
             ),
             ghost_contract_address=ghost_contract_address,
             appealed=False,
-            timestamp_accepted=None,
+            timestamp_awaiting_finalization=None,
             appeal_failed=0,
+            appeal_undetermined=False,
+            consensus_history={},
+            timestamp_appeal=None,
+            appeal_processing_time=0,
+            contract_snapshot=None,
+            config_rotation_rounds=MAX_ROTATIONS,
         )
 
         self.session.add(new_transaction)
@@ -200,6 +214,18 @@ class TransactionsProcessor:
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.status = new_status
+
+        if "current_status_changes" in transaction.consensus_history:
+            transaction.consensus_history["current_status_changes"].append(
+                new_status.value
+            )
+        else:
+            transaction.consensus_history["current_status_changes"] = [
+                TransactionStatus.PENDING.value,
+                new_status.value,
+            ]
+        flag_modified(transaction, "consensus_history")
+
         self.session.commit()
 
     def set_transaction_result(self, transaction_hash: str, consensus_data: dict):
@@ -293,21 +319,31 @@ class TransactionsProcessor:
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
-        if (transaction.status == TransactionStatus.ACCEPTED.value) or (
-            transaction.status == TransactionStatus.UNDETERMINED.value
+        # You can only appeal the transaction if it is in accepted or undetermined state
+        # Setting it to false is always allowed
+        if not appeal:
+            transaction.appealed = appeal
+            self.session.commit()
+        elif transaction.status in (
+            TransactionStatus.ACCEPTED,
+            TransactionStatus.UNDETERMINED,
         ):
             transaction.appealed = appeal
+            self.set_transaction_timestamp_appeal(transaction, int(time.time()))
+            self.session.commit()
 
-    def set_transaction_timestamp_accepted(
-        self, transaction_hash: str, timestamp_accepted: int = None
+    def set_transaction_timestamp_awaiting_finalization(
+        self, transaction_hash: str, timestamp_awaiting_finalization: int = None
     ):
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
-        if timestamp_accepted:
-            transaction.timestamp_accepted = timestamp_accepted
+        if timestamp_awaiting_finalization:
+            transaction.timestamp_awaiting_finalization = (
+                timestamp_awaiting_finalization
+            )
         else:
-            transaction.timestamp_accepted = int(time.time())
+            transaction.timestamp_awaiting_finalization = int(time.time())
 
     def set_transaction_appeal_failed(self, transaction_hash: str, appeal_failed: int):
         if appeal_failed < 0:
@@ -317,30 +353,38 @@ class TransactionsProcessor:
         )
         transaction.appeal_failed = appeal_failed
 
+    def set_transaction_appeal_undetermined(
+        self, transaction_hash: str, appeal_undetermined: bool
+    ):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.appeal_undetermined = appeal_undetermined
+
     def get_highest_timestamp(self) -> int:
         transaction = (
             self.session.query(Transactions)
-            .filter(Transactions.timestamp_accepted.isnot(None))
-            .order_by(desc(Transactions.timestamp_accepted))
+            .filter(Transactions.timestamp_awaiting_finalization.isnot(None))
+            .order_by(desc(Transactions.timestamp_awaiting_finalization))
             .first()
         )
         if transaction is None:
             return 0
-        return transaction.timestamp_accepted
+        return transaction.timestamp_awaiting_finalization
 
     def get_transactions_for_block(
         self, block_number: int, include_full_tx: bool
     ) -> dict:
         transactions = (
             self.session.query(Transactions)
-            .filter(Transactions.timestamp_accepted == block_number)
+            .filter(Transactions.timestamp_awaiting_finalization == block_number)
             .all()
         )
 
         block_hash = "0x" + "0" * 64
         parent_hash = "0x" + "0" * 64  # Placeholder for parent block hash
         timestamp = (
-            transactions[0].timestamp_accepted
+            transactions[0].timestamp_awaiting_finalization
             if len(transactions) > 0
             else int(time.time())
         )
@@ -366,3 +410,98 @@ class TransactionsProcessor:
         }
 
         return block_details
+
+    def get_newer_transactions(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transactions = (
+            self.session.query(Transactions)
+            .filter(
+                Transactions.created_at > transaction.created_at,
+                Transactions.to_address == transaction.to_address,
+            )
+            .order_by(Transactions.created_at)
+            .all()
+        )
+        return [
+            self._parse_transaction_data(transaction) for transaction in transactions
+        ]
+
+    def update_consensus_history(
+        self,
+        transaction_hash: str,
+        consensus_round: str,
+        leader_result: dict | None,
+        validator_results: list,
+    ):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        current_consensus_results = {
+            "consensus_round": consensus_round,
+            "leader_result": leader_result.to_dict() if leader_result else None,
+            "validator_results": [receipt.to_dict() for receipt in validator_results],
+            "status_changes": (
+                transaction.consensus_history["current_status_changes"]
+                if "current_status_changes" in transaction.consensus_history
+                else []
+            ),
+        }
+
+        if "consensus_results" in transaction.consensus_history:
+            transaction.consensus_history["consensus_results"].append(
+                current_consensus_results
+            )
+        else:
+            transaction.consensus_history["consensus_results"] = [
+                current_consensus_results
+            ]
+
+        transaction.consensus_history["current_status_changes"] = []
+
+        flag_modified(transaction, "consensus_history")
+        self.session.commit()
+
+    def set_transaction_timestamp_appeal(
+        self, transaction: Transactions | str, timestamp_appeal: int
+    ):
+        if isinstance(transaction, str):  # hash
+            transaction = (
+                self.session.query(Transactions).filter_by(hash=transaction).one()
+            )
+        transaction.timestamp_appeal = timestamp_appeal
+
+    def set_transaction_appeal_processing_time(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.appeal_processing_time += (
+            round(time.time()) - transaction.timestamp_appeal
+        )
+        flag_modified(transaction, "appeal_processing_time")
+        self.session.commit()
+
+    def reset_transaction_appeal_processing_time(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.appeal_processing_time = 0
+        self.session.commit()
+
+    def set_transaction_contract_snapshot(
+        self, transaction_hash: str, contract_snapshot: dict | None
+    ):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.contract_snapshot = contract_snapshot
+        self.session.commit()
+
+    def get_transaction_contract_snapshot(
+        self, transaction_hash: str
+    ) -> ContractSnapshot | None:
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        return ContractSnapshot.from_dict(transaction.contract_snapshot)

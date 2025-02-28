@@ -29,6 +29,7 @@ import enum
 
 class TransactionStatus(enum.Enum):
     PENDING = "PENDING"
+    ACTIVATED = "ACTIVATED"
     CANCELED = "CANCELED"
     PROPOSING = "PROPOSING"
     COMMITTING = "COMMITTING"
@@ -96,6 +97,11 @@ class Transactions(Base):
     v: Mapped[Optional[int]] = mapped_column(Integer)
     ghost_contract_address: Mapped[Optional[str]] = mapped_column(String(255))
     appeal_failed: Mapped[Optional[int]] = mapped_column(Integer)
+    consensus_history: Mapped[Optional[dict]] = mapped_column(JSONB)
+    timestamp_appeal: Mapped[Optional[int]] = mapped_column(BigInteger)
+    appeal_processing_time: Mapped[Optional[int]] = mapped_column(Integer)
+    contract_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB)
+    config_rotation_rounds: Mapped[Optional[int]] = mapped_column(Integer)
 
     # Relationship for triggered transactions
     triggered_by_hash: Mapped[Optional[str]] = mapped_column(
@@ -116,7 +122,10 @@ class Transactions(Base):
         init=False,
     )
     appealed: Mapped[bool] = mapped_column(Boolean, default=False)
-    timestamp_accepted: Mapped[Optional[int]] = mapped_column(BigInteger, default=None)
+    appeal_undetermined: Mapped[bool] = mapped_column(Boolean, default=False)
+    timestamp_awaiting_finalization: Mapped[Optional[int]] = mapped_column(
+        BigInteger, default=None
+    )
 
 
 class Validators(Base):
