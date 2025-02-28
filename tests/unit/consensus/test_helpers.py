@@ -144,14 +144,18 @@ class TransactionsProcessorMock:
         self,
         transaction_hash: str,
         consensus_round: str,
-        leader_result: dict | None,
-        validator_results: list,
+        leader_result: list[Receipt] | None,
+        validator_results: list[Receipt],
     ):
         transaction = self.get_transaction_by_hash(transaction_hash)
 
         current_consensus_results = {
             "consensus_round": consensus_round,
-            "leader_result": leader_result.to_dict() if leader_result else None,
+            "leader_result": (
+                [receipt.to_dict() for receipt in leader_result]
+                if leader_result
+                else None
+            ),
             "validator_results": [receipt.to_dict() for receipt in validator_results],
             "status_changes": (
                 transaction["consensus_history"]["current_status_changes"]
@@ -190,10 +194,8 @@ class TransactionsProcessorMock:
     def set_transaction_contract_snapshot(
         self, transaction_hash: str, contract_snapshot: dict
     ):
-        pass
-
-    def get_transaction_contract_snapshot(self, transaction_hash: str):
-        return None
+        transaction = self.get_transaction_by_hash(transaction_hash)
+        transaction["contract_snapshot"] = contract_snapshot
 
 
 class SnapshotMock:
@@ -362,7 +364,7 @@ def get_leader_address(
     transaction: Transaction, transactions_processor: TransactionsProcessor
 ):
     transaction_dict = transactions_processor.get_transaction_by_hash(transaction.hash)
-    return transaction_dict["consensus_data"]["leader_receipt"]["node_config"][
+    return transaction_dict["consensus_data"]["leader_receipt"][0]["node_config"][
         "address"
     ]
 

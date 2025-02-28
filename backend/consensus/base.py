@@ -234,6 +234,7 @@ class TransactionContext:
         self.validator_nodes: list = []
         self.validation_results: list = []
         self.rotation_count: int = 0
+        self.leader: dict = {}
 
 
 class ConsensusAlgorithm:
@@ -1318,7 +1319,9 @@ class ConsensusAlgorithm:
 
         # Extract address of the leader from consensus data
         if include_leader:
-            receipt_addresses = [consensus_data.leader_receipt.node_config["address"]]
+            receipt_addresses = [
+                consensus_data.leader_receipt[0].node_config["address"]
+            ]
         else:
             receipt_addresses = []
 
@@ -1391,7 +1394,7 @@ class ConsensusAlgorithm:
                 leader_receipt = consensus_round["leader_result"]
                 if leader_receipt:
                     used_leader_addresses.update(
-                        [leader_receipt["node_config"]["address"]]
+                        [leader_receipt[0]["node_config"]["address"]]
                     )
 
         # consensus_history does not contain the latest consensus_data
@@ -1584,7 +1587,7 @@ class ProposingState(TransactionState):
         random.shuffle(context.involved_validators)
 
         # Unpack the leader and validators
-        [leader, *context.remaining_validators] = context.involved_validators
+        [context.leader, *context.remaining_validators] = context.involved_validators
 
         # If the transaction is leader-only, clear the validators
         if context.transaction.leader_only:
@@ -1597,7 +1600,7 @@ class ProposingState(TransactionState):
 
         # Create a leader node for executing the transaction
         leader_node = context.node_factory(
-            leader,
+            context.leader,
             ExecutionMode.LEADER,
             contract_snapshot_supplier(),
             None,
@@ -1605,13 +1608,13 @@ class ProposingState(TransactionState):
             context.contract_snapshot_factory,
         )
 
-        # Execute the transaction and obtain the leader receipt
-        leader_receipt = await leader_node.exec_transaction(context.transaction)
-        votes = {leader["address"]: leader_receipt.vote.value}
+        # Leader evaluates leader function
+        context.consensus_data.leader_receipt = [
+            await leader_node.exec_transaction(context.transaction)
+        ]
 
         # Update the consensus data with the leader's vote and receipt
-        context.consensus_data.votes = votes
-        context.consensus_data.leader_receipt = leader_receipt
+        context.consensus_data.votes = {}
         context.consensus_data.validators = []
         context.transactions_processor.set_transaction_result(
             context.transaction.hash, context.consensus_data.to_dict()
@@ -1620,7 +1623,6 @@ class ProposingState(TransactionState):
         # Set the validators and other context attributes
         context.num_validators = len(context.remaining_validators) + 1
         context.contract_snapshot_supplier = contract_snapshot_supplier
-        context.votes = votes
 
         # Transition to the CommittingState
         return CommittingState()
@@ -1641,6 +1643,17 @@ class CommittingState(TransactionState):
         Returns:
             TransactionState: The RevealingState.
         """
+
+        def create_validator_node(context: TransactionContext, validator: dict):
+            return context.node_factory(
+                validator,
+                ExecutionMode.VALIDATOR,
+                context.contract_snapshot_supplier(),
+                context.consensus_data.leader_receipt[0],
+                context.msg_handler,
+                context.contract_snapshot_factory,
+            )
+
         # Dispatch a transaction status update to COMMITTING
         ConsensusAlgorithm.dispatch_transaction_status_update(
             context.transactions_processor,
@@ -1653,16 +1666,16 @@ class CommittingState(TransactionState):
             context.transaction.hash
         )
 
+        # Leader evaluates validation function
+        if len(context.consensus_data.leader_receipt) == 1:
+            leader_node = create_validator_node(context, context.leader)
+            leader_receipt = await leader_node.exec_transaction(context.transaction)
+            context.consensus_data.leader_receipt.append(leader_receipt)
+            context.votes = {context.leader["address"]: leader_receipt.vote.value}
+
         # Create validator nodes for each validator
         context.validator_nodes = [
-            context.node_factory(
-                validator,
-                ExecutionMode.VALIDATOR,
-                context.contract_snapshot_supplier(),
-                context.consensus_data.leader_receipt,
-                context.msg_handler,
-                context.contract_snapshot_factory,
-            )
+            create_validator_node(context, validator)
             for validator in context.remaining_validators
         ]
 
@@ -1714,24 +1727,6 @@ class RevealingState(TransactionState):
             # Store the vote from each validator node
             context.votes[context.validator_nodes[i].address] = (
                 validation_result.vote.value
-            )
-
-            # Create a dictionary of votes for the current reveal so the rollup transaction contains leader vote and one validator vote (done for each validator)
-            # create_rollup_transaction() is removed but we keep this code for future use
-            single_reveal_votes = {
-                context.consensus_data.leader_receipt.node_config[
-                    "address"
-                ]: context.consensus_data.leader_receipt.vote.value,
-                context.validator_nodes[i].address: validation_result.vote.value,
-            }
-
-            # Update consensus data with the current reveal vote and validator
-            context.consensus_data.votes = single_reveal_votes
-            context.consensus_data.validators = [validation_result]
-
-            # Set the consensus data of the transaction
-            context.transactions_processor.set_transaction_result(
-                context.transaction.hash, context.consensus_data.to_dict()
             )
 
         # Determine if the majority of validators agree
@@ -1827,7 +1822,7 @@ class RevealingState(TransactionState):
                         context.transactions_processor.get_transaction_by_hash(
                             context.transaction.hash
                         )["consensus_history"],
-                        context.consensus_data.leader_receipt,
+                        context.consensus_data.leader_receipt[0],
                     )
                 )
                 # Add a new validator to the list of current validators when a rotation happens
@@ -1972,7 +1967,7 @@ class AcceptedState(TransactionState):
         )
 
         # Retrieve the leader's receipt from the consensus data
-        leader_receipt = context.consensus_data.leader_receipt
+        leader_receipt = context.consensus_data.leader_receipt[0]
 
         # Do not deploy or update the contract if validator appeal failed
         if not context.transaction.appealed:
@@ -2132,7 +2127,7 @@ class FinalizingState(TransactionState):
             None: The transaction is finalized.
         """
         # Retrieve the leader's receipt from the consensus data
-        leader_receipt = context.transaction.consensus_data.leader_receipt
+        leader_receipt = context.transaction.consensus_data.leader_receipt[0]
 
         # Update contract state
         if (context.transaction.status == TransactionStatus.ACCEPTED) and (
@@ -2161,9 +2156,7 @@ class FinalizingState(TransactionState):
         if context.transaction.status != TransactionStatus.UNDETERMINED:
             # Insert pending transactions generated by contract-to-contract calls
             _emit_transactions(
-                context,
-                context.transaction.consensus_data.leader_receipt.pending_transactions,
-                "finalized",
+                context, leader_receipt.pending_transactions, "finalized"
             )
 
 

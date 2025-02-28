@@ -11,13 +11,11 @@ from eth_utils import to_bytes, keccak, is_address
 import json
 import base64
 import time
-from backend.domain.types import TransactionType
 from web3 import Web3
-from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
 from sqlalchemy.orm.attributes import flag_modified
 from backend.domain.types import MAX_ROTATIONS
-
+from backend.node.types import Receipt
 from backend.rollup.consensus_service import ConsensusService
 
 
@@ -432,15 +430,19 @@ class TransactionsProcessor:
         self,
         transaction_hash: str,
         consensus_round: str,
-        leader_result: dict | None,
-        validator_results: list,
+        leader_result: list[Receipt] | None,
+        validator_results: list[Receipt],
     ):
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         current_consensus_results = {
             "consensus_round": consensus_round,
-            "leader_result": leader_result.to_dict() if leader_result else None,
+            "leader_result": (
+                [receipt.to_dict() for receipt in leader_result]
+                if leader_result
+                else None
+            ),
             "validator_results": [receipt.to_dict() for receipt in validator_results],
             "status_changes": (
                 transaction.consensus_history["current_status_changes"]
@@ -497,11 +499,3 @@ class TransactionsProcessor:
         )
         transaction.contract_snapshot = contract_snapshot
         self.session.commit()
-
-    def get_transaction_contract_snapshot(
-        self, transaction_hash: str
-    ) -> ContractSnapshot | None:
-        transaction = (
-            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
-        )
-        return ContractSnapshot.from_dict(transaction.contract_snapshot)
