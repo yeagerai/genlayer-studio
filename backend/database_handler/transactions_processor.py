@@ -125,9 +125,11 @@ class TransactionsProcessor:
             return value  # Return unchanged for non-strings
 
         if isinstance(data, dict):
-            return {k: decode_value(v) for k, v in data.items()}
+            data = {k: decode_value(v) for k, v in data.items()}
+            return data
         elif isinstance(data, str):
-            return decode_value(data)
+            data = decode_value(data)
+            return data
         elif data is None:
             return None
         else:
