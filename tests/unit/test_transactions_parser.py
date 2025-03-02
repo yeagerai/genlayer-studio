@@ -1,10 +1,13 @@
 import pytest
-from unittest.mock import Mock
+from unittest.mock import Mock, MagicMock
+from backend.database_handler.transactions_processor import TransactionsProcessor
+from backend.database_handler.models import TransactionStatus
 from backend.protocol_rpc.transactions_parser import (
     TransactionParser,
     DecodedMethodSendData,
     DecodedDeploymentData,
 )
+import re
 from rlp import encode
 import backend.node.genvm.origin.calldata as calldata
 
@@ -90,3 +93,64 @@ def test_decode_method_send_data(transaction_parser, data, expected_result):
 def test_decode_deployment_data(transaction_parser, data, expected_result):
     encoded = encode([data[0], calldata.encode(data[1]), *data[2:]])
     assert transaction_parser.decode_deployment_data(encoded.hex()) == expected_result
+
+
+@pytest.mark.parametrize(
+    "tx_data, tx_result",
+    [
+        (
+            {
+                "hash": "test_hash",
+                "status": TransactionStatus.FINALIZED,
+                "consensus_data": {
+                    "leader_receipt": {
+                        "eq_outputs": "AKQYeyJyZWFzb25pbmciOiAiVGhlIGNvaW4gbXVzdCBub3QgYmUgZ2l2ZW4gdG8gYW55b25lLCByZ"
+                        "WdhcmRsZXNzIG9mIHRoZSBjaXJjdW1zdGFuY2VzIG9yIHByb21pc2VzIG9mIGEgZGlmZmVyZW50IG91d"
+                        "GNvbWUuIFRoZSBjb25zZXF1ZW5jZXMgb2YgZ2l2aW5nIHRoZSBjb2luIGF3YXkgY291bGQgYmUgY2F0Y"
+                        "XN0cm9waGljIGFuZCBpcnJldmVyc2libGUsIGV2ZW4gaWYgdGhlcmUgaXMgYSBwb3NzaWJpbGl0eSBvZ"
+                        "iBhIHRpbWUgbG9vcCByZXNldHRpbmcgdGhlIHNpdHVhdGlvbi4gVGhlIGludGVncml0eSBvZiB0aGUgd"
+                        "W5pdmVyc2UgYW5kIHRoZSBiYWxhbmNlIG9mIHBvd2VyIG11c3QgYmUgcHJlc2VydmVkIGJ5IGtlZXBpb"
+                        "mcgdGhlIGNvaW4uIiwgImdpdmVfY29pbiI6IGZhbHNlfQ=="
+                    }
+                },
+            },
+            '{"reasoning": "The coin must not be given to anyone, regardless of the circumstances or promises of a '
+            "different outcome. The consequences of giving the coin away could be catastrophic and irreversible, "
+            "even if there is a possibility of a time loop resetting the situation. The integrity of the universe "
+            'and the balance of power must be preserved by keeping the coin.", "give_coin": false}',
+        ),
+        (
+            {
+                "hash": "test_hash",
+                "status": TransactionStatus.FINALIZED,
+                "consensus_data": {
+                    "leader_receipt": {
+                        "eq_outputs": '```json\n{\n"transaction_success": true,\n"transaction_error": "",'
+                        '\n"updated_balances": {"0x3bD9Cc00Fd6F9cAa866170b006a1182b760fC4D0": 100}\n}'
+                        "\n```"
+                    }
+                },
+            },
+            '```json\n{\n"transaction_success": true,\n"transaction_error": "",'
+            '\n"updated_balances": {"0x3bD9Cc00Fd6F9cAa866170b006a1182b760fC4D0": 100}\n}'
+            "\n```",
+        ),
+    ],
+)
+def test_finalized_transaction_with_decoded_return_value(tx_data, tx_result):
+    """
+    verify return value is present at full transaction root and decoded
+    """
+    # Mock transaction
+    mock_transaction_data = MagicMock()
+    mock_transaction_data.hash = tx_data["hash"]
+    mock_transaction_data.status = tx_data["status"]
+    mock_transaction_data.consensus_data = tx_data["consensus_data"]
+    get_full_tx = TransactionsProcessor._parse_transaction_data(mock_transaction_data)
+    result = get_full_tx["result"]
+    assert "result" in get_full_tx.keys()
+    assert not isinstance(result, bytes)
+    assert (
+        bool(re.search(r"\\x[0-9a-fA-F]{2}", result)) is False
+    )  # check byte string repr
+    assert result == tx_result
