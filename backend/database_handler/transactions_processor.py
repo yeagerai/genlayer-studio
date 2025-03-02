@@ -106,17 +106,18 @@ class TransactionsProcessor:
     def _decode_base64_data(data: dict | str) -> dict | str:
         def decode_value(value):
             """Helper function to decode Base64-encoded values if they are strings."""
-            if isinstance(value, str) and value:
+            if (
+                isinstance(value, str)
+                and value
+                and bool(re.compile(r"^[A-Za-z0-9+/]*={0,2}$").fullmatch(value)) is True
+            ):
                 try:
-                    byte_content = re.sub(r"^[\x00-\x1f]+", "", value)
+                    decoded_str = base64.b64decode(
+                        bytes(value, encoding="utf-8")
+                    ).decode("utf-8", errors="ignore")
+                    byte_content = re.sub(r"^[\x00-\x1f]+", "", decoded_str)
                     if byte_content:
-                        decoded_str = base64.b64decode(
-                            bytes(byte_content, encoding="utf-8")
-                        ).decode("utf-8", errors="ignore")
-                    else:
-                        decoded_str = base64.b64decode(
-                            bytes(value, encoding="utf-8")
-                        ).decode("utf-8", errors="ignore")
+                        return byte_content
                     return decoded_str
                 except (ValueError, UnicodeDecodeError):
                     return value  # Return original if decoding fails
