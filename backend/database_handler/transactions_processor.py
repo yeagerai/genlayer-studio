@@ -1,7 +1,6 @@
 # consensus/services/transactions_db_service.py
 from enum import Enum
 import rlp
-import ast
 import re
 from .models import Transactions
 from sqlalchemy.orm import Session
