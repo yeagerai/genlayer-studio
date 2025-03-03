@@ -34,4 +34,19 @@ interface IGenStaking {
 	 * @param index The index of the validator
 	 */
 	function getValidatorsItem(uint256 index) external view returns (address);
+
+	/**
+	 * @notice Slashes a validator
+	 * @param _validator The address of the validator to slash
+	 */
+	function validatorSlash(
+		address _validator,
+		uint256 _epoch,
+		bool _deterministic
+	) external;
+
+	/**
+	 * @notice Gets the number of validators that have been banned
+	 */
+	function getValidatorBansCount() external view returns (uint256);
 }
