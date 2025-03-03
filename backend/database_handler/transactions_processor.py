@@ -43,9 +43,9 @@ class TransactionsProcessor:
     @staticmethod
     def _parse_transaction_data(transaction_data: Transactions) -> dict:
         result = (
-            transaction_data.consensus_data.get("leader_receipt", {}).get(
-                "eq_outputs", {}
-            )
+            transaction_data.consensus_data.get("leader_receipt", {})
+            .get("result", {})
+            .get("raw", {})
             if transaction_data.consensus_data
             else transaction_data.consensus_data
         )
@@ -115,7 +115,7 @@ class TransactionsProcessor:
                         bytes(value, encoding="utf-8")
                     ).decode("utf-8", errors="ignore")
                     byte_content = re.sub(r"^[\x00-\x1f]+", "", decoded_str)
-                    if byte_content:
+                    if byte_content or len(byte_content) >= 0:
                         return byte_content
                     return decoded_str
                 except (ValueError, UnicodeDecodeError):
