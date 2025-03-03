@@ -161,7 +161,7 @@ class Node:
         from_address: str,
         code_to_deploy: bytes,
         calldata: bytes,
-        transaction_hash: str,
+        transaction_hash: str | None = None,
         transaction_created_at: str | None = None,
     ) -> Receipt:
         assert self.contract_snapshot is not None
@@ -181,7 +181,7 @@ class Node:
         self,
         from_address: str,
         calldata: bytes,
-        transaction_hash: str,
+        transaction_hash: str | None = None,
         transaction_created_at: str | None = None,
     ) -> Receipt:
         return await self._run_genvm(

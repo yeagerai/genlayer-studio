@@ -454,6 +454,7 @@ async def gen_call(
     accounts_manager: AccountsManager,
     msg_handler: MessageHandler,
     transactions_parser: TransactionParser,
+    validators_registry: ValidatorsRegistry,
     params: dict,
 ) -> str:
     to_address = params["to"]
@@ -480,34 +481,59 @@ async def gen_call(
 
     decoded_data = transactions_parser.decode_method_call_data(data)
 
-    node = Node(  # Mock node just to get the data from the GenVM
+    # Get a validator
+    validators = get_all_validators(validators_registry)
+    if validators:
+        validator = validators[0]
+    else:
+        raise JSONRPCError(f"No validators exist to execute the gen_call")
+
+    # Create validator node
+    node = Node(
         contract_snapshot=ContractSnapshot(to_address, session),
         contract_snapshot_factory=partial(ContractSnapshot, session=session),
-        validator_mode=ExecutionMode.LEADER,
+        validator_mode=ExecutionMode.LEADER,  # based on input leader_results
         validator=Validator(
-            address="",
-            stake=0,
+            id=validator["id"],
+            address=validator["address"],
+            stake=validator["stake"],
             llmprovider=LLMProvider(
-                provider="",
-                model="",
-                config={},
-                plugin="",
-                plugin_config={},
+                provider=validator["provider"],
+                model=validator["model"],
+                config=validator["config"],
+                plugin=validator["plugin"],
+                plugin_config=validator["plugin_config"],
             ),
         ),
-        leader_receipt=None,
+        leader_receipt=None,  # based on input leader_results
         msg_handler=msg_handler.with_client_session(get_client_session_id()),
     )
 
-    receipt = await node.get_contract_data(
-        from_address="0x" + "00" * 20,
-        calldata=decoded_data.calldata,
-        state_status=state_status,
-    )
+    # Check if the method is a read or a write
+    contract_code = await get_contract_schema(accounts_manager, msg_handler, to_address)
+    for method, value in contract_code["methods"].items():
+        if method.encode() in decoded_data.calldata:
+            if value["readonly"]:
+                # Read the contract state
+                receipt = await node.get_contract_data(
+                    from_address="0x" + "00" * 20,
+                    calldata=decoded_data.calldata,
+                    state_status=state_status,
+                )
+            else:
+                # Simulate the write method
+                receipt = await node.run_contract(
+                    from_address=from_address,
+                    calldata=decoded_data.calldata,
+                )
+            break
+
+    # Return the result of the write method
     if receipt.execution_result != ExecutionResultStatus.SUCCESS:
         raise JSONRPCError(
             message="running contract failed", data={"receipt": receipt.to_dict()}
         )
+
     return eth_utils.hexadecimal.encode_hex(receipt.result[1:])
 
 
@@ -922,6 +948,7 @@ def register_all_rpc_endpoints(
             accounts_manager,
             msg_handler,
             transactions_parser,
+            validators_registry,
         ),
         method_name="gen_call",
     )
