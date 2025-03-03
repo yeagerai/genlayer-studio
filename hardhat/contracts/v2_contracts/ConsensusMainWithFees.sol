@@ -4,14 +4,21 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "./interfaces/IGenManager.sol";
+import "./interfaces/ITransactions.sol";
+import "./interfaces/IQueues.sol";
+import "./interfaces/IGhostFactory.sol";
+import "./interfaces/IGenStaking.sol";
+import "./interfaces/IMessages.sol";
+import "./interfaces/IFeeManager.sol";
+import "./utils/RandomnessUtils.sol";
 import "./utils/Errors.sol";
-import "./interfaces/IConsensusMain.sol";
 /**
  * @title ConsensusMain
  * @notice Main contract for managing transaction consensus and validation in the Genlayer protocol
  * @dev Handles transaction lifecycle, issues messages, manages appeals, and handles fees
  */
-contract ConsensusMain is
+contract ConsensusMainWithFees is
 	Initializable,
 	Ownable2StepUpgradeable,
 	ReentrancyGuardUpgradeable,
@@ -19,81 +26,19 @@ contract ConsensusMain is
 {
 	bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 	bytes32 public constant VALIDATOR_ROLE = keccak256("VALIDATOR_ROLE");
-	uint256 public IDLE_VALIDATOR_SLOT_THRESHOLD;
+	uint256 public ACCEPTANCE_TIMEOUT;
+	uint256 public ACTIVATION_TIMEOUT;
 
-	IConsensusMain.Timeouts public timeouts;
-	IConsensusMain.ExternalContracts public contracts;
+	IGenManager public genManager;
+	ITransactions public genTransactions;
+	IQueues public genQueue;
+	IGhostFactory public ghostFactory;
+	IGenStaking public genStaking;
+	IMessages public genMessages;
+	IFeeManager public feeManager;
 
+	/// move to Manager
 	mapping(address => bool) public ghostContracts;
-
-	// EVENTS
-	event NewTransaction(
-		bytes32 indexed tx_id,
-		address indexed recipient,
-		address indexed activator
-	);
-	event TransactionLeaderRotated(
-		bytes32 indexed tx_id,
-		address indexed newLeader
-	);
-	event TransactionActivated(
-		bytes32 indexed tx_id,
-		address indexed leader,
-		address[] validators
-	);
-	event TransactionReceiptProposed(bytes32 indexed tx_id);
-	event TransactionLeaderTimeout(bytes32 indexed tx_id);
-	event VoteCommitted(
-		bytes32 indexed tx_id,
-		address indexed validator,
-		bool isLastVote
-	);
-	event VoteRevealed(
-		bytes32 indexed tx_id,
-		address indexed validator,
-		ITransactions.VoteType voteType,
-		bool isLastVote,
-		ITransactions.ResultType result
-	);
-	event TransactionAccepted(bytes32 indexed tx_id);
-	event TransactionFinalized(bytes32 indexed tx_id);
-	event TransactionNeedsRecomputation(bytes32[] tx_ids);
-	event AppealStarted(
-		bytes32 indexed tx_id,
-		address indexed appealer,
-		uint256 appealBond,
-		address[] appealValidators
-	);
-	event InternalMessageProcessed(
-		bytes32 indexed tx_id,
-		address indexed recipient,
-		address indexed activator
-	);
-	event TransactionCancelled(bytes32 indexed tx_id, address indexed sender);
-	event TransactionIdleValidatorReplacementFailed(
-		bytes32 indexed tx_id,
-		uint256 indexed validatorIndex
-	);
-	event TransactionIdleValidatorReplaced(
-		bytes32 indexed tx_id,
-		address indexed oldValidator,
-		address indexed newValidator
-	);
-	event ExternalContractsSet(
-		address ghostFactory,
-		address genManager,
-		address genTransactions,
-		address genQueue,
-		address genStaking,
-		address genMessages
-	);
-	event TimeoutsSet(
-		uint256 acceptance,
-		uint256 activation,
-		uint256 commit,
-		uint256 reveal,
-		uint256 proposing
-	);
 
 	receive() external payable {}
 
@@ -106,7 +51,7 @@ contract ConsensusMain is
 		__Ownable_init(msg.sender);
 		__ReentrancyGuard_init();
 		__AccessControl_init();
-		contracts.genManager = IGenManager(_genManager);
+		genManager = IGenManager(_genManager);
 	}
 
 	// EXTERNAL FUNCTIONS - STATE CHANGING
@@ -124,20 +69,51 @@ contract ConsensusMain is
 		address _recipient,
 		uint256 _numOfInitialValidators,
 		uint256 _maxRotations,
-		bytes memory _txData
-	) external {
-		if (_txData.length > 0) {
-			_addTransaction(
-				_sender,
-				_recipient,
-				_numOfInitialValidators,
-				_maxRotations,
-				_txData
-			);
-		} else {
+		bytes memory _txData,
+		IFeeManager.FeesDistribution memory _feesDistribution
+	) external payable nonReentrant {
+		if (_txData.length == 0) {
 			revert Errors.EmptyTransaction();
 		}
-		// TODO: Fee verification handling
+		uint totalFeesToPay = feeManager.calculateRoundFees(
+			bytes32(0),
+			_feesDistribution,
+			_numOfInitialValidators,
+			0
+		);
+		if (totalFeesToPay > msg.value) {
+			revert Errors.InsufficientFees();
+		}
+		(bytes32 _txId, ) = _addTransaction(
+			_sender,
+			_recipient,
+			_numOfInitialValidators,
+			_maxRotations,
+			_txData
+		);
+		feeManager.topUpFees(
+			_txId,
+			_feesDistribution,
+			msg.value,
+			false,
+			_sender
+		);
+	}
+
+	function topUpFees(
+		bytes32 _txId,
+		IFeeManager.FeesDistribution memory _feesDistribution
+	) external payable nonReentrant {
+		if (msg.value == 0) {
+			revert Errors.InsufficientFees();
+		}
+		feeManager.topUpFees(
+			_txId,
+			_feesDistribution,
+			msg.value,
+			true,
+			msg.sender
+		);
 	}
 
 	/**
@@ -152,13 +128,11 @@ contract ConsensusMain is
 		bytes32 _tx_id,
 		bytes calldata _vrfProof
 	) external {
-		address recipient = contracts.genTransactions.getTransactionRecipient(
-			_tx_id
-		);
-		if (!contracts.genQueue.isAtPendingQueueHead(recipient, _tx_id)) {
+		address recipient = genTransactions.getTransactionRecipient(_tx_id);
+		if (!genQueue.isAtPendingQueueHead(recipient, _tx_id)) {
 			revert Errors.TransactionNotAtPendingQueueHead();
 		}
-		bytes32 randomSeed = contracts.genManager.updateRandomSeedForRecipient(
+		bytes32 randomSeed = genManager.updateRandomSeedForRecipient(
 			recipient,
 			msg.sender,
 			_vrfProof
@@ -182,21 +156,29 @@ contract ConsensusMain is
 		IMessages.SubmittedMessage[] calldata _messages,
 		bytes calldata _vrfProof
 	) external {
-		(address recipient, bool leaderTimeout, address newLeader, ) = contracts
-			.genTransactions
-			.proposeTransactionReceipt(
+		(
+			address recipient,
+			bool leaderTimeout,
+			address newLeader,
+			uint round
+		) = genTransactions.proposeTransactionReceipt(
 				_tx_id,
 				msg.sender,
 				_txReceipt,
 				_messages
 			);
 
-		contracts.genManager.updateRandomSeedForRecipient(
+		genManager.updateRandomSeedForRecipient(
 			recipient,
 			msg.sender,
 			_vrfProof
 		);
-
+		feeManager.recordProposedReceipt(
+			_tx_id,
+			round,
+			msg.sender,
+			leaderTimeout
+		);
 		if (leaderTimeout) {
 			if (newLeader != address(0)) {
 				emit TransactionLeaderRotated(_tx_id, newLeader);
@@ -219,7 +201,7 @@ contract ConsensusMain is
 	 * @custom:emits VoteCommitted when vote is successfully committed
 	 */
 	function commitVote(bytes32 _tx_id, bytes32 _commitHash) external {
-		bool isLastVote = contracts.genTransactions.commitVote(
+		bool isLastVote = genTransactions.commitVote(
 			_tx_id,
 			_commitHash,
 			msg.sender
@@ -234,7 +216,6 @@ contract ConsensusMain is
 	 * @param _voteHash The hash of the vote to reveal
 	 * @param _voteType The type of the vote
 	 * @param _nonce The nonce used for the vote
-	 * @custom:throws TransactionNotAppealRevealing if transaction is not in AppealRevealing state
 	 * @custom:throws TransactionNotAppealRevealing if transaction is not in AppealRevealing state
 	 * @custom:throws TransactionNotRevealing if transaction is not in Revealing state
 	 * @custom:throws InvalidVote if the revealed vote is invalid
@@ -256,20 +237,27 @@ contract ConsensusMain is
 			bool isLastVote,
 			ITransactions.ResultType result,
 			address recipient,
-			uint round, // used with fees
+			uint round,
 			bool hasMessagesOnAcceptance,
 			uint rotationsLeft,
 			ITransactions.NewRoundData memory newRoundData
-		) = contracts.genTransactions.revealVote(
+		) = genTransactions.revealVote(
 				_tx_id,
 				_voteHash,
 				_voteType,
 				msg.sender
 			);
+		bool feesForNewRoundApproved = feeManager.recordRevealedVote(
+			_tx_id,
+			round,
+			msg.sender,
+			isLastVote,
+			_voteType,
+			result
+		);
 		if (isLastVote) {
-			if (newRoundData.round > 0) {
-				(, bytes32[] memory txsForRecomputation) = contracts
-					.genQueue
+			if (newRoundData.round > 0 && feesForNewRoundApproved) {
+				(, bytes32[] memory txsForRecomputation) = genQueue
 					.addTransactionToPendingQueue(recipient, _tx_id);
 				emit TransactionNeedsRecomputation(txsForRecomputation);
 				emit TransactionActivated(
@@ -281,10 +269,7 @@ contract ConsensusMain is
 				result == ITransactions.ResultType.MajorityAgree ||
 				result == ITransactions.ResultType.Agree
 			) {
-				contracts.genQueue.addTransactionToAcceptedQueue(
-					recipient,
-					_tx_id
-				);
+				genQueue.addTransactionToAcceptedQueue(recipient, _tx_id);
 				emit TransactionAccepted(_tx_id);
 
 				// Process on-acceptance messages
@@ -293,11 +278,9 @@ contract ConsensusMain is
 				}
 			} else {
 				if (rotationsLeft > 0) {
-					// (more rounds of rotations) Rotate
-					// TODO: check also gas limit
 					_rotateLeader(_tx_id);
 				} else {
-					contracts.genQueue.addTransactionToUndeterminedQueue(
+					genQueue.addTransactionToUndeterminedQueue(
 						recipient,
 						_tx_id
 					);
@@ -315,19 +298,20 @@ contract ConsensusMain is
 	 * @custom:emits TransactionFinalized when transaction is successfully finalized
 	 */
 	function finalizeTransaction(bytes32 _tx_id) external {
-		(address recipient, uint256 lastVoteTimestamp) = contracts
-			.genTransactions
+		(address recipient, uint256 lastVoteTimestamp) = genTransactions
 			.finalizeTransaction(_tx_id);
-		if (!contracts.genQueue.isAtFinalizedQueueHead(recipient, _tx_id)) {
+		if (!genQueue.isAtFinalizedQueueHead(recipient, _tx_id)) {
 			revert Errors.FinalizationNotAllowed();
 		}
-		contracts.genQueue.addTransactionToFinalizedQueue(recipient, _tx_id);
-		if (block.timestamp - lastVoteTimestamp > timeouts.acceptance) {
-			if (contracts.genTransactions.hasMessagesOnFinalization(_tx_id)) {
-				_processMessages(_tx_id, false); // false for finalization phase
-			}
-			emit TransactionFinalized(_tx_id);
+		genQueue.addTransactionToFinalizedQueue(recipient, _tx_id);
+		if (block.timestamp - lastVoteTimestamp < ACCEPTANCE_TIMEOUT) {
+			revert Errors.TransactionCanNotBeFinalized();
 		}
+		feeManager.distributeFees(_tx_id);
+		if (genTransactions.hasMessagesOnFinalization(_tx_id)) {
+			_processMessages(_tx_id, false); // false for finalization phase
+		}
+		emit TransactionFinalized(_tx_id);
 	}
 
 	/**
@@ -338,22 +322,46 @@ contract ConsensusMain is
 	 * @custom:emits AppealStarted when appeal is successfully started
 	 */
 	function submitAppeal(bytes32 _tx_id) external payable {
-		IQueues.LastQueueModification memory lastQueueModification = contracts
-			.genQueue
-			.getLastQueueModification(_tx_id);
-		if (
-			lastQueueModification.lastQueueTimestamp > 0 &&
-			block.timestamp <
-			lastQueueModification.lastQueueTimestamp + timeouts.activation &&
-			lastQueueModification.lastQueueType == IQueues.QueueType.Pending
-		) {
+		(address[] memory appealValidators, uint round) = _submitAppeal(
+			_tx_id,
+			msg.value
+		);
+		bool feesForNewRoundApproved = feeManager.addAppealRound(
+			_tx_id,
+			round,
+			msg.value,
+			msg.sender
+		);
+		if (feesForNewRoundApproved) {
+			emit AppealStarted(_tx_id, msg.sender, msg.value, appealValidators);
+		}
+	}
+
+	/**
+	 * @notice Submits an appeal for a transaction
+	 * @dev Only callable by a validator for the transaction
+	 * @param _tx_id The unique identifier of the transaction
+	 * @custom:throws CanNotAppeal if the appeal cannot be submitted
+	 * @custom:emits AppealStarted when appeal is successfully started
+	 */
+	function topUpAndSubmitAppeal(
+		bytes32 _tx_id,
+		IFeeManager.FeesDistribution memory _feesDistribution
+	) external payable {
+		(address[] memory appealValidators, uint round) = _submitAppeal(
+			_tx_id,
+			msg.value
+		);
+		bool feesForNewRoundApproved = feeManager.topUpAndSubmitAppeal(
+			_tx_id,
+			_feesDistribution,
+			msg.value,
+			msg.sender,
+			true
+		);
+		if (!feesForNewRoundApproved) {
 			revert Errors.CanNotAppeal();
 		}
-
-		(address[] memory appealValidators, ) = contracts
-			.genTransactions
-			.submitAppeal(_tx_id, msg.value);
-		// uint numOfValidatorsForAppealRound = feeManager.addAppealRound(_tx_id);
 		emit AppealStarted(_tx_id, msg.sender, msg.value, appealValidators);
 	}
 
@@ -370,10 +378,7 @@ contract ConsensusMain is
 		uint _value,
 		bytes memory _data
 	) external returns (bool success) {
-		if (
-			msg.sender != address(contracts.genMessages) &&
-			msg.sender != owner()
-		) {
+		if (msg.sender != address(genMessages) && msg.sender != owner()) {
 			revert Errors.CallerNotMessages();
 		}
 		(success, ) = _recipient.call{ value: _value }(_data);
@@ -388,77 +393,16 @@ contract ConsensusMain is
 	 * @custom:throws CallerNotSender if caller is not the original transaction sender
 	 * @custom:emits TransactionCancelled when transaction is successfully cancelled
 	 */
-	function cancelTransaction(bytes32 _tx_id) external nonReentrant {
-		address recipient = contracts.genTransactions.cancelTransaction(
+	function cancelTransaction(bytes32 _tx_id) external {
+		address recipient = genTransactions.cancelTransaction(
 			_tx_id,
 			msg.sender
 		);
-		contracts.genQueue.removeTransactionFromPendingQueue(recipient, _tx_id);
+		genQueue.removeTransactionFromPendingQueue(recipient, _tx_id);
 		emit TransactionCancelled(_tx_id, msg.sender);
 	}
 
-	// SETTERS
-
-	/**
-	 * @notice Sets all the external contract addresses at once
-	 * @param _ghostFactory Address of the ghost factory contract.
-	 * @param _genManager Address of the Gen Manager contract.
-	 * @param _genTransactions Address of the Gen Transactions contract.
-	 * @param _genQueue Address of the Gen Queue contract.
-	 * @param _genStaking Address of the Gen Staking contract.
-	 * @param _genMessages Address of the Gen Messages contract.
-	 */
-	function setExternalContracts(
-		address _ghostFactory,
-		address _genManager,
-		address _genTransactions,
-		address _genQueue,
-		address _genStaking,
-		address _genMessages
-	) external onlyOwner {
-		contracts.ghostFactory = IGhostFactory(_ghostFactory);
-		contracts.genManager = IGenManager(_genManager);
-		contracts.genTransactions = ITransactions(_genTransactions);
-		contracts.genQueue = IQueues(_genQueue);
-		contracts.genStaking = IGenStaking(_genStaking);
-		contracts.genMessages = IMessages(_genMessages);
-		emit ExternalContractsSet(
-			_ghostFactory,
-			_genManager,
-			_genTransactions,
-			_genQueue,
-			_genStaking,
-			_genMessages
-		);
-	}
-
-	/**
-	 * @notice Sets the transaction processing timeouts
-	 * @param _acceptance Timeout period for the acceptance phase
-	 * @param _activation Timeout period for the activation phase
-	 */
-	function setTimeouts(
-		uint256 _acceptance,
-		uint256 _activation,
-		uint256 _commit,
-		uint256 _reveal,
-		uint256 _proposing
-	) external onlyOwner {
-		timeouts = IConsensusMain.Timeouts({
-			acceptance: _acceptance,
-			activation: _activation,
-			commit: _commit,
-			reveal: _reveal,
-			proposing: _proposing
-		});
-		emit TimeoutsSet(
-			_acceptance,
-			_activation,
-			_commit,
-			_reveal,
-			_proposing
-		);
-	}
+	// VIEW FUNCTIONS
 
 	// INTERNAL FUNCTIONS
 	function _addTransaction(
@@ -473,21 +417,19 @@ contract ConsensusMain is
 		}
 		bytes32 randomSeed = _recipient == address(0)
 			? keccak256(abi.encodePacked(_sender))
-			: contracts.genManager.recipientRandomSeed(_recipient);
+			: genManager.recipientRandomSeed(_recipient);
 		if (_recipient == address(0)) {
 			// Contract deployment transaction
-			contracts.ghostFactory.createGhost();
-			address ghost = contracts.ghostFactory.latestGhost();
-			_storeGhost(ghost);
+			ghostFactory.createGhost();
+			address ghost = ghostFactory.latestGhost();
+			ghostContracts[ghost] = true;
 			_recipient = ghost;
 			// Initial random seed for the recipient account
-			contracts.genManager.addNewRandomSeedForRecipient(
-				_recipient,
-				randomSeed
-			);
+			genManager.addNewRandomSeedForRecipient(_recipient, randomSeed);
 		} else if (!ghostContracts[_recipient]) {
 			revert Errors.NonGenVMContract();
 		}
+		// bytes32 randomSeed = recipientRandomSeed[_recipient]; // recipient randomSeed is used for activation
 		(tx_id, activator) = _generateTx(
 			_sender,
 			_recipient,
@@ -504,16 +446,28 @@ contract ConsensusMain is
 	 * @param _tx_id The unique identifier of the transaction
 	 */
 	function _rotateLeader(bytes32 _tx_id) internal {
-		address newLeader = contracts.genTransactions.rotateLeader(_tx_id);
+		address newLeader = genTransactions.rotateLeader(_tx_id);
 		emit TransactionLeaderRotated(_tx_id, newLeader);
 	}
 
-	/**
-	 * @notice Stores a ghost contract address
-	 * @param _ghost Address of the ghost contract
-	 */
-	function _storeGhost(address _ghost) internal {
-		ghostContracts[_ghost] = true;
+	function _submitAppeal(
+		bytes32 _tx_id,
+		uint256 _appealBond
+	) internal returns (address[] memory appealValidators, uint round) {
+		IQueues.LastQueueModification memory lastQueueModification = genQueue
+			.getLastQueueModification(_tx_id);
+		if (
+			lastQueueModification.lastQueueTimestamp > 0 &&
+			block.timestamp <
+			lastQueueModification.lastQueueTimestamp + ACTIVATION_TIMEOUT &&
+			lastQueueModification.lastQueueType == IQueues.QueueType.Pending
+		) {
+			revert Errors.CanNotAppeal();
+		}
+		(appealValidators, round) = genTransactions.submitAppeal(
+			_tx_id,
+			_appealBond
+		);
 	}
 
 	/**
@@ -529,19 +483,19 @@ contract ConsensusMain is
 		address _sender,
 		address _recipient,
 		uint256 _numOfInitialValidators,
-		uint256 _maxRotations, // used with fees
+		uint256 _maxRotations,
 		bytes32 _randomSeed,
 		bytes memory _txData
 	) internal returns (bytes32 tx_id, address activator) {
 		tx_id = keccak256(
 			abi.encodePacked(_recipient, block.timestamp, _randomSeed)
 		);
-		(uint256 txSlot, ) = contracts.genQueue.addTransactionToPendingQueue(
+		(uint256 txSlot, ) = genQueue.addTransactionToPendingQueue(
 			_recipient,
 			tx_id
 		);
 		activator = _getActivatorForTx(_randomSeed, txSlot);
-		contracts.genTransactions.addNewTransaction(
+		genTransactions.addNewTransaction(
 			tx_id,
 			ITransactions.Transaction({
 				sender: _sender,
@@ -580,12 +534,12 @@ contract ConsensusMain is
 			address recepient,
 			uint256 leaderIndex,
 			address[] memory validators
-		) = contracts.genTransactions.activateTransaction(
+		) = genTransactions.activateTransaction(
 				_tx_id,
 				msg.sender,
 				_randomSeed
 			);
-		if (!contracts.genQueue.isAtPendingQueueHead(recepient, _tx_id)) {
+		if (!genQueue.isAtPendingQueueHead(recepient, _tx_id)) {
 			revert Errors.TransactionNotAtPendingQueueHead();
 		}
 		emit TransactionActivated(_tx_id, validators[leaderIndex], validators);
@@ -604,7 +558,7 @@ contract ConsensusMain is
 		bytes32 combinedSeed = keccak256(
 			abi.encodePacked(_randomSeed, _randomIndex)
 		);
-		validator = contracts.genStaking.getActivatorForSeed(combinedSeed);
+		validator = genStaking.getActivatorForSeed(combinedSeed);
 	}
 
 	/**
@@ -613,8 +567,7 @@ contract ConsensusMain is
 	 * @param isAcceptance Whether the messages are for acceptance or finalization
 	 */
 	function _processMessages(bytes32 _tx_id, bool isAcceptance) internal {
-		IMessages.SubmittedMessage[] memory messages = contracts
-			.genTransactions
+		IMessages.SubmittedMessage[] memory messages = genTransactions
 			.getMessagesForTransaction(_tx_id);
 
 		for (uint i = 0; i < messages.length; i++) {
@@ -626,12 +579,12 @@ contract ConsensusMain is
 			}
 			if (message.messageType == IMessages.MessageType.External) {
 				// Existing external message handling
-				contracts.genMessages.executeMessage(message);
+				genMessages.executeMessage(message);
 			} else if (message.messageType == IMessages.MessageType.Internal) {
 				// Get transaction sender (the ghost contract that issued the original transaction)
-				address recipient = contracts
-					.genTransactions
-					.getTransactionRecipient(_tx_id);
+				address recipient = genTransactions.getTransactionRecipient(
+					_tx_id
+				);
 
 				// Create new transaction from current ghost to target ghost
 				(
@@ -652,4 +605,109 @@ contract ConsensusMain is
 			}
 		}
 	}
+
+	// SETTERS
+
+	/**
+	 * @notice Sets the ghost factory contract address
+	 * @param _ghostFactory Address of the ghost factory contract
+	 */
+	function setGhostFactory(address _ghostFactory) external onlyOwner {
+		ghostFactory = IGhostFactory(_ghostFactory);
+		emit GhostFactorySet(_ghostFactory);
+	}
+
+	function setGenManager(address _genManager) external onlyOwner {
+		genManager = IGenManager(_genManager);
+		emit GenManagerSet(_genManager);
+	}
+
+	function setGenTransactions(address _genTransactions) external onlyOwner {
+		genTransactions = ITransactions(_genTransactions);
+		emit GenTransactionsSet(_genTransactions);
+	}
+
+	function setGenQueue(address _genQueue) external onlyOwner {
+		genQueue = IQueues(_genQueue);
+		emit GenQueueSet(_genQueue);
+	}
+
+	function setGenStaking(address _genStaking) external onlyOwner {
+		genStaking = IGenStaking(_genStaking);
+		emit GenStakingSet(_genStaking);
+	}
+
+	function setGenMessages(address _genMessages) external onlyOwner {
+		genMessages = IMessages(_genMessages);
+		emit GenMessagesSet(_genMessages);
+	}
+
+	function setAcceptanceTimeout(
+		uint256 _acceptanceTimeout
+	) external onlyOwner {
+		ACCEPTANCE_TIMEOUT = _acceptanceTimeout;
+	}
+
+	function setActivationTimeout(
+		uint256 _activationTimeout
+	) external onlyOwner {
+		ACTIVATION_TIMEOUT = _activationTimeout;
+	}
+
+	function setFeeManager(address _feeManager) external onlyOwner {
+		feeManager = IFeeManager(_feeManager);
+		emit FeeManagerSet(_feeManager);
+	}
+
+	// EVENTS
+	event GhostFactorySet(address indexed ghostFactory);
+	event GenManagerSet(address indexed genManager);
+	event GenTransactionsSet(address indexed genTransactions);
+	event GenQueueSet(address indexed genQueue);
+	event GenStakingSet(address indexed genStaking);
+	event GenMessagesSet(address indexed genMessages);
+	event NewTransaction(
+		bytes32 indexed tx_id,
+		address indexed recipient,
+		address indexed activator
+	);
+	event TransactionLeaderRotated(
+		bytes32 indexed tx_id,
+		address indexed newLeader
+	);
+	event TransactionActivated(
+		bytes32 indexed tx_id,
+		address indexed leader,
+		address[] validators
+	);
+	event TransactionReceiptProposed(bytes32 indexed tx_id);
+	event VoteCommitted(
+		bytes32 indexed tx_id,
+		address indexed validator,
+		bool isLastVote
+	);
+	event VoteRevealed(
+		bytes32 indexed tx_id,
+		address indexed validator,
+		ITransactions.VoteType voteType,
+		bool isLastVote,
+		ITransactions.ResultType result
+	);
+	event TransactionAccepted(bytes32 indexed tx_id);
+	event TransactionLeaderTimeout(bytes32 indexed tx_id);
+	event TransactionFinalized(bytes32 indexed tx_id);
+	event TransactionNeedsRecomputation(bytes32[] tx_ids);
+	event AppealStarted(
+		bytes32 indexed tx_id,
+		address indexed appealer,
+		uint256 appealBond,
+		address[] appealValidators
+	);
+	event InternalMessageProcessed(
+		bytes32 indexed tx_id,
+		address indexed recipient,
+		address indexed activator
+	);
+	event TransactionCancelled(bytes32 indexed tx_id, address indexed sender);
+	event FeeManagerSet(address indexed feeManager);
 }
