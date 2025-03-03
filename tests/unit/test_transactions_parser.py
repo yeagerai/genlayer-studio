@@ -147,6 +147,22 @@ def test_decode_deployment_data(transaction_parser, data, expected_result):
             '\n"updated_balances": {"0x3bD9Cc00Fd6F9cAa866170b006a1182b760fC4D0": 100}\n}'
             "\n```",
         ),
+        (
+            {
+                "hash": "test_hash",
+                "status": TransactionStatus.FINALIZED,
+                "consensus_data": {"leader_receipt": {"result": "AAA="}},
+            },
+            "",
+        ),
+        (
+            {
+                "hash": "test_hash",
+                "status": TransactionStatus.FINALIZED,
+                "consensus_data": {"leader_receipt": {"result": {}}},
+            },
+            {},
+        ),
     ],
 )
 def test_finalized_transaction_with_decoded_return_value(tx_data, tx_result):
@@ -162,7 +178,10 @@ def test_finalized_transaction_with_decoded_return_value(tx_data, tx_result):
     result = get_full_tx["result"]
     assert "result" in get_full_tx.keys()
     assert not isinstance(result, bytes)
-    assert (
-        bool(re.search(r"\\x[0-9a-fA-F]{2}", result)) is False
-    )  # check byte string repr
+    if isinstance(result, (bytes, str)):
+        assert (
+            bool(re.search(r"\\x[0-9a-fA-F]{2}", result)) is False
+        )  # check byte string repr
+    else:
+        assert len(result) == 0
     assert result == tx_result

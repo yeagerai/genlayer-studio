@@ -43,12 +43,12 @@ class TransactionsProcessor:
     @staticmethod
     def _parse_transaction_data(transaction_data: Transactions) -> dict:
         result = (
-            transaction_data.consensus_data.get("leader_receipt", {})
-            .get("result", {})
-            .get("raw", {})
+            transaction_data.consensus_data.get("leader_receipt", {}).get("result", {})
             if transaction_data.consensus_data
             else transaction_data.consensus_data
         )
+        if isinstance(result, dict):
+            result = result.get("raw", {})
         return {
             "hash": transaction_data.hash,
             "from_address": transaction_data.from_address,
