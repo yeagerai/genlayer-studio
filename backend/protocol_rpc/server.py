@@ -15,6 +15,7 @@ from backend.database_handler.llm_providers import LLMProviderRegistry
 from backend.protocol_rpc.configuration import GlobalConfiguration
 from backend.protocol_rpc.message_handler.base import MessageHandler
 from backend.protocol_rpc.endpoints import register_all_rpc_endpoints
+from backend.protocol_rpc.endpoint_generator import setup_eth_method_handler
 from backend.protocol_rpc.validators_init import initialize_validators
 from backend.protocol_rpc.transactions_parser import TransactionParser
 from dotenv import load_dotenv
@@ -54,6 +55,7 @@ def create_app():
     jsonrpc = JSONRPC(
         app, "/api", enable_web_browsable_api=True
     )  # check it out at http://localhost:4000/api/browse/#/
+    setup_eth_method_handler(jsonrpc)
     socketio = SocketIO(app, cors_allowed_origins="*")
     # Handlers
     msg_handler = MessageHandler(socketio, config=GlobalConfiguration())
