@@ -31,4 +31,26 @@ library Errors {
 	error InvalidQueueOperation();
 	error TransactionNotPending();
 	error CallerNotSender();
+	error InsufficientFees();
+	error InvalidRound();
+	error InvalidNumOfValidators();
+	error InvalidAppealRounds();
+	error InsufficientFeesForRound();
+	error NotImplemented();
+	error NotIdleValidator();
+	error NoFreshValidators();
+	error NoIdleValidator();
+	error NoFeesToDistribute();
+	error RandomSeedAlreadySet();
+	error ValidatorNotFound();
+	error CallerNotConsensus();
+	error ValidValidatorNotFound();
+	error NoRotationsLeft();
+	error TransactionCanNotBeFinalized();
+	error NoSenderForTransaction();
+	error AppealRoundAlreadyExists();
+	error AppealRoundNotPermitted();
+	error FailedTransferCall();
+	error EmptyTransaction();
+	error OnlyConsensusCanCall();
 }
