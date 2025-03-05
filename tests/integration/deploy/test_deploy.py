@@ -2,12 +2,13 @@ from pathlib import Path
 import zipfile
 import io
 import base64
-
+import pytest
 from tests.common.request import (
     deploy_intelligent_contract,
     write_intelligent_contract,
     payload,
     post_request_localhost,
+    get_gen_protocol_version,
 )
 
 from tests.common.response import (
@@ -45,3 +46,16 @@ def test_deploy(setup_validators, from_account):
     res = call_contract_method(contract_address, from_account, "test", [])
 
     assert res == "123"
+
+
+@pytest.mark.asyncio
+async def test_get_current_gen_protocol_version():
+    get_versions = await get_gen_protocol_version()
+    result = get_versions["result"]
+
+    assert isinstance(result, dict), "Result should be a dict"
+    assert "genvm_version" in result
+    assert "studio_version" in result
+
+    assert result.get("genvm_version") not in ["unknown", "", None]
+    assert result.get("studio_version") not in ["unknown", "", None]

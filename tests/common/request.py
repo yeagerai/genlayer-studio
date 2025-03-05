@@ -83,6 +83,13 @@ def call_contract_method(
     return result
 
 
+async def get_gen_protocol_version():
+    payload_data = payload("gen_protocolVersion")
+    raw_response = post_request_localhost(payload_data)
+    parsed_raw_response = raw_response.json()
+    return parsed_raw_response
+
+
 def _prepare_transaction(
     account: Account,
     recipient_address: str | None,
