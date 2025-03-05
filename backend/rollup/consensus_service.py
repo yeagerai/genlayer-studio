@@ -4,6 +4,7 @@ from web3 import Web3
 from typing import Optional, Dict, Any
 from pathlib import Path
 from backend.protocol_rpc.message_handler.types import EventType, EventScope, LogEvent
+import re
 
 
 class ConsensusService:
@@ -106,14 +107,116 @@ class ConsensusService:
             print(f"[CONSENSUS_SERVICE]: Error loading deployment data: {str(e)}")
             return None
 
-    def forward_transaction(self, transaction: dict) -> str:
+    def forward_transaction(
+        self, transaction: dict, from_address: str, retry: bool = True
+    ) -> str:
         """
-        Forward a transaction to the consensus rollup
+        Forward a transaction to the consensus rollup and wait for NewTransaction event
         """
         try:
             tx_hash = self.web3.eth.send_raw_transaction(transaction)
             receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            return receipt
+            tx_details = self._get_transaction_details(tx_hash)
+            print(f"[CONSENSUS_SERVICE]: Transaction forwarded: {tx_hash}")
+            print(f"[CONSENSUS_SERVICE]: Transaction receipt: {receipt}")
+            print(f"[CONSENSUS_SERVICE]: Transaction details: {tx_details}")
+
+            # Load ConsensusMain contract
+            consensus_contract_data = self.load_contract("ConsensusMain")
+            if not consensus_contract_data:
+                print("[CONSENSUS_SERVICE]: Failed to load ConsensusMain contract")
+                return None
+
+            # Create contract instance
+            consensus_contract = self.web3.eth.contract(
+                address=consensus_contract_data["address"],
+                abi=consensus_contract_data["abi"],
+            )
+
+            # Get NewTransaction events from receipt
+            new_tx_events = consensus_contract.events.NewTransaction().process_receipt(
+                receipt
+            )
+            print(f"[CONSENSUS_SERVICE]: New transaction events: {new_tx_events}")
+            if new_tx_events:
+                tx_id = new_tx_events[0]["args"]["tx_id"]
+                recipient = new_tx_events[0]["args"]["recipient"]
+                activator = new_tx_events[0]["args"]["activator"]
+                print(
+                    f"[CONSENSUS_SERVICE]: New transaction created - ID: {tx_id}, Recipient: {recipient}, Activator: {activator}"
+                )
+                return {
+                    "receipt": receipt,
+                    "tx_id": tx_id,
+                    "recipient": recipient,
+                    "activator": activator,
+                }
+            else:
+                print("[CONSENSUS_SERVICE]: No NewTransaction event found in receipt")
+                return receipt
+
         except Exception as e:
-            print(f"[CONSENSUS_SERVICE]: Error forwarding transaction: {str(e)}")
+            error_str = str(e)
+            if "nonce too high" in error_str.lower():
+                # Extract expected and current nonce from error message
+                match = re.search(
+                    r"Expected nonce to be (\d+) but got (\d+)", error_str
+                )
+                if match:
+                    current_nonce = int(match.group(2))
+
+                    # Set the nonce to the expected value
+                    print(
+                        f"[CONSENSUS_SERVICE]: Setting nonce for {from_address} to {current_nonce}"
+                    )
+                    self.web3.provider.make_request(
+                        "hardhat_setNonce", [from_address, hex(current_nonce)]
+                    )
+
+                    if retry:
+                        return self.forward_transaction(
+                            transaction, from_address, retry=False
+                        )
+                else:
+                    print(
+                        f"[CONSENSUS_SERVICE]: Could not parse nonce from error message: {error_str}"
+                    )
+
+            print(f"[CONSENSUS_SERVICE]: Error forwarding transaction: {error_str}")
+            return None
+
+    def _get_transaction_details(self, tx_hash: str) -> dict:
+        """
+        Get detailed information about a transaction
+
+        Args:
+            tx_hash (str): The transaction hash
+
+        Returns:
+            dict: Transaction details including status and block information
+        """
+        try:
+            # Convert string hash to bytes if needed
+            if isinstance(tx_hash, str):
+                tx_hash = self.web3.to_bytes(hexstr=tx_hash)
+
+            tx = self.web3.eth.get_transaction(tx_hash)
+            receipt = self.web3.eth.get_transaction_receipt(tx_hash)
+
+            if receipt:
+                block = self.web3.eth.get_block(receipt["blockNumber"])
+                return {
+                    "transaction": tx,
+                    "receipt": receipt,
+                    "status": "Success" if receipt["status"] == 1 else "Failed",
+                    "block_number": receipt["blockNumber"],
+                    "block_timestamp": block["timestamp"],
+                    "confirmations": self.web3.eth.block_number
+                    - receipt["blockNumber"],
+                }
+            else:
+                return {"transaction": tx, "status": "Pending", "receipt": None}
+
+        except Exception as e:
+            print(f"[CONSENSUS_SERVICE]: Error getting transaction details: {str(e)}")
             return None
