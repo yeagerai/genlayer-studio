@@ -490,6 +490,8 @@ def send_raw_transaction(
     if not transaction_signature_valid:
         raise InvalidTransactionError("Transaction signature verification failed")
 
+    consensus_service.forward_transaction(signed_rollup_transaction, from_address)
+
     to_address = decoded_rollup_transaction.to_address
     nonce = decoded_rollup_transaction.nonce
     value = decoded_rollup_transaction.value
@@ -534,7 +536,6 @@ def send_raw_transaction(
         nonce,
         leader_only,
     )
-    consensus_service.forward_transaction(signed_rollup_transaction)
 
     return transaction_hash
 
