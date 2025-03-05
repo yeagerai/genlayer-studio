@@ -132,9 +132,8 @@ class Node:
 
     def _set_vote(self, receipt: Receipt) -> Receipt:
         leader_receipt = self.leader_receipt
-        if self.validator_mode == ExecutionMode.LEADER:
-            receipt.vote = Vote.AGREE
-        elif (
+
+        if (
             leader_receipt.execution_result == receipt.execution_result
             and leader_receipt.result == receipt.result
             and leader_receipt.contract_state == receipt.contract_state
@@ -319,20 +318,23 @@ class Node:
             else ExecutionResultStatus.ERROR
         )
 
-        return self._set_vote(
-            Receipt(
-                result=genvmbase.encode_result_to_bytes(res.result),
-                gas_used=0,
-                eq_outputs={
-                    k: base64.b64encode(v).decode("ascii")
-                    for k, v in res.eq_outputs.items()
-                },
-                pending_transactions=res.pending_transactions,
-                vote=None,
-                execution_result=result_exec_code,
-                contract_state=self.contract_snapshot.encoded_state,
-                calldata=calldata,
-                mode=self.validator_mode,
-                node_config=self.validator.to_dict(),
-            )
+        result = Receipt(
+            result=genvmbase.encode_result_to_bytes(res.result),
+            gas_used=0,
+            eq_outputs={
+                k: base64.b64encode(v).decode("ascii")
+                for k, v in res.eq_outputs.items()
+            },
+            pending_transactions=res.pending_transactions,
+            vote=None,
+            execution_result=result_exec_code,
+            contract_state=self.contract_snapshot.encoded_state,
+            calldata=calldata,
+            mode=self.validator_mode,
+            node_config=self.validator.to_dict(),
         )
+
+        if self.validator_mode == ExecutionMode.LEADER:
+            return result
+        else:
+            return self._set_vote(result)
