@@ -17,6 +17,9 @@ module.exports = {
       mining: {
         auto: true,
         interval: 0,
+        mempool: {
+          order: "fifo"
+        }
       },
       chainId: 61_999,
       gasPrice: 0,
@@ -30,6 +33,10 @@ module.exports = {
         disableFeeBumping: false,
         deploymentDir: "deployments/localhost",
       },
+      logging: {
+        verbosity: "info",
+        debug: true
+      }
     },
   },
 };

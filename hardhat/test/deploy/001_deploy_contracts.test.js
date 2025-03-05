@@ -18,7 +18,14 @@ describe("Deploy Script", function () {
         'Transactions',
         'Messages',
         'ConsensusMain',
-        'ConsensusData'
+        'ConsensusData',
+        'ArrayUtils',
+        'RandomnessUtils',
+        'FeeManager',
+        'Utils',
+        'Rounds',
+        'Voting',
+        'Idleness'
     ];
 
     before(async function () {
@@ -73,36 +80,35 @@ describe("Deploy Script", function () {
 
         it("should have initialized GhostFactory properly", async function() {
             const ghostBlueprintAddress = await contracts.GhostFactory.ghostBlueprint();
-            expect(ghostBlueprintAddress, "GhostFactory should have been initialized with GhostBlueprint address")
-                .to.equal(await contracts.GhostBlueprint.getAddress());
+            expect(ghostBlueprintAddress).to.equal(await contracts.GhostBlueprint.getAddress());
         });
 
         it("should have initialized ConsensusMain properly", async function() {
             const consensusManagerAddress = await contracts.ConsensusManager.getAddress();
             const mainContracts = await contracts.ConsensusMain.contracts();
-            expect(
-                mainContracts.genManager,
-                "ConsensusMain should have been initialized with ConsensusManager address"
-            ).to.equal(consensusManagerAddress);
+            expect(mainContracts.genManager).to.equal(consensusManagerAddress);
         });
 
-        it("should have initialized Transactions, Queues and Messages with the ConsensusMain address", async function() {
+        it("should have initialized Transactions with all its dependencies", async function() {
             const consensusMainAddress = await contracts.ConsensusMain.getAddress();
+            const contracts_ = await contracts.Transactions.contracts();
 
-            expect(
-                await contracts.Transactions.genConsensus(),
-                "Transactions should have been initialized with ConsensusMain address"
-            ).to.equal(consensusMainAddress);
+            // Añadimos logs para debug
+            console.log("Contracts from Transactions:", contracts_);
+            console.log("Expected ConsensusMain:", consensusMainAddress);
+            console.log("Expected MockGenStaking:", await contracts.MockGenStaking.getAddress());
+            console.log("Expected Rounds:", await contracts.Rounds.getAddress());
+            console.log("Expected Voting:", await contracts.Voting.getAddress());
+            console.log("Expected Idleness:", await contracts.Idleness.getAddress());
+            console.log("Expected Utils:", await contracts.Utils.getAddress());
 
-            expect(
-                await contracts.Queues.genConsensus(),
-                "Queues should have been initialized with ConsensusMain address"
-            ).to.equal(consensusMainAddress);
-
-            expect(
-                await contracts.Messages.genConsensus(),
-                "Messages should have been initialized with ConsensusMain address"
-            ).to.equal(consensusMainAddress);
+            // Verificamos cada contrato individualmente
+            expect(contracts_.genConsensus, "genConsensus mismatch").to.equal(consensusMainAddress);
+            expect(contracts_.genStaking, "genStaking mismatch").to.equal(await contracts.MockGenStaking.getAddress());
+            expect(contracts_.rounds, "rounds mismatch").to.equal(await contracts.Rounds.getAddress());
+            expect(contracts_.voting, "voting mismatch").to.equal(await contracts.Voting.getAddress());
+            expect(contracts_.idleness, "idleness mismatch").to.equal(await contracts.Idleness.getAddress());
+            expect(contracts_.utils, "utils mismatch").to.equal(await contracts.Utils.getAddress());
         });
 
         it("should have initialized ConsensusData properly", async function() {
@@ -110,85 +116,30 @@ describe("Deploy Script", function () {
             const transactionsAddress = await contracts.Transactions.getAddress();
             const queuesAddress = await contracts.Queues.getAddress();
 
-            expect(
-                await contracts.ConsensusData.consensusMain(),
-                "ConsensusData should have been initialized with ConsensusMain address"
-            ).to.equal(consensusMainAddress);
-
-            expect(
-                await contracts.ConsensusData.transactions(),
-                "ConsensusData should have been initialized with Transactions address"
-            ).to.equal(transactionsAddress);
-
-            expect(
-                await contracts.ConsensusData.queues(),
-                "ConsensusData should have been initialized with Queues address"
-            ).to.equal(queuesAddress);
+            expect(await contracts.ConsensusData.consensusMain()).to.equal(consensusMainAddress);
+            expect(await contracts.ConsensusData.transactions()).to.equal(transactionsAddress);
+            expect(await contracts.ConsensusData.queues()).to.equal(queuesAddress);
         });
 
         it("should have set contract connections for ConsensusMain properly", async function() {
-            const ghostFactoryAddress = await contracts.GhostFactory.getAddress();
-            const genStakingAddress = await contracts.MockGenStaking.getAddress();
-            const genQueueAddress = await contracts.Queues.getAddress();
-            const genTransactionsAddress = await contracts.Transactions.getAddress();
-            const genMessagesAddress = await contracts.Messages.getAddress();
-
             const mainContracts = await contracts.ConsensusMain.contracts();
 
-            expect(
-                mainContracts.ghostFactory,
-                "ConsensusMain should have set GhostFactory address"
-            ).to.equal(ghostFactoryAddress);
-            expect(
-                mainContracts.genStaking,
-                "ConsensusMain should have set GenStaking address"
-            ).to.equal(genStakingAddress);
-            expect(
-                mainContracts.genQueue,
-                "ConsensusMain should have set GenQueue address"
-            ).to.equal(genQueueAddress);
-            expect(
-                mainContracts.genTransactions,
-                "ConsensusMain should have set GenTransactions address"
-            ).to.equal(genTransactionsAddress);
-            expect(
-                mainContracts.genMessages,
-                "ConsensusMain should have set GenMessages address"
-            ).to.equal(genMessagesAddress);
+            expect(mainContracts.ghostFactory).to.equal(await contracts.GhostFactory.getAddress());
+            expect(mainContracts.genStaking).to.equal(await contracts.MockGenStaking.getAddress());
+            expect(mainContracts.genQueue).to.equal(await contracts.Queues.getAddress());
+            expect(mainContracts.genTransactions).to.equal(await contracts.Transactions.getAddress());
+            expect(mainContracts.genMessages).to.equal(await contracts.Messages.getAddress());
+            expect(mainContracts.idleness).to.equal(await contracts.Idleness.getAddress());
         });
 
-        it("should have configured GhostFactory, Transactions and Messages final settings properly", async function() {
+        it("should have configured GhostFactory and Messages connections properly", async function() {
             const consensusMainAddress = await contracts.ConsensusMain.getAddress();
             const transactionsAddress = await contracts.Transactions.getAddress();
 
-            expect(
-                await contracts.GhostFactory.genConsensus(),
-                "GhostFactory should have set GenConsensus address"
-            ).to.equal(consensusMainAddress);
-            expect(
-                await contracts.GhostFactory.ghostManager(),
-                "GhostFactory should have set GhostManager address"
-            ).to.equal(consensusMainAddress);
-            expect(
-                await contracts.Transactions.genConsensus(),
-                "Transactions should have set GenConsensus address"
-            ).to.equal(consensusMainAddress);
-            expect(
-                await contracts.Messages.genConsensus(),
-                "Messages should have set GenConsensus address"
-            ).to.equal(consensusMainAddress);
-            expect(
-                await contracts.Messages.genTransactions(),
-                "Messages should have set GenTransactions address"
-            ).to.equal(transactionsAddress);
-        });
-
-        it("should have set Acceptance Timeout in ConsensusMain properly", async function() {
-            const timeouts = await contracts.ConsensusMain.timeouts();
-            expect(
-                timeouts.acceptance,
-                "Acceptance Timeout should have been set in ConsensusMain"
-            ).to.equal(0);
+            expect(await contracts.GhostFactory.genConsensus()).to.equal(consensusMainAddress);
+            expect(await contracts.GhostFactory.ghostManager()).to.equal(consensusMainAddress);
+            expect(await contracts.Messages.genConsensus()).to.equal(consensusMainAddress);
+            expect(await contracts.Messages.genTransactions()).to.equal(transactionsAddress);
         });
 
         it("should have set up validators in MockGenStaking properly", async function() {
@@ -199,14 +150,13 @@ describe("Deploy Script", function () {
                 validators.push(await contracts.MockGenStaking.validators(i));
             }
 
-            expect(validators, "MockGenStaking should have set up validators")
-                .to.deep.equal([
-                    validator1.address,
-                    validator2.address,
-                    validator3.address,
-                    validator4.address,
-                    validator5.address
-                ]);
+            expect(validators).to.deep.equal([
+                validator1.address,
+                validator2.address,
+                validator3.address,
+                validator4.address,
+                validator5.address
+            ]);
         });
 
         it("should verify all validators are correctly registered", async function() {
