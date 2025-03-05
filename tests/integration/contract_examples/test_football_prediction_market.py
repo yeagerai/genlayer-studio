@@ -52,7 +52,7 @@ class MockWebServer(BaseHTTPRequestHandler):
 
 
 def test_football_prediction_market(from_account, setup_validators):
-    port = 443
+    port = 80
     mock_server = HTTPServer(("0.0.0.0", port), MockWebServer)
     server_thread = threading.Thread(target=mock_server.serve_forever)
     server_thread.daemon = True
