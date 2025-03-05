@@ -82,8 +82,9 @@ class TransactionsProcessorMock:
             TransactionStatus.ACCEPTED.value,
             TransactionStatus.UNDETERMINED.value,
         ):
-            transaction["appealed"] = appeal
             self.set_transaction_timestamp_appeal(transaction, int(time.time()))
+            time.sleep(1)
+            transaction["appealed"] = appeal
 
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None

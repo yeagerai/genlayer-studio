@@ -533,6 +533,7 @@ def send_raw_transaction(
         genlayer_transaction.type.value,
         nonce,
         leader_only,
+        genlayer_transaction.max_rotations,
     )
     consensus_service.forward_transaction(signed_rollup_transaction)
 
