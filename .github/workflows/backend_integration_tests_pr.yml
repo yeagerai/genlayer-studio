@@ -107,19 +107,27 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements.test.txt
 
-      - name: Setup reverse proxy
+      - name: Setup mock server and reverse proxy
         run: |
-          # Add debug output
+          # Start the mock server in the background
+          python test_server.py &
+          MOCK_PID=$!
+
+          # Wait for mock server to be ready
+          echo "Waiting for mock server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8000 > /dev/null; then
+              echo "Mock server is up!"
+              break
+            fi
+            sleep 1
+          done
+
+          # Setup nginx
           echo "Setting up nginx reverse proxy..."
-
-          # Ensure host.docker.internal is set up
-          echo "127.0.0.1 host.docker.internal" | sudo tee -a /etc/hosts
-
-          # Install and configure nginx
           sudo apt-get update
           sudo apt-get install -y nginx
 
-          # Create nginx config with debug logging
           sudo bash -c 'cat > /etc/nginx/sites-available/default << EOF
           server {
               listen 80;
@@ -134,27 +142,24 @@ jobs:
           }
           EOF'
 
-          # Restart nginx
           sudo service nginx restart
 
-          # Test nginx is running
+          # Verify setup
+          echo "Testing complete setup..."
           curl -v http://localhost/
 
-          # Show nginx logs
-          echo "Nginx error log:"
-          sudo cat /var/log/nginx/error.log
-          echo "Nginx access log:"
-          sudo cat /var/log/nginx/access.log
+          # Keep the mock server running for the tests
+          disown $MOCK_PID
 
-      - name: Run tests with debug output
+      - name: Run tests
         run: |
-          # Test network connectivity
-          echo "Testing network connectivity..."
-          curl -v http://localhost/
-          curl -v http://127.0.0.1:8000/
-
-          # Run the tests with verbose output
           pytest tests/integration/contract_examples/test_football_prediction_market.py -svv
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Kill the mock server if it's still running
+          pkill -f "python test_server.py" || true
 
       - name: Show nginx logs on failure
         if: failure()
