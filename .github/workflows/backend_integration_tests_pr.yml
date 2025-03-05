@@ -58,9 +58,6 @@ jobs:
           fi
           echo "TEST_INTEGRATION=true" >> .env
 
-      - name: Print .env file content
-        run: cat .env
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -112,21 +109,60 @@ jobs:
 
       - name: Setup reverse proxy
         run: |
+          # Add debug output
+          echo "Setting up nginx reverse proxy..."
+
+          # Ensure host.docker.internal is set up
           echo "127.0.0.1 host.docker.internal" | sudo tee -a /etc/hosts
+
+          # Install and configure nginx
           sudo apt-get update
           sudo apt-get install -y nginx
+
+          # Create nginx config with debug logging
           sudo bash -c 'cat > /etc/nginx/sites-available/default << EOF
           server {
               listen 80;
+              access_log /var/log/nginx/access.log;
+              error_log /var/log/nginx/error.log debug;
+
               location / {
-                  proxy_pass http://host.docker.internal:8000;
+                  proxy_pass http://127.0.0.1:8000;
+                  proxy_set_header Host \$host;
+                  proxy_set_header X-Real-IP \$remote_addr;
               }
           }
           EOF'
+
+          # Restart nginx
           sudo service nginx restart
 
-      - name: Run tests
-        run: pytest tests/integration/contract_examples/test_football_prediction_market.py -svv
+          # Test nginx is running
+          curl -v http://localhost/
+
+          # Show nginx logs
+          echo "Nginx error log:"
+          sudo cat /var/log/nginx/error.log
+          echo "Nginx access log:"
+          sudo cat /var/log/nginx/access.log
+
+      - name: Run tests with debug output
+        run: |
+          # Test network connectivity
+          echo "Testing network connectivity..."
+          curl -v http://localhost/
+          curl -v http://127.0.0.1:8000/
+
+          # Run the tests with verbose output
+          pytest tests/integration/contract_examples/test_football_prediction_market.py -svv
+
+      - name: Show nginx logs on failure
+        if: failure()
+        run: |
+          echo "Nginx error log:"
+          sudo cat /var/log/nginx/error.log
+          echo "Nginx access log:"
+          sudo cat /var/log/nginx/access.log
 
       - name: Dump Docker Compose logs
         run: docker compose logs

@@ -36,6 +36,9 @@ import threading
 
 class MockWebServer(BaseHTTPRequestHandler):
     def do_GET(self):
+        print(f"MockWebServer received request for path: {self.path}")
+        print(f"Headers: {self.headers}")
+
         mock_response = """
         <html>
             <body>
@@ -49,6 +52,7 @@ class MockWebServer(BaseHTTPRequestHandler):
         self.send_header("Content-type", "text/html")
         self.end_headers()
         self.wfile.write(mock_response.encode())
+        print("MockWebServer sent response")
 
 
 def test_football_prediction_market(from_account, setup_validators):
@@ -57,6 +61,7 @@ def test_football_prediction_market(from_account, setup_validators):
     server_thread = threading.Thread(target=mock_server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
+    print(f"Mock server started on port {port}")  # Debug print
 
     try:
         # Get contract schema
@@ -65,7 +70,7 @@ def test_football_prediction_market(from_account, setup_validators):
         ).read()
         modified_contract_code = contract_code.replace(
             '"https://www.bbc.com/sport/football/scores-fixtures/"',
-            f'"http://host.docker.internal/"',
+            '"http://localhost/"',  # Use localhost since nginx is on the host
         )
 
         # Parse prompts from contract code
