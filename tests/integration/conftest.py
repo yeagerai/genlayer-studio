@@ -78,9 +78,6 @@ def mock_llms():
 @pytest.fixture
 def setup_validators():
     def _setup(responses=None, eq_result=True):
-        print(
-            f"setup_validators - mock_llms: {mock_llms()};  eq_result: {eq_result}; responses: {responses}"
-        )
         if mock_llms():
             setup_mock_validators(responses if responses else {}, eq_result)
         else:
