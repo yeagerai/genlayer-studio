@@ -171,7 +171,7 @@ function prettifyTxData(x: any): any {
         "
       />
 
-      <!-- <div @click.stop="">
+      <div @click.stop="">
         <Btn
           v-if="
             transaction.data.leader_only == false &&
@@ -193,7 +193,7 @@ function prettifyTxData(x: any): any {
             <GavelIcon class="h-2.5 w-2.5" />
           </div>
         </Btn>
-      </div> -->
+      </div>
 
       <TransactionStatusBadge
         :class="[
@@ -263,8 +263,14 @@ function prettifyTxData(x: any): any {
           <template #title>Input</template>
 
           <pre
+            v-if="transaction.data.data.calldata.readable"
             class="overflow-hidden rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
-            >{{ transaction.data.data }}</pre
+            >{{ transaction.data.data.calldata.readable }}</pre
+          >
+          <pre
+            v-if="!transaction.data.data.calldata.readable"
+            class="overflow-hidden rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+            >{{ transaction.data.data.calldata.base64 }}</pre
           >
         </ModalSection>
 
