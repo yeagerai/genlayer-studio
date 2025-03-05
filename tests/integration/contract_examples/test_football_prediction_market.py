@@ -22,10 +22,27 @@ from tests.common.response import (
     has_success_status,
 )
 
+from tests.integration.conftest import (
+    get_prompts_from_contract_code,
+)
 
-def test_football_prediction_market(setup_validators, from_account):
+
+def test_football_prediction_market(from_account, setup_validators):
     # Get contract schema
     contract_code = open("examples/contracts/football_prediction_market.py", "r").read()
+
+    # Parse prompts from contract code
+    prompts = get_prompts_from_contract_code(contract_code)
+
+    # Mock the validator responses
+    responses = {
+        prompts[0]: {
+            "score": "2:0",
+            "winner": 1,
+        },
+    }
+    setup_validators(responses)
+
     result_schema = post_request_localhost(
         payload(
             "gen_getContractSchemaForCode",

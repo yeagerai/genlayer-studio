@@ -21,10 +21,27 @@ from tests.common.response import (
     has_success_status,
 )
 
+from tests.integration.conftest import (
+    get_prompts_from_contract_code,
+)
 
-def test_wizard_of_coin(setup_validators, from_account):
+
+def test_wizard_of_coin(from_account, setup_validators):
     # Get contract schema
     contract_code = open("examples/contracts/wizard_of_coin.py", "r").read()
+
+    # Parse prompts from contract code
+    prompts = get_prompts_from_contract_code(contract_code)
+
+    # Mock the validator responses
+    responses = {
+        prompts[0]: {
+            "reasoning": "I am a wise wizard and must protect the coin.",
+            "give_coin": False,
+        },
+    }
+    setup_validators(responses)
+
     result_schema = post_request_localhost(
         payload(
             "gen_getContractSchemaForCode",
