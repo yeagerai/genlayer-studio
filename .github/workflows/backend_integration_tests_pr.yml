@@ -56,6 +56,10 @@ jobs:
           else
             echo "TEST_WITH_MOCK_LLMS=true" >> .env
           fi
+          echo "TEST_INTEGRATION=true" >> .env
+
+      - name: Print .env file content
+        run: cat .env
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -106,8 +110,23 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements.test.txt
 
+      - name: Setup reverse proxy
+        run: |
+          echo "127.0.0.1 host.docker.internal" | sudo tee -a /etc/hosts
+          sudo apt-get update
+          sudo apt-get install -y nginx
+          sudo bash -c 'cat > /etc/nginx/sites-available/default << EOF
+          server {
+              listen 80;
+              location / {
+                  proxy_pass http://host.docker.internal:8000;
+              }
+          }
+          EOF'
+          sudo service nginx restart
+
       - name: Run tests
-        run: sudo -E env "PATH=$PATH" pytest tests/integration/contract_examples/test_football_prediction_market.py -svv
+        run: pytest tests/integration/contract_examples/test_football_prediction_market.py -svv
 
       - name: Dump Docker Compose logs
         run: docker compose logs
