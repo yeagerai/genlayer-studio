@@ -52,7 +52,8 @@ class MockWebServer(BaseHTTPRequestHandler):
 
 
 def test_football_prediction_market(from_account, setup_validators):
-    mock_server = HTTPServer(("0.0.0.0", 80), MockWebServer)
+    port = 443
+    mock_server = HTTPServer(("0.0.0.0", port), MockWebServer)
     server_thread = threading.Thread(target=mock_server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
@@ -64,7 +65,7 @@ def test_football_prediction_market(from_account, setup_validators):
         ).read()
         modified_contract_code = contract_code.replace(
             '"https://www.bbc.com/sport/football/scores-fixtures/"',
-            '"http://host.docker.internal/"',
+            f'"http://host.docker.internal:{port}/"',
         )
 
         # Parse prompts from contract code
