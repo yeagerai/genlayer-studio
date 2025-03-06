@@ -116,10 +116,6 @@ class ConsensusService:
         try:
             tx_hash = self.web3.eth.send_raw_transaction(transaction)
             receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            tx_details = self._get_transaction_details(tx_hash)
-            print(f"[CONSENSUS_SERVICE]: Transaction forwarded: {tx_hash}")
-            print(f"[CONSENSUS_SERVICE]: Transaction receipt: {receipt}")
-            print(f"[CONSENSUS_SERVICE]: Transaction details: {tx_details}")
 
             # Load ConsensusMain contract
             consensus_contract_data = self.load_contract("ConsensusMain")
@@ -137,17 +133,20 @@ class ConsensusService:
             new_tx_events = consensus_contract.events.NewTransaction().process_receipt(
                 receipt
             )
-            print(f"[CONSENSUS_SERVICE]: New transaction events: {new_tx_events}")
+
             if new_tx_events:
-                tx_id = new_tx_events[0]["args"]["tx_id"]
+                # Extract event data
+                tx_id = new_tx_events[0]["args"]["txId"]
                 recipient = new_tx_events[0]["args"]["recipient"]
                 activator = new_tx_events[0]["args"]["activator"]
-                print(
-                    f"[CONSENSUS_SERVICE]: New transaction created - ID: {tx_id}, Recipient: {recipient}, Activator: {activator}"
-                )
+
+                # Convert tx_id from bytes to hex string for better readability
+                tx_id_hex = "0x" + tx_id.hex() if isinstance(tx_id, bytes) else tx_id
+
                 return {
                     "receipt": receipt,
                     "tx_id": tx_id,
+                    "tx_id_hex": tx_id_hex,  # Adding hex version for easier reading
                     "recipient": recipient,
                     "activator": activator,
                 }
@@ -157,7 +156,12 @@ class ConsensusService:
 
         except Exception as e:
             error_str = str(e)
-            if "nonce too high" in error_str.lower():
+            error_type = (
+                "nonce_too_high"
+                if "nonce too high" in error_str.lower()
+                else "nonce_too_low" if "nonce too low" in error_str.lower() else None
+            )
+            if error_type:
                 # Extract expected and current nonce from error message
                 match = re.search(
                     r"Expected nonce to be (\d+) but got (\d+)", error_str
@@ -183,40 +187,4 @@ class ConsensusService:
                     )
 
             print(f"[CONSENSUS_SERVICE]: Error forwarding transaction: {error_str}")
-            return None
-
-    def _get_transaction_details(self, tx_hash: str) -> dict:
-        """
-        Get detailed information about a transaction
-
-        Args:
-            tx_hash (str): The transaction hash
-
-        Returns:
-            dict: Transaction details including status and block information
-        """
-        try:
-            # Convert string hash to bytes if needed
-            if isinstance(tx_hash, str):
-                tx_hash = self.web3.to_bytes(hexstr=tx_hash)
-
-            tx = self.web3.eth.get_transaction(tx_hash)
-            receipt = self.web3.eth.get_transaction_receipt(tx_hash)
-
-            if receipt:
-                block = self.web3.eth.get_block(receipt["blockNumber"])
-                return {
-                    "transaction": tx,
-                    "receipt": receipt,
-                    "status": "Success" if receipt["status"] == 1 else "Failed",
-                    "block_number": receipt["blockNumber"],
-                    "block_timestamp": block["timestamp"],
-                    "confirmations": self.web3.eth.block_number
-                    - receipt["blockNumber"],
-                }
-            else:
-                return {"transaction": tx, "status": "Pending", "receipt": None}
-
-        except Exception as e:
-            print(f"[CONSENSUS_SERVICE]: Error getting transaction details: {str(e)}")
             return None
