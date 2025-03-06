@@ -131,11 +131,20 @@ jobs:
                 - mock-server
               container_name: nginx-proxy
 
+            hardhat:
+              networks:
+                - test-network
+                - genlayer
+              container_name: genlayer-studio-hardhat-1
+
             jsonrpc:
               networks:
                 - test-network
                 - genlayer
               container_name: jsonrpc
+              depends_on:
+                hardhat:
+                  condition: service_healthy
 
             webrequest:
               networks:
