@@ -109,12 +109,12 @@ jobs:
 
       - name: Setup mock server and reverse proxy
         run: |
-          # Create a docker network for testing
-          docker network create test-network
+          # Remove existing network if it exists
+          docker network rm test-network || true
 
           # Create a docker-compose override file for the test setup
           cat > docker-compose.override.yml << EOF
-          version: '3'
+          version: '3.8'
           services:
             mock-server:
               build:
@@ -138,7 +138,7 @@ jobs:
 
           networks:
             test-network:
-              name: test-network
+              driver: bridge
             genlayer:
               external: true
           EOF
@@ -191,7 +191,7 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          docker compose down
+          docker compose down --remove-orphans
           docker network rm test-network || true
 
       - name: Show nginx logs on failure
