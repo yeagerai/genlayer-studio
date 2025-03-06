@@ -8,7 +8,6 @@ from flask_jsonrpc import JSONRPC
 from flask_jsonrpc.exceptions import JSONRPCError
 from sqlalchemy import Table
 from sqlalchemy.orm import Session
-import backend.node.genvm.origin.calldata as genvm_calldata
 
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
@@ -44,7 +43,6 @@ from backend.node.base import Node, SIMULATOR_CHAIN_ID
 from backend.node.types import ExecutionMode, ExecutionResultStatus
 from backend.consensus.base import ConsensusAlgorithm
 
-from flask import request
 from flask_jsonrpc.exceptions import JSONRPCError
 import base64
 import os
@@ -490,7 +488,9 @@ def send_raw_transaction(
     if not transaction_signature_valid:
         raise InvalidTransactionError("Transaction signature verification failed")
 
-    consensus_service.forward_transaction(signed_rollup_transaction, from_address)
+    rollup_transaction_details = consensus_service.forward_transaction(
+        signed_rollup_transaction, from_address
+    )
 
     to_address = decoded_rollup_transaction.to_address
     nonce = decoded_rollup_transaction.nonce
@@ -508,7 +508,8 @@ def send_raw_transaction(
         if value > 0:
             raise InvalidTransactionError("Deploy Transaction can't send value")
 
-        new_contract_address = accounts_manager.create_new_account().address
+        new_contract_address = rollup_transaction_details["recipient"]
+        accounts_manager.create_new_account_with_address(new_contract_address)
 
         transaction_data = {
             "contract_address": new_contract_address,
