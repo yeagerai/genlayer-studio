@@ -195,6 +195,10 @@ jobs:
         run: |
           pytest tests/integration/contract_examples/test_football_prediction_market.py -svv
 
+      - name: Dump Docker Compose logs
+        if: always()
+        run: docker compose logs
+
       - name: Cleanup
         if: always()
         run: |
@@ -202,16 +206,12 @@ jobs:
           docker network rm test-network || true
 
       - name: Show nginx logs on failure
-        if: always()
+        if: failure()
         run: |
           echo "Nginx error log:"
           sudo cat /var/log/nginx/error.log
           echo "Nginx access log:"
           sudo cat /var/log/nginx/access.log
-
-      - name: Dump Docker Compose logs
-        run: docker compose logs
-        if: always()
 
       - name: Shutdown Docker Compose
         if: always()
