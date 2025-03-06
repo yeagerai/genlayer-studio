@@ -69,9 +69,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      - name: Build Docker images
-        run: docker compose build
-
       - name: Setup mock server and reverse proxy
         run: |
           # Create directories for test files
@@ -152,6 +149,9 @@ jobs:
             genlayer:
               name: genlayer
           EOF
+
+      - name: Build Docker images
+        run: docker compose build
 
       - name: Run Docker Compose
         run: docker compose up -d
