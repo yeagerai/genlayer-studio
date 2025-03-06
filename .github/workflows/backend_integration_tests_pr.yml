@@ -196,13 +196,11 @@ jobs:
           pytest tests/integration/contract_examples/test_football_prediction_market.py -svv
 
       - name: Cleanup
-        if: always()
         run: |
           docker compose down --remove-orphans
           docker network rm test-network || true
 
       - name: Show nginx logs on failure
-        if: failure()
         run: |
           echo "Nginx error log:"
           sudo cat /var/log/nginx/error.log
@@ -211,10 +209,8 @@ jobs:
 
       - name: Dump Docker Compose logs
         run: docker compose logs
-        if: failure()
 
       - name: Shutdown Docker Compose
-        if: always()
         run: docker compose down
 
   db-integration-test:
