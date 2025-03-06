@@ -109,14 +109,6 @@ jobs:
 
       - name: Setup mock server and reverse proxy
         run: |
-          # Remove existing networks if they exist
-          docker network rm test-network || true
-          docker network rm genlayer || true
-
-          # Create required networks
-          docker network create test-network
-          docker network create genlayer
-
           # Create directories for test files
           mkdir -p tests/integration/docker
 
