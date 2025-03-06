@@ -67,7 +67,7 @@ def test_football_prediction_market(from_account, setup_validators):
     # Get contract schema
     contract_code = open("examples/contracts/football_prediction_market.py", "r").read()
     modified_contract_code = contract_code.replace(
-        '"https://www.bbc.com/sport/football/scores-fixtures/"',
+        '"https://www.bbc.com/sport/football/scores-fixtures/" + game_date',
         '"http://nginx-proxy/"',  # Use the service name from docker-compose
     )
 

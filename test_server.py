@@ -10,17 +10,25 @@ class MockWebServer(BaseHTTPRequestHandler):
         print(f"[DEBUG] Client address: {self.client_address}")
         print(f"[DEBUG] Headers: {self.headers}")
 
+        # Return the same response regardless of the path
         mock_response = """
         <html>
             <body>
-                <div>
-                    Georgia 2 - 0 Portugal
+                <div class="match-summary">
+                    <h2>Match Summary</h2>
+                    <div class="score">
+                        Georgia 2 - 0 Portugal
+                    </div>
+                    <div class="status">
+                        Full Time
+                    </div>
                 </div>
             </body>
         </html>
         """
         self.send_response(200)
         self.send_header("Content-type", "text/html")
+        self.send_header("Content-Length", str(len(mock_response.encode())))
         self.end_headers()
         self.wfile.write(mock_response.encode())
         print("[DEBUG] MockWebServer sent response")
