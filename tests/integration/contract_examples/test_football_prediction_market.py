@@ -68,7 +68,7 @@ def test_football_prediction_market(from_account, setup_validators):
     contract_code = open("examples/contracts/football_prediction_market.py", "r").read()
     modified_contract_code = contract_code.replace(
         '"https://www.bbc.com/sport/football/scores-fixtures/"',
-        '"http://localhost/"',  # Use localhost since nginx is on the host
+        '"http://host.docker.internal/"',  # Use host.docker.internal to access the host from Docker
     )
 
     # Parse prompts from contract code
