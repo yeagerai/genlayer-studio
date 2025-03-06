@@ -154,6 +154,7 @@ jobs:
               networks:
                 - test-network
                 - genlayer
+              container_name: mock-server
 
             nginx-proxy:
               build:
@@ -166,40 +167,58 @@ jobs:
                 - genlayer
               depends_on:
                 - mock-server
+              container_name: nginx-proxy
 
             jsonrpc:
               networks:
                 - test-network
                 - genlayer
+              container_name: jsonrpc
 
             webrequest:
               networks:
                 - test-network
                 - genlayer
+              container_name: webrequest
 
           networks:
             test-network:
-              external: true
+              name: test-network
             genlayer:
-              external: true
+              name: genlayer
           EOF
 
           # Start the services
           docker compose up -d mock-server nginx-proxy
 
-          # Wait for services to be ready
+          # Wait for services to be ready and verify the complete setup
           echo "Waiting for mock server and nginx to be ready..."
           for i in {1..30}; do
-            if curl -s http://localhost/ > /dev/null; then
-              echo "Services are up!"
+            if curl -s http://localhost/ | grep -q "Georgia 2 - 0 Portugal"; then
+              echo "Services are up and returning expected content!"
               break
             fi
-            sleep 1
+            echo "Attempt $i: Services not ready yet..."
+            sleep 2
+            if [ $i -eq 30 ]; then
+              echo "Error: Services did not become ready in time"
+              echo "Nginx logs:"
+              docker compose logs nginx-proxy
+              echo "Mock server logs:"
+              docker compose logs mock-server
+              exit 1
+            fi
           done
 
-          # Test the setup
-          echo "Testing setup..."
-          curl -v http://localhost/
+          # Test the complete setup
+          echo "Testing complete setup..."
+          response=$(curl -v http://localhost/)
+          echo "Response from mock server:"
+          echo "$response"
+          if ! echo "$response" | grep -q "Georgia 2 - 0 Portugal"; then
+            echo "Error: Mock server not returning expected content"
+            exit 1
+          fi
 
       - name: Run tests
         run: |
