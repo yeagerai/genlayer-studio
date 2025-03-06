@@ -75,26 +75,51 @@ jobs:
       - name: Run Docker Compose
         run: docker compose up -d
 
-      - name: Wait for services to be up
+      - name: Wait for services to be ready and verify the complete setup
         timeout-minutes: 5
         run: |
-          timeout=60
-          counter=0
-          while [[ "$counter" -lt "$timeout" ]]; do
-            if curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ping","params":[],"id":1}' http://0.0.0.0:4000/api | grep -q "OK"; then
-              echo "RPC server is up!"
-              break
-            else
-              echo "Waiting for RPC server... ($counter/$timeout)"
-              sleep 5
-              counter=$((counter+1))
+          # Function to check service readiness
+          check_service() {
+            local service=$1
+            local max_attempts=30
+            local attempt=1
+
+            while [ $attempt -le $max_attempts ]; do
+              if docker compose logs $service | grep -q "$2"; then
+                echo "$service is ready!"
+                return 0
+              fi
+              echo "Waiting for $service... (Attempt $attempt/$max_attempts)"
+              sleep 2
+              attempt=$((attempt + 1))
+            done
+
+            echo "Error: $service failed to become ready"
+            docker compose logs $service
+            return 1
+          }
+
+          # Check each service
+          check_service "jsonrpc" "Debug mode: off" || exit 1
+          check_service "webrequest" "Running on http://127.0.0.1:5000" || exit 1
+          check_service "mock-server" "Starting mock server on 0.0.0.0:8000" || exit 1
+          check_service "nginx-proxy" "Configuration complete; ready for start up" || exit 1
+
+          # Final verification of mock server response
+          echo "Verifying mock server response..."
+          for i in {1..10}; do
+            if curl -s http://localhost/ | grep -q "Georgia 2 - 0 Portugal"; then
+              echo "Mock server is returning expected content!"
+              exit 0
             fi
+            echo "Attempt $i: Waiting for mock server content..."
+            sleep 2
           done
-          # Fail if the service didn't start within the timeout
-          if [[ "$counter" -ge "$timeout" ]]; then
-            echo "Error: Timeout while waiting for RPC server"
-            exit 1
-          fi
+
+          echo "Error: Mock server not returning expected content"
+          docker compose logs mock-server
+          docker compose logs nginx-proxy
+          exit 1
 
       - name: Set up Python
         uses: actions/setup-python@v5
