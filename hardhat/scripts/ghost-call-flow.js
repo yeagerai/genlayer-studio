@@ -64,7 +64,15 @@ async function completeConsensusFlow(
   }
 
   // 5. Finalize transaction
-  await consensusMain.finalizeTransaction(txId);
+  const finalizeTx = await consensusMain.finalizeTransaction(txId);
+  const finalizeTxReceipt = await finalizeTx.wait();
+
+  const finalizeTxEvent = finalizeTxReceipt.logs?.find(
+    (log) => consensusMain.interface.parseLog(log)?.name === "TransactionFinalized"
+  )
+  if (!finalizeTxEvent) throw new Error("TransactionFinalized event not found")
+  const finalizeTxParsedLog = consensusMain.interface.parseLog(finalizeTxEvent)
+  console.log("Finalized transaction", finalizeTxParsedLog)
   return await consensusData.getTransactionStatus(txId);
 }
 
