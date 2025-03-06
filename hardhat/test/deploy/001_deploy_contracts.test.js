@@ -93,22 +93,53 @@ describe("Deploy Script", function () {
             const consensusMainAddress = await contracts.ConsensusMain.getAddress();
             const contracts_ = await contracts.Transactions.contracts();
 
-            // Añadimos logs para debug
-            console.log("Contracts from Transactions:", contracts_);
-            console.log("Expected ConsensusMain:", consensusMainAddress);
-            console.log("Expected MockGenStaking:", await contracts.MockGenStaking.getAddress());
-            console.log("Expected Rounds:", await contracts.Rounds.getAddress());
-            console.log("Expected Voting:", await contracts.Voting.getAddress());
-            console.log("Expected Idleness:", await contracts.Idleness.getAddress());
-            console.log("Expected Utils:", await contracts.Utils.getAddress());
+            // Debug logs
+            console.log("\nTransactions External Contracts:");
+            console.log("- genConsensus:", contracts_.genConsensus);
+            console.log("- staking:", contracts_.staking);
+            console.log("- rounds:", contracts_.rounds);
+            console.log("- voting:", contracts_.voting);
+            console.log("- idleness:", contracts_.idleness);
+            console.log("- utils:", contracts_.utils);
 
-            // Verificamos cada contrato individualmente
-            expect(contracts_.genConsensus, "genConsensus mismatch").to.equal(consensusMainAddress);
-            expect(contracts_.genStaking, "genStaking mismatch").to.equal(await contracts.MockGenStaking.getAddress());
-            expect(contracts_.rounds, "rounds mismatch").to.equal(await contracts.Rounds.getAddress());
-            expect(contracts_.voting, "voting mismatch").to.equal(await contracts.Voting.getAddress());
-            expect(contracts_.idleness, "idleness mismatch").to.equal(await contracts.Idleness.getAddress());
-            expect(contracts_.utils, "utils mismatch").to.equal(await contracts.Utils.getAddress());
+            console.log("\nExpected Addresses:");
+            console.log("- ConsensusMain:", consensusMainAddress);
+            console.log("- MockGenStaking:", await contracts.MockGenStaking.getAddress());
+            console.log("- Rounds:", await contracts.Rounds.getAddress());
+            console.log("- Voting:", await contracts.Voting.getAddress());
+            console.log("- Idleness:", await contracts.Idleness.getAddress());
+            console.log("- Utils:", await contracts.Utils.getAddress());
+
+            // Verify each contract individually
+            expect(
+                contracts_.genConsensus,
+                "genConsensus mismatch"
+            ).to.equal(consensusMainAddress);
+
+            expect(
+                contracts_.staking,
+                "staking mismatch"
+            ).to.equal(await contracts.MockGenStaking.getAddress());
+
+            expect(
+                contracts_.rounds,
+                "rounds mismatch"
+            ).to.equal(await contracts.Rounds.getAddress());
+
+            expect(
+                contracts_.voting,
+                "voting mismatch"
+            ).to.equal(await contracts.Voting.getAddress());
+
+            expect(
+                contracts_.idleness,
+                "idleness mismatch"
+            ).to.equal(await contracts.Idleness.getAddress());
+
+            expect(
+                contracts_.utils,
+                "utils mismatch"
+            ).to.equal(await contracts.Utils.getAddress());
         });
 
         it("should have initialized ConsensusData properly", async function() {

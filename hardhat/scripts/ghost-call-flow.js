@@ -32,13 +32,15 @@ async function completeConsensusFlow(
   const leader = validators.find(
     (v) => v.address === consensusMain.interface.parseLog(activationEvent).args[1]
   );
+  console.log("Leader is", leader.address);
 
   // 2. Leader proposes receipt
   currentSeed = await genManager.recipientRandomSeed(ghostAddress);
   const vrfProofPropose = await generateSignature(leader, BigInt(currentSeed));
+  const currentBlock = await ethers.provider.getBlockNumber();
   const proposeReceipt = await consensusMain
     .connect(leader)
-    .proposeReceipt(txId, proposedReceipt, [], vrfProofPropose);
+    .proposeReceipt(txId, proposedReceipt, currentBlock, [], vrfProofPropose);
   const proposeReceiptReceipt = await proposeReceipt.wait();
   if (!proposeReceiptReceipt) throw new Error("Transaction proposal failed");
 
@@ -70,7 +72,7 @@ async function main() {
   console.log("Starting ghost deployment and call flow...");
 
   // Get signers
-  const [owner, validator1, validator2, validator3, validator4, validator5, sender] = await hre.ethers.getSigners();
+  const [owner, validator1, validator2, validator3, validator4, validator5] = await hre.ethers.getSigners();
   const validators = [validator1, validator2, validator3, validator4, validator5];
 
   // Get contract instances
@@ -88,11 +90,11 @@ async function main() {
   // 1. Deploy ghost contract
   console.log("\n1. Deploying ghost contract...");
   const deployTx = await consensusMain.addTransaction(
-    sender.address,
-    ethers.ZeroAddress,
-    5,
+    ethers.ZeroAddress, // sender
+    ethers.ZeroAddress, // recipient (will create ghost)
+    5, // number of validators
     maxRotations,
-    "0x1234"
+    "0x1234" // transaction data
   );
   const deployReceipt = await deployTx.wait();
 
@@ -133,9 +135,9 @@ async function main() {
   // 3. Create dummy call through ghost contract
   console.log("\n3. Creating dummy call through ghost contract...");
   const dummyCallTx = await ghost.addTransaction(
-    5,
+    5, // number of validators
     maxRotations,
-    ethers.keccak256(ethers.toUtf8Bytes("dummyFunction()"))
+    ethers.keccak256(ethers.toUtf8Bytes("dummyFunction()")) // encode function selector
   );
   const dummyCallReceipt = await dummyCallTx.wait();
 
@@ -163,6 +165,10 @@ async function main() {
     [321, 654, 987, 1316, 1649] // ghostNonces
   );
   console.log("- Dummy call status:", dummyCallStatus.toString());
+
+  // Get and log transaction data
+  const txData = await consensusData.getTransactionData(dummyCallTxId);
+  console.log("Transaction Data:", txData);
 
   if (deployStatus.toString() === "7" && dummyCallStatus.toString() === "7") {
     console.log("\n¡Ghost deployment and dummy call completed successfully! ✓");
