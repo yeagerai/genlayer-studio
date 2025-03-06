@@ -199,11 +199,11 @@ services:
       - HARDHAT_NETWORK=hardhat
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-X", "POST", "-H", "Content-Type: application/json", "--fail", "http://localhost:8545", "-d", '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}', "-s", "|", "grep", "result"]
-      interval: 60s
-      timeout: 30s
-      retries: 5
-      start_period: 60s
+      test: ["CMD-SHELL", "curl -X POST -H 'Content-Type: application/json' --fail http://localhost:8545 -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}' || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
     labels:
       traefik.enable: true
       traefik.http.routers.hardhat.rule: Host(`${SERVER_NAME}`) && PathPrefix(`/hardhat`)
