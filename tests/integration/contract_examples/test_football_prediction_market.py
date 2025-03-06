@@ -26,10 +26,6 @@ from tests.integration.conftest import (
     get_prompts_from_contract_code,
 )
 
-from tests.integration.conftest import (
-    get_prompts_from_contract_code,
-)
-
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
@@ -70,6 +66,8 @@ def test_football_prediction_market(from_account, setup_validators):
         '"https://www.bbc.com/sport/football/scores-fixtures/" + game_date',
         '"http://nginx-proxy/"',  # Use the service name from docker-compose
     )
+
+    print("modified_contract_code", modified_contract_code)
 
     # Parse prompts from contract code
     prompts = get_prompts_from_contract_code(modified_contract_code)
