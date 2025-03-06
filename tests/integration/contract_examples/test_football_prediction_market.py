@@ -68,11 +68,11 @@ def test_football_prediction_market(from_account, setup_validators):
     contract_code = open("examples/contracts/football_prediction_market.py", "r").read()
     modified_contract_code = contract_code.replace(
         '"https://www.bbc.com/sport/football/scores-fixtures/"',
-        '"http://localhost/"',  # Use localhost since we're accessing through nginx proxy
+        '"http://nginx-proxy/"',  # Use the service name from docker-compose
     )
 
     # Parse prompts from contract code
-    prompts = get_prompts_from_contract_code(contract_code)
+    prompts = get_prompts_from_contract_code(modified_contract_code)
 
     # Mock the validator responses
     responses = {

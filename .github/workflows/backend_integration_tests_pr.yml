@@ -167,6 +167,11 @@ jobs:
               depends_on:
                 - mock-server
 
+            jsonrpc:
+              networks:
+                - test-network
+                - genlayer
+
           networks:
             test-network:
               external: true
