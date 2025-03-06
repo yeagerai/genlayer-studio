@@ -6,8 +6,9 @@ import sys
 
 class MockWebServer(BaseHTTPRequestHandler):
     def do_GET(self):
-        print(f"MockWebServer received request for path: {self.path}")
-        print(f"Headers: {self.headers}")
+        print(f"[DEBUG] MockWebServer received request for path: {self.path}")
+        print(f"[DEBUG] Client address: {self.client_address}")
+        print(f"[DEBUG] Headers: {self.headers}")
 
         mock_response = """
         <html>
@@ -22,11 +23,12 @@ class MockWebServer(BaseHTTPRequestHandler):
         self.send_header("Content-type", "text/html")
         self.end_headers()
         self.wfile.write(mock_response.encode())
-        print("MockWebServer sent response")
+        print("[DEBUG] MockWebServer sent response")
 
 
 def run_server():
     server = HTTPServer(("0.0.0.0", 8000), MockWebServer)
+    print(f"[DEBUG] Starting mock server on 0.0.0.0:8000")
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
     server_thread.start()

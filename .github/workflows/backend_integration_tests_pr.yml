@@ -109,50 +109,80 @@ jobs:
 
       - name: Setup mock server and reverse proxy
         run: |
-          # Start the mock server in the background
-          python test_server.py &
-          MOCK_PID=$!
+          # Create a docker network for testing
+          docker network create test-network
 
-          # Wait for mock server to be ready
-          echo "Waiting for mock server to start..."
-          for i in {1..30}; do
-            if curl -s http://localhost:8000 > /dev/null; then
-              echo "Mock server is up!"
-              break
-            fi
-            sleep 1
-          done
-
-          # Create a docker-compose override file for the nginx proxy
+          # Create a docker-compose override file for the test setup
           cat > docker-compose.override.yml << EOF
           version: '3'
           services:
+            mock-server:
+              build:
+                context: .
+                dockerfile: tests/integration/docker/Dockerfile.mock
+              networks:
+                - test-network
+                - genlayer
+
             nginx-proxy:
               build:
                 context: .
                 dockerfile: tests/integration/docker/Dockerfile.nginx.test
               ports:
                 - "80:80"
-              extra_hosts:
-                - "host.docker.internal:host-gateway"
               networks:
+                - test-network
                 - genlayer
+              depends_on:
+                - mock-server
 
           networks:
+            test-network:
+              name: test-network
             genlayer:
-              name: genlayer
               external: true
           EOF
 
-          # Start the nginx proxy
-          docker compose up -d nginx-proxy
+          # Create Dockerfile for mock server
+          mkdir -p tests/integration/docker
+          cat > tests/integration/docker/Dockerfile.mock << EOF
+          FROM python:3.12.4-slim
+          WORKDIR /app
+          COPY test_server.py .
+          CMD ["python", "test_server.py"]
+          EOF
+
+          # Update nginx test Dockerfile to use mock-server hostname
+          cat > tests/integration/docker/Dockerfile.nginx.test << EOF
+          FROM fabiocicerchia/nginx-lua:1.27.2-almalinux9.4-20240923
+          RUN luarocks install lua-cjson
+          RUN echo 'server { \
+              listen 80; \
+              location / { \
+                  proxy_pass http://mock-server:8000; \
+                  proxy_set_header Host \$host; \
+                  proxy_set_header X-Real-IP \$remote_addr; \
+              } \
+          }' > /etc/nginx/conf.d/default.conf
+          EXPOSE 80
+          EOF
+
+          # Start the services
+          docker compose up -d mock-server nginx-proxy
+
+          # Wait for services to be ready
+          echo "Waiting for mock server and nginx to be ready..."
+          for i in {1..30}; do
+            if curl -s http://localhost/ > /dev/null; then
+              echo "Services are up!"
+              break
+            fi
+            sleep 1
+          done
 
           # Test the setup
-          echo "Testing from host..."
+          echo "Testing setup..."
           curl -v http://localhost/
-
-          # Keep the mock server running for the tests
-          disown $MOCK_PID
 
       - name: Run tests
         run: |
@@ -161,8 +191,8 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          # Kill the mock server if it's still running
-          pkill -f "python test_server.py" || true
+          docker compose down
+          docker network rm test-network || true
 
       - name: Show nginx logs on failure
         if: failure()
