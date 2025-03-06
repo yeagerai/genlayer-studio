@@ -172,6 +172,11 @@ jobs:
                 - test-network
                 - genlayer
 
+            webrequest:
+              networks:
+                - test-network
+                - genlayer
+
           networks:
             test-network:
               external: true

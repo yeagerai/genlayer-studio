@@ -5,10 +5,17 @@ import sys
 
 
 class MockWebServer(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        """Override to ensure all logs are printed to stdout"""
+        print("[DEBUG-MOCK-SERVER] %s - - %s" % (self.address_string(), format % args))
+
     def do_GET(self):
-        print(f"[DEBUG] MockWebServer received request for path: {self.path}")
-        print(f"[DEBUG] Client address: {self.client_address}")
-        print(f"[DEBUG] Headers: {self.headers}")
+        print("[DEBUG-MOCK-SERVER] -------- New Request --------")
+        print(f"[DEBUG-MOCK-SERVER] Path: {self.path}")
+        print(f"[DEBUG-MOCK-SERVER] Client: {self.client_address}")
+        print("[DEBUG-MOCK-SERVER] Headers:")
+        for header, value in self.headers.items():
+            print(f"[DEBUG-MOCK-SERVER]   {header}: {value}")
 
         # Return the same response regardless of the path
         mock_response = """
@@ -31,12 +38,13 @@ class MockWebServer(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(mock_response.encode())))
         self.end_headers()
         self.wfile.write(mock_response.encode())
-        print("[DEBUG] MockWebServer sent response")
+        print("[DEBUG-MOCK-SERVER] Response sent successfully")
+        print("[DEBUG-MOCK-SERVER] -----------------------------")
 
 
 def run_server():
     server = HTTPServer(("0.0.0.0", 8000), MockWebServer)
-    print(f"[DEBUG] Starting mock server on 0.0.0.0:8000")
+    print(f"[DEBUG-MOCK-SERVER] Starting mock server on 0.0.0.0:8000")
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
