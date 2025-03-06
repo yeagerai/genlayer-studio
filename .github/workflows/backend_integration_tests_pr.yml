@@ -112,7 +112,33 @@ jobs:
           # Remove existing network if it exists
           docker network rm test-network || true
 
-          # Create a docker-compose override file for the test setup
+          # Create directories for test files
+          mkdir -p tests/integration/docker
+
+          # Create Dockerfile for mock server
+          cat > tests/integration/docker/Dockerfile.mock << EOF
+          FROM python:3.12.4-slim
+          WORKDIR /app
+          COPY test_server.py .
+          CMD ["python", "test_server.py"]
+          EOF
+
+          # Create Dockerfile for nginx proxy
+          cat > tests/integration/docker/Dockerfile.nginx.test << EOF
+          FROM fabiocicerchia/nginx-lua:1.27.2-almalinux9.4-20240923
+          RUN luarocks install lua-cjson
+          RUN echo 'server { \
+              listen 80; \
+              location / { \
+                  proxy_pass http://mock-server:8000; \
+                  proxy_set_header Host \$host; \
+                  proxy_set_header X-Real-IP \$remote_addr; \
+              } \
+          }' > /etc/nginx/conf.d/default.conf
+          EXPOSE 80
+          EOF
+
+          # Create docker-compose override file
           cat > docker-compose.override.yml << EOF
           version: '3.8'
           services:
@@ -141,30 +167,6 @@ jobs:
               driver: bridge
             genlayer:
               external: true
-          EOF
-
-          # Create Dockerfile for mock server
-          mkdir -p tests/integration/docker
-          cat > tests/integration/docker/Dockerfile.mock << EOF
-          FROM python:3.12.4-slim
-          WORKDIR /app
-          COPY test_server.py .
-          CMD ["python", "test_server.py"]
-          EOF
-
-          # Update nginx test Dockerfile to use mock-server hostname
-          cat > tests/integration/docker/Dockerfile.nginx.test << EOF
-          FROM fabiocicerchia/nginx-lua:1.27.2-almalinux9.4-20240923
-          RUN luarocks install lua-cjson
-          RUN echo 'server { \
-              listen 80; \
-              location / { \
-                  proxy_pass http://mock-server:8000; \
-                  proxy_set_header Host \$host; \
-                  proxy_set_header X-Real-IP \$remote_addr; \
-              } \
-          }' > /etc/nginx/conf.d/default.conf
-          EXPOSE 80
           EOF
 
           # Start the services
