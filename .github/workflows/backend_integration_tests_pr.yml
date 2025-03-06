@@ -96,9 +96,7 @@ jobs:
                   proxy_set_header X-Real-IP \$remote_addr; \
                   proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; \
                   proxy_set_header X-Forwarded-Proto \$scheme; \
-                  # Add debug headers \
                   add_header X-Debug-Message "Request proxied to mock-server" always; \
-                  # Log the proxy status \
                   access_log /dev/stdout combined buffer=512k flush=1s; \
               } \
           }' > /etc/nginx/conf.d/default.conf
@@ -107,7 +105,6 @@ jobs:
 
           # Create docker-compose override file
           cat > docker-compose.override.yml << EOF
-          version: '3.8'
           services:
             mock-server:
               build:
@@ -115,7 +112,6 @@ jobs:
                 dockerfile: tests/integration/docker/Dockerfile.mock
               networks:
                 - test-network
-                - genlayer
               container_name: mock-server
 
             nginx-proxy:
@@ -126,37 +122,53 @@ jobs:
                 - "80:80"
               networks:
                 - test-network
-                - genlayer
               depends_on:
                 - mock-server
               container_name: nginx-proxy
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:80"]
+                interval: 5s
+                timeout: 3s
+                retries: 3
 
             hardhat:
               networks:
                 - test-network
-                - genlayer
               container_name: genlayer-studio-hardhat-1
 
             jsonrpc:
               networks:
                 - test-network
-                - genlayer
               container_name: jsonrpc
-              depends_on:
-                hardhat:
-                  condition: service_healthy
 
             webrequest:
               networks:
                 - test-network
-                - genlayer
               container_name: webrequest
+
+            postgres:
+              networks:
+                - test-network
+              container_name: genlayer-studio-postgres-1
+
+            database-migration:
+              networks:
+                - test-network
+              container_name: genlayer-studio-database-migration-1
+
+            ollama:
+              networks:
+                - test-network
+              container_name: ollama
+
+            frontend:
+              networks:
+                - test-network
+              container_name: frontend
 
           networks:
             test-network:
               name: test-network
-            genlayer:
-              name: genlayer
           EOF
 
       - name: Build Docker images
@@ -198,7 +210,10 @@ jobs:
           # Final verification of mock server response
           echo "Verifying mock server response..."
           for i in {1..10}; do
-            if curl -s http://localhost/ | grep -q "Georgia 2 - 0 Portugal"; then
+            response=$(curl -s http://localhost/)
+            echo "Response received:"
+            echo "$response"
+            if echo "$response" | grep -q "Georgia 2 - 0 Portugal"; then
               echo "Mock server is returning expected content!"
               exit 0
             fi
@@ -207,7 +222,9 @@ jobs:
           done
 
           echo "Error: Mock server not returning expected content"
+          echo "Mock server logs:"
           docker compose logs mock-server
+          echo "Nginx proxy logs:"
           docker compose logs nginx-proxy
           exit 1
 
