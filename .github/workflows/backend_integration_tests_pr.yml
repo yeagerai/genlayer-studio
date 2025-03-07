@@ -34,6 +34,7 @@ jobs:
 
     env:
       PYTHONPATH: ${{ github.workspace }}
+      DOCKER_COMPOSE_CMD: "docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml"
 
     steps:
       - name: Checkout code
@@ -70,12 +71,10 @@ jobs:
             ${{ runner.os }}-buildx-
 
       - name: Build Docker images
-        run: |
-          DOCKER_COMPOSE_CMD="docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml"
-          $DOCKER_COMPOSE_CMD build
+        run: eval "$DOCKER_COMPOSE_CMD build"
 
       - name: Run Docker Compose
-        run: $DOCKER_COMPOSE_CMD up -d
+        run: eval "$DOCKER_COMPOSE_CMD up -d"
 
       - name: Wait for services to be up
         timeout-minutes: 5
@@ -113,13 +112,13 @@ jobs:
         run: pytest tests/integration/contract_examples/test_football_prediction_market.py -svv
 
       - name: Dump Docker Compose logs
-        run: $DOCKER_COMPOSE_CMD logs
         if: failure()
+        run: eval "$DOCKER_COMPOSE_CMD logs"
 
       - name: Shutdown Docker Compose
         if: always()
         run: |
-          $DOCKER_COMPOSE_CMD down --remove-orphans
+          eval "$DOCKER_COMPOSE_CMD down --remove-orphans"
           docker network rm test-network || true
 
   db-integration-test:
