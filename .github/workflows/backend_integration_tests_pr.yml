@@ -70,7 +70,7 @@ jobs:
             ${{ runner.os }}-buildx-
 
       - name: Build Docker images
-        run: docker compose build
+        run: docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml build
 
       - name: Run Docker Compose
         run: docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml up -d
@@ -78,6 +78,9 @@ jobs:
       - name: Wait for services to be ready and verify the complete setup
         timeout-minutes: 5
         run: |
+          # Store docker compose command with all config files
+          DOCKER_COMPOSE_CMD="docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml"
+
           # Function to check service readiness
           check_service() {
             local service=$1
@@ -85,7 +88,7 @@ jobs:
             local attempt=1
 
             while [ $attempt -le $max_attempts ]; do
-              if docker compose logs $service | grep -q "$2"; then
+              if $DOCKER_COMPOSE_CMD logs $service | grep -q "$2"; then
                 echo "$service is ready!"
                 return 0
               fi
@@ -95,7 +98,7 @@ jobs:
             done
 
             echo "Error: $service failed to become ready"
-            docker compose logs $service
+            $DOCKER_COMPOSE_CMD logs $service
             return 1
           }
 
@@ -121,9 +124,9 @@ jobs:
 
           echo "Error: Mock server not returning expected content"
           echo "Mock server logs:"
-          docker compose logs mock-server
+          $DOCKER_COMPOSE_CMD logs mock-server
           echo "Nginx proxy logs:"
-          docker compose logs nginx-proxy
+          $DOCKER_COMPOSE_CMD logs nginx-proxy
           exit 1
 
       - name: Set up Python
@@ -143,12 +146,12 @@ jobs:
 
       - name: Dump Docker Compose logs
         if: always()
-        run: docker compose logs
+        run: docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml logs
 
       - name: Cleanup
         if: always()
         run: |
-          docker compose down --remove-orphans
+          docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml down --remove-orphans
           docker network rm test-network || true
 
       - name: Show nginx logs on failure
@@ -161,7 +164,7 @@ jobs:
 
       - name: Shutdown Docker Compose
         if: always()
-        run: docker compose down
+        run: docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml down
 
   db-integration-test:
     needs: triggers
