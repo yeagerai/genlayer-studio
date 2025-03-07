@@ -6,6 +6,8 @@ module.exports = buildModule("DeployFixture", (m) => {
     const validator1 = m.getAccount(1);
     const validator2 = m.getAccount(2);
     const validator3 = m.getAccount(3);
+    const validator4 = m.getAccount(4);
+    const validator5 = m.getAccount(5);
 
     // Deploy base contracts
     const GhostContract = m.contract("GhostContract");
@@ -52,26 +54,14 @@ module.exports = buildModule("DeployFixture", (m) => {
     });
 
     // Set up contract connections
-    const setGhostFactory = m.call(ConsensusMain, "setGhostFactory", [GhostFactory], {
+    const setExternalContracts = m.call(ConsensusMain, "setExternalContracts", [GhostFactory, ConsensusManager, Transactions, Queues, MockGenStaking, Messages], {
         after: [initConsensusMain]
-    });
-    const setGenStaking = m.call(ConsensusMain, "setGenStaking", [MockGenStaking], {
-        after: [setGhostFactory]
-    });
-    const setGenQueue = m.call(ConsensusMain, "setGenQueue", [Queues], {
-        after: [setGenStaking]
-    });
-    const setGenTransactions = m.call(ConsensusMain, "setGenTransactions", [Transactions], {
-        after: [setGenQueue]
-    });
-    const setGenMessages = m.call(ConsensusMain, "setGenMessages", [Messages], {
-        after: [setGenTransactions]
     });
 
     // Deploy and initialize ConsensusData
     const ConsensusData = m.contract("ConsensusData");
     const initConsensusData = m.call(ConsensusData, "initialize", [ConsensusMain, Transactions, Queues], {
-        after: [setGenMessages]
+        after: [setExternalContracts]
     });
 
     // Set remaining connections
@@ -90,13 +80,16 @@ module.exports = buildModule("DeployFixture", (m) => {
     const setGenTransactionsByMessages = m.call(Messages, "setGenTransactions", [Transactions], {
         after: [setGenConsensusByMessages]
     });
-    const setAcceptanceTimeout = m.call(ConsensusMain, "setAcceptanceTimeout", [0], {
+    const setGenStakingByTransactions = m.call(Transactions, "setGenStaking", [MockGenStaking], {
         after: [setGenTransactionsByMessages]
+    });
+    const setTimeoutByConsensusMain = m.call(ConsensusMain, "setTimeouts", [0, 0, 0, 0, 0], {
+        after: [setGenStakingByTransactions]
     });
 
     // Setup validators
-    const addValidators = m.call(MockGenStaking, "addValidators", [[validator1, validator2, validator3]], {
-        after: [setAcceptanceTimeout]
+    const addValidators = m.call(MockGenStaking, "addValidators", [[validator1, validator2, validator3, validator4, validator5]], {
+        after: [setTimeoutByConsensusMain]
     });
 
     // Verify validators are correctly set up
@@ -110,7 +103,6 @@ module.exports = buildModule("DeployFixture", (m) => {
         after: [verifyValidatorCount],
         id: "verifyValidator1"
     });
-
     const verifyValidator2 = m.call(MockGenStaking, "isValidator", [validator2], {
         after: [verifyValidator1],
         id: "verifyValidator2"
@@ -119,14 +111,13 @@ module.exports = buildModule("DeployFixture", (m) => {
         after: [verifyValidator2],
         id: "verifyValidator3"
     });
-
-    // Add Appeals contract deployment
-    const Appeals = m.contract("Appeals");
-    const initAppeals = m.call(Appeals, "initialize", [], {
-        after: [Appeals]
+    const verifyValidator4 = m.call(MockGenStaking, "isValidator", [validator4], {
+        after: [verifyValidator3],
+        id: "verifyValidator4"
     });
-    const setGenAppealsByConsensusMain = m.call(ConsensusMain, "setGenAppeals", [Appeals], {
-        after: [initAppeals]
+    const verifyValidator5 = m.call(MockGenStaking, "isValidator", [validator5], {
+        after: [verifyValidator4],
+        id: "verifyValidator5"
     });
 
 
@@ -140,7 +131,6 @@ module.exports = buildModule("DeployFixture", (m) => {
         Queues,
         Transactions,
         Messages,
-        ConsensusData,
-        Appeals
+        ConsensusData
     };
 });

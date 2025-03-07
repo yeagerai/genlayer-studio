@@ -9,6 +9,9 @@ interface ITransactions {
 		address recipient;
 		uint256 numOfInitialValidators;
 		uint256 txSlot;
+		address activator;
+		TransactionStatus status;
+		TransactionStatus previousStatus;
 		uint256 timestamp;
 		uint256 activationTimestamp;
 		uint256 lastModification;
@@ -19,11 +22,27 @@ interface ITransactions {
 		bytes txData;
 		bytes txReceipt;
 		IMessages.SubmittedMessage[] messages;
-		address[] validators;
+		address[] consumedValidators;
+		RoundData[] roundData;
+	}
+
+	struct RoundData {
+		uint256 round;
+		uint256 leaderIndex;
+		uint256 votesCommitted;
+		uint256 votesRevealed;
+		uint256 appealBond;
+		uint256 rotationsLeft;
+		ResultType result;
+		address[] roundValidators;
 		bytes32[] validatorVotesHash;
 		VoteType[] validatorVotes;
-		address[] consumedValidators;
-		uint256 rotationsLeft;
+	}
+
+	struct NewRoundData {
+		uint256 round;
+		uint256 leaderIndex;
+		address[] roundValidators;
 	}
 
 	struct ActivationInfo {
@@ -35,16 +54,17 @@ interface ITransactions {
 	}
 
 	enum TransactionStatus {
-		Pending,
-		Proposing,
-		Committing,
-		Revealing,
-		Accepted,
-		Undetermined,
-		Finalized,
-		Canceled,
-		AppealRevealing,
-		AppealCommitting
+		Uninitialized, // 0
+		Pending, // 1
+		Proposing, // 2
+		Committing, // 3
+		Revealing, // 4
+		Accepted, // 5
+		Undetermined, // 6
+		Finalized, // 7
+		Canceled, // 8
+		AppealRevealing, // 9
+		AppealCommitting // 10
 	}
 	enum VoteType {
 		NotVoted,
@@ -69,19 +89,13 @@ interface ITransactions {
 		bytes32 txId,
 		Transaction memory newTx
 	) external returns (bytes32);
-	function getTransactionSeed(bytes32 txId) external view returns (bytes32);
+	function getTransactionStatus(
+		bytes32 txId
+	) external view returns (TransactionStatus status);
 
 	function getTransaction(
 		bytes32 txId
 	) external view returns (Transaction memory);
-
-	function getTransactionActivationInfo(
-		bytes32 txId
-	) external view returns (ActivationInfo memory);
-
-	function getTransactionResult(
-		bytes32 txId
-	) external view returns (ResultType result);
 
 	function hasOnAcceptanceMessages(
 		bytes32 _tx_id
@@ -96,85 +110,92 @@ interface ITransactions {
 		address _validator
 	) external view returns (bool);
 
-	function getAppealInfo(
+	function getValidatorsForTransactionLastRound(
 		bytes32 _tx_id
-	) external view returns (uint256 minAppealBond, bytes32 randomSeed);
+	) external view returns (address[] memory txValidators);
+
+	function getValidatorsForLastAppeal(
+		bytes32 _tx_id
+	) external view returns (address[] memory appealValidators);
+
+	function getLastAppealResult(
+		bytes32 _tx_id
+	) external view returns (ResultType result);
 
 	function getTransactionRecipient(
 		bytes32 txId
 	) external view returns (address recipient);
 
+	function activateTransaction(
+		bytes32 txId,
+		address activator,
+		bytes32 randomSeed
+	)
+		external
+		returns (
+			address recepient,
+			uint256 leaderIndex,
+			address[] memory validators
+		);
+
 	function proposeTransactionReceipt(
 		bytes32 _tx_id,
+		address _leader,
 		bytes calldata _txReceipt,
 		IMessages.SubmittedMessage[] calldata _messages
-	) external;
+	)
+		external
+		returns (
+			address recipient,
+			bool leaderTimeout,
+			address newLeader,
+			uint round
+		);
 
 	function commitVote(
 		bytes32 _tx_id,
 		bytes32 _commitHash,
 		address _validator
-	) external;
+	) external returns (bool isLastVote);
 
 	function revealVote(
 		bytes32 _tx_id,
 		bytes32 _voteHash,
 		VoteType _voteType,
 		address _validator
-	) external returns (bool isLastVote, ResultType result);
+	)
+		external
+		returns (
+			bool isLastVote,
+			ResultType result,
+			address recipient,
+			uint round,
+			bool hasMessagesOnAcceptance,
+			uint rotationsLeft,
+			NewRoundData memory newRoundData
+		);
 
-	function setAppealData(
+	function finalizeTransaction(
+		bytes32 _tx_id
+	) external returns (address recipient, uint256 lastVoteTimestamp);
+
+	function cancelTransaction(
 		bytes32 _tx_id,
-		address[] memory _validators
-	) external returns (uint256 appealIndex);
+		address _sender
+	) external returns (address recipient);
 
-	function emitMessagesOnFinalization(bytes32 _tx_id) external;
+	function submitAppeal(
+		bytes32 _tx_id,
+		uint256 _appealBond
+	) external returns (address[] memory appealValidators, uint round);
+
+	function rotateLeader(bytes32 txId) external returns (address);
+
 	function getMessagesForTransaction(
 		bytes32 _tx_id
 	) external view returns (IMessages.SubmittedMessage[] memory);
 
-	function getTransactionLastVoteTimestamp(
-		bytes32 _tx_id
-	) external view returns (uint256);
-
-	function setActivationData(bytes32 txId, bytes32 randomSeed) external;
-	function setRandomSeed(bytes32 txId, bytes32 randomSeed) external;
-
-	function setActivationTimestamp(bytes32 txId, uint256 timestamp) external;
-
-	function decreaseRotationsLeft(bytes32 txId) external;
-
-	function addConsumedValidator(bytes32 txId, address validator) external;
-
-	function setValidators(bytes32 txId, address[] memory validators) external;
-
-	function getValidators(
-		bytes32 txId
-	) external view returns (address[] memory);
-
-	function getValidator(
-		bytes32 txId,
-		uint256 index
-	) external view returns (address);
-
-	function getValidatorsLen(bytes32 txId) external view returns (uint256);
-
-	function getConsumedValidators(
-		bytes32 txId
-	) external view returns (address[] memory);
-
-	function getConsumedValidatorsLen(
+	function getTransactionLastModification(
 		bytes32 txId
 	) external view returns (uint256);
-
-	function addValidator(bytes32 txId, address validator) external;
-
-	function resetVotes(bytes32 txId) external;
-
-	function rotateLeader(bytes32 txId, address leader) external;
-
-	function addConsumedValidators(
-		bytes32 txId,
-		address[] memory validators
-	) external;
 }
