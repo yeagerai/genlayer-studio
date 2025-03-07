@@ -8,12 +8,6 @@ services:
     networks:
       - test-network
     container_name: mock-server
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
 
   nginx-proxy:
     build:
@@ -24,15 +18,13 @@ services:
     networks:
       - test-network
     depends_on:
-      mock-server:
-        condition: service_healthy
+      - mock-server
     container_name: nginx-proxy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 5s
       timeout: 3s
-      retries: 5
-      start_period: 10s
+      retries: 3
 
   hardhat:
     networks:

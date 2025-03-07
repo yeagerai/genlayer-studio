@@ -1,6 +1,7 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 import os
+import time
 from dotenv import load_dotenv
 
 
@@ -56,3 +57,8 @@ def stop_server(server: HTTPServer | None, server_thread: threading.Thread | Non
 if __name__ == "__main__":
     load_dotenv()
     server, server_thread = run_server()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        stop_server(server, server_thread)
