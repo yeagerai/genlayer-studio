@@ -55,7 +55,7 @@ jobs:
           if [[ "${{ needs.triggers.outputs.is_pull_request_review_approved }}" == "true" ]]; then
             echo "TEST_WITH_MOCK_LLMS=false" >> .env
           else
-            echo "TEST_WITH_MOCK_LLMS=true" >> .env
+            echo "TEST_WITH_MOCK_LLMS=false" >> .env
           fi
           echo "TEST_INTEGRATION=true" >> .env
 
