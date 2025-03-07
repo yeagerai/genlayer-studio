@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: tests/integration/docker/Dockerfile.mock
+    environment:
+      - TEST_CI=true
     networks:
       - test-network
     container_name: mock-server
