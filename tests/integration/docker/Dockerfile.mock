@@ -1,7 +1,3 @@
 FROM python:3.12.4-slim
-
-RUN mkdir -p tests/integration
-COPY tests/integration/conftest.py tests/integration/
 COPY tests/integration/docker/test_server.py .
-
 CMD ["python", "test_server.py"]

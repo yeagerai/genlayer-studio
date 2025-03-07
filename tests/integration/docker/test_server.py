@@ -1,6 +1,6 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
-from tests.integration.conftest import parse_bool_env_var
+import os
 
 
 class MockWebServer(BaseHTTPRequestHandler):
@@ -19,6 +19,16 @@ class MockWebServer(BaseHTTPRequestHandler):
         self.send_header("Content-type", "text/html")
         self.end_headers()
         self.wfile.write(mock_response.encode())
+
+
+def parse_bool_env_var(env_var: str, default: str) -> bool:
+    env_var = os.getenv(env_var, default)
+    if env_var == "true":
+        return True
+    elif env_var == "false":
+        return False
+    else:
+        raise ValueError(f"{env_var} must be true or false")
 
 
 def run_server():

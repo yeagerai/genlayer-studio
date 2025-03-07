@@ -24,10 +24,13 @@ from tests.common.response import (
 
 from tests.integration.conftest import (
     get_prompts_from_contract_code,
-    parse_bool_env_var,
 )
 
-from tests.integration.docker.test_server import run_server, stop_server
+from tests.integration.docker.test_server import (
+    run_server,
+    stop_server,
+    parse_bool_env_var,
+)
 
 
 def test_football_prediction_market(from_account, setup_validators):

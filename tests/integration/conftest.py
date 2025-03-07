@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from tests.common.accounts import create_new_account
 from tests.common.request import payload, post_request_localhost
 from tests.common.response import has_success_status
+from tests.integration.docker.test_server import parse_bool_env_var
 
 
 def setup_openai_validators():
@@ -63,16 +64,6 @@ def cleanup_mock_validators():
                 payload("sim_deleteProvider", provider["id"])
             ).json()
             assert has_success_status(response)
-
-
-def parse_bool_env_var(env_var: str, default: str) -> bool:
-    env_var = os.getenv(env_var, default)
-    if env_var == "true":
-        return True
-    elif env_var == "false":
-        return False
-    else:
-        raise ValueError(f"{env_var} must be true or false")
 
 
 @pytest.fixture
