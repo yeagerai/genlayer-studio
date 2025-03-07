@@ -38,7 +38,6 @@ def run_server():
         port = 8000  # CI does not have permissions to use 80
     else:
         port = 80  # to run locally, no reverse proxy needed
-    print("bla run_server", port)
     server = HTTPServer(("0.0.0.0", port), MockWebServer)
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
@@ -58,7 +57,7 @@ if __name__ == "__main__":
     load_dotenv()
     server, server_thread = run_server()
     try:
-        while True:
+        while True:  # keep server running until test is finished
             time.sleep(1)
     except KeyboardInterrupt:
         stop_server(server, server_thread)
