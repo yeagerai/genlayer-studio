@@ -6,14 +6,6 @@ import json
 load_dotenv(".env.example")
 load_dotenv()
 
-res_selenium = requests.get(
-    f"http://0.0.0.0:{os.environ['WEBREQUESTSELENIUMPORT']}/status"
-).json()
-if res_selenium["value"]["ready"] != True:
-    print("selenium is not ready")
-    exit(1)
-
-
 _webrequest_url: str = (
     os.environ["WEBREQUESTPROTOCOL"]
     + "://"
