@@ -289,7 +289,7 @@ class Node:
                     "path": "${genvmRoot}/lib/genvm-modules/",
                     "id": "web",
                     "config": {
-                        "host": f"{os.environ['WEBREQUESTPROTOCOL']}://{os.environ['WEBREQUESTHOST']}:{os.environ['WEBREQUESTSELENIUMPORT']}"
+                        "host": f"{os.environ['WEBREQUESTPROTOCOL']}://{os.environ['WEBDRIVERHOST']}:{os.environ['WEBDRIVERPORT']}"
                     },
                 },
             ]
