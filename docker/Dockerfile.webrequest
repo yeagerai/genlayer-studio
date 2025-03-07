@@ -30,36 +30,9 @@ RUN chown -R appuser:appuser $base
 
 USER appuser
 WORKDIR $base
-
-# Add debug logging wrapper
-RUN mkdir -p $base/$path && echo 'import logging\n\
-logging.basicConfig(\n\
-    level=logging.DEBUG,\n\
-    format="[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",\n\
-    force=True\n\
-)\n\
-logger = logging.getLogger("webrequest")\n\
-\n\
-def debug_selenium():\n\
-    selenium_logger = logging.getLogger("selenium")\n\
-    selenium_logger.setLevel(logging.DEBUG)\n\
-    webdriver_logger = logging.getLogger("selenium.webdriver")\n\
-    webdriver_logger.setLevel(logging.DEBUG)\n\
-\n\
-debug_selenium()\n' > $base/$path/debug_logging.py
-
 COPY --chown=appuser:appuser $path $base/$path
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --cache-dir=/root/.cache/pip -r $path/requirements.txt && \
-    # Add import of debug logging to server.py
-    sed -i '1i import debug_logging  # Enable debug logging\' $base/$path/server.py && \
-    # Add debug logging to JSONRPC methods
-    sed -i '/def llm_plugin_call/i \    logger.debug("Starting llm_plugin_call with plugin_id: %s", plugin_id)\n' $base/$path/server.py && \
-    sed -i '/def llm_genvm_module_call/i \    logger.debug("Starting llm_genvm_module_call with model: %s", encoded_model)\n' $base/$path/server.py && \
-    sed -i '/def status/i \    logger.debug("Status check called with: %s", x)\n' $base/$path/server.py && \
-    # Add logging to return functions
-    sed -i '/def return_success/i \    logger.debug("Returning success: %s", data)\n' $base/$path/server.py && \
-    sed -i '/def return_error/i \    logger.debug("Returning error: %s", message)\n' $base/$path/server.py
+    pip install --cache-dir=/root/.cache/pip -r $path/requirements.txt
 
 # TODO: download and cache webdriver here
 
