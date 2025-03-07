@@ -39,8 +39,8 @@ ADD --checksum=sha256:b820be8f77e9b03eda7c68ee85263f58109b631f8e12e6e5d4fb580aeb
     https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.35/linux64/chromedriver-linux64.zip \
     /download/chrome-driver.zip
 
-ADD --checksum=sha256:a20dd194f6d153b323e45f90275714de495b5d22f1587e1970d8e0a611c190c5 \
-    https://github.com/SeleniumHQ/selenium/releases/download/selenium-4.29.0/selenium-server-4.29.0.jar \
+ADD --checksum=sha256:aa3bd6e9820a359a54da0cf06836ad42a7555ee13b5235ff60228f637db9bb57 \
+    https://github.com/SeleniumHQ/selenium/releases/download/selenium-4.24.0/selenium-server-4.24.0.jar \
     /download/selenium-server.jar
 
 COPY ./$path /src
