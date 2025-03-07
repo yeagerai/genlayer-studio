@@ -118,8 +118,7 @@ jobs:
       - name: Shutdown Docker Compose
         if: always()
         run: |
-          eval "$DOCKER_COMPOSE_CMD down --remove-orphans"
-          docker network rm test-network || true
+          eval "$DOCKER_COMPOSE_CMD down"
 
   db-integration-test:
     needs: triggers
