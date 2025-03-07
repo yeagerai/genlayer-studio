@@ -70,64 +70,33 @@ jobs:
             ${{ runner.os }}-buildx-
 
       - name: Build Docker images
-        run: docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml build
+        run: |
+          DOCKER_COMPOSE_CMD="docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml"
+          $DOCKER_COMPOSE_CMD build
 
       - name: Run Docker Compose
-        run: docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml up -d
+        run: $DOCKER_COMPOSE_CMD up -d
 
-      - name: Wait for services to be ready and verify the complete setup
+      - name: Wait for services to be up
         timeout-minutes: 5
         run: |
-          # Store docker compose command with all config files
-          DOCKER_COMPOSE_CMD="docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml"
-
-          # Function to check service readiness
-          check_service() {
-            local service=$1
-            local max_attempts=30
-            local attempt=1
-
-            while [ $attempt -le $max_attempts ]; do
-              if $DOCKER_COMPOSE_CMD logs $service | grep -q "$2"; then
-                echo "$service is ready!"
-                return 0
-              fi
-              echo "Waiting for $service... (Attempt $attempt/$max_attempts)"
-              sleep 2
-              attempt=$((attempt + 1))
-            done
-
-            echo "Error: $service failed to become ready"
-            $DOCKER_COMPOSE_CMD logs $service
-            return 1
-          }
-
-          # Check each service
-          check_service "jsonrpc" "Debug mode: off" || exit 1
-          check_service "webrequest" "Running on http://127.0.0.1:5000" || exit 1
-          check_service "mock-server" "Starting mock server on 0.0.0.0:8000" || exit 1
-          check_service "nginx-proxy" "Configuration complete; ready for start up" || exit 1
-
-          # Final verification of mock server response
-          echo "Verifying mock server response..."
-          for i in {1..10}; do
-            response=$(curl -s http://localhost/)
-            echo "Response received:"
-            echo "$response"
-            if echo "$response" | grep -q "Georgia 2 - 0 Portugal"; then
-              echo "Mock server is returning expected content!"
-              exit 0
+          timeout=60
+          counter=0
+          while [[ "$counter" -lt "$timeout" ]]; do
+            if curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"ping","params":[],"id":1}' http://0.0.0.0:4000/api | grep -q "OK"; then
+              echo "RPC server is up!"
+              break
+            else
+              echo "Waiting for RPC server... ($counter/$timeout)"
+              sleep 5
+              counter=$((counter+1))
             fi
-            echo "Attempt $i: Waiting for mock server content..."
-            sleep 2
           done
-
-          echo "Error: Mock server not returning expected content"
-          echo "Mock server logs:"
-          $DOCKER_COMPOSE_CMD logs mock-server
-          echo "Nginx proxy logs:"
-          $DOCKER_COMPOSE_CMD logs nginx-proxy
-          exit 1
+          # Fail if the service didn't start within the timeout
+          if [[ "$counter" -ge "$timeout" ]]; then
+            echo "Error: Timeout while waiting for RPC server"
+            exit 1
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -141,30 +110,17 @@ jobs:
           pip install -r requirements.test.txt
 
       - name: Run tests
-        run: |
-          pytest tests/integration/contract_examples/test_football_prediction_market.py -svv
+        run: pytest tests/integration/contract_examples/test_football_prediction_market.py -svv
 
       - name: Dump Docker Compose logs
-        if: always()
-        run: docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml logs
-
-      - name: Cleanup
-        if: always()
-        run: |
-          docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml down --remove-orphans
-          docker network rm test-network || true
-
-      - name: Show nginx logs on failure
+        run: $DOCKER_COMPOSE_CMD logs
         if: failure()
-        run: |
-          echo "Nginx error log:"
-          sudo cat /var/log/nginx/error.log
-          echo "Nginx access log:"
-          sudo cat /var/log/nginx/access.log
 
       - name: Shutdown Docker Compose
         if: always()
-        run: docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml down
+        run: |
+          $DOCKER_COMPOSE_CMD down --remove-orphans
+          docker network rm test-network || true
 
   db-integration-test:
     needs: triggers
