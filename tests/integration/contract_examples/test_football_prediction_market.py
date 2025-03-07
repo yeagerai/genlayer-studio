@@ -39,6 +39,8 @@ def test_football_prediction_market(from_account, setup_validators):
     else:
         server, server_thread = None, None
 
+    print("bla test server", server)
+
     try:
         # Get contract schema
         contract_code = open(
@@ -53,6 +55,8 @@ def test_football_prediction_market(from_account, setup_validators):
                 '"https://www.bbc.com/sport/football/scores-fixtures/" + game_date',
                 url_replacement_str,
             )
+
+        print("bla modified contract code", modified_contract_code)
 
         # Parse prompts from contract code
         prompts = get_prompts_from_contract_code(modified_contract_code)

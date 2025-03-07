@@ -36,6 +36,7 @@ def run_server():
         port = 8000  # CI does not have permissions to use 80
     else:
         port = 80  # to run locally, no reverse proxy needed
+    print("bla run_server", port)
     server = HTTPServer(("0.0.0.0", port), MockWebServer)
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
