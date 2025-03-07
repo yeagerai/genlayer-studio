@@ -34,7 +34,7 @@ from tests.integration.docker.test_server import (
 
 
 def test_football_prediction_market(from_account, setup_validators):
-    if parse_bool_env_var("TEST_WITH_MOCK_WEBREQUEST", "true"):
+    if not parse_bool_env_var("TEST_CI", "false"):
         server, server_thread = run_server()
     else:
         server, server_thread = None, None
