@@ -65,20 +65,20 @@ def cleanup_mock_validators():
             assert has_success_status(response)
 
 
-def mock_llms():
-    env_var = os.getenv("TEST_WITH_MOCK_LLMS", "false")  # default no mocking
+def parse_bool_env_var(env_var: str, default: str) -> bool:
+    env_var = os.getenv(env_var, default)
     if env_var == "true":
         return True
     elif env_var == "false":
         return False
     else:
-        raise ValueError("TEST_WITH_MOCK_LLMS must be true or false")
+        raise ValueError(f"{env_var} must be true or false")
 
 
 @pytest.fixture
 def setup_validators():
     def _setup(responses=None, eq_result=True):
-        if mock_llms():
+        if parse_bool_env_var("TEST_WITH_MOCK_LLMS", "true"):
             setup_mock_validators(responses if responses else {}, eq_result)
         else:
             setup_openai_validators()
@@ -86,7 +86,7 @@ def setup_validators():
     yield _setup
 
     delete_validators()
-    if mock_llms():
+    if parse_bool_env_var("TEST_WITH_MOCK_LLMS", "true"):
         cleanup_mock_validators()
 
 
