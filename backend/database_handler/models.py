@@ -1,5 +1,4 @@
 from typing import List, Optional
-
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -14,6 +13,7 @@ from sqlalchemy import (
     text,
     ForeignKey,
     Text,
+    create_engine,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import (
@@ -22,9 +22,44 @@ from sqlalchemy.orm import (
     mapped_column,
     MappedAsDataclass,
     relationship,
+    sessionmaker,
+    scoped_session,
 )
+from contextlib import contextmanager
+from os import environ
 import datetime
 import enum
+
+
+def get_db_name(database: str) -> str:
+    return "genlayer_state" if database == "genlayer" else database
+
+
+database_name_seed = "genlayer"
+db_uri = f"postgresql+psycopg2://{environ.get('DBUSER')}:{environ.get('DBPASSWORD')}@{environ.get('DBHOST')}/{get_db_name(database_name_seed)}"
+engine = create_engine(db_uri, echo=True, pool_size=50, max_overflow=50)
+
+# setup scoped session
+SessionFactory = sessionmaker(bind=engine)
+Session = scoped_session(SessionFactory)
+
+
+@contextmanager
+def db_session():
+    """
+    Context manager for managing database sessions.
+
+    Usage:
+    with db_session() as session:
+        # Use the session object for database operations
+        session.query(...)
+    """
+    session = Session()
+    try:
+        yield session
+    finally:
+        session.close()
+        Session.remove()
 
 
 class TransactionStatus(enum.Enum):

@@ -2,12 +2,13 @@ from pathlib import Path
 import zipfile
 import io
 import base64
-
+import pytest
 from tests.common.request import (
     deploy_intelligent_contract,
     write_intelligent_contract,
     payload,
     post_request_localhost,
+    get_contract_by_address,
 )
 
 from tests.common.response import (
@@ -45,3 +46,12 @@ def test_deploy(setup_validators, from_account):
     res = call_contract_method(contract_address, from_account, "test", [])
 
     assert res == "123"
+
+
+@pytest.mark.asyncio
+async def test_get_contract_by_address():
+    status_code, contract = await get_contract_by_address("test_address")
+    result = contract["result"]
+
+    assert status_code == 200
+    assert isinstance(result, (dict | None))
