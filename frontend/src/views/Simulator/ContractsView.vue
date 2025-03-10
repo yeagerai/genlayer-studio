@@ -16,7 +16,6 @@ const showInputModal = ref(false);
 const contractAddress = ref(''); // Store the input field value
 
 function toggleInputModal() {
-  console.log('toggleInputModal executed!');
   showInputModal.value = !showInputModal.value;
 }
 
@@ -27,10 +26,8 @@ async function callRpcMethod(address: string) {
       params: [address],
     };
 
-    console.log('Sending RPC request:', request);
     const response = await rpcClient.call(request);
     responseData.value = response;
-    console.log('RPC Response:', response);
 
     if (response.result) {
       const id = uuidv4();

@@ -13,10 +13,7 @@ const emit = defineEmits(['click']);
     :is="href ? 'a' : 'button'"
     :href="href || undefined"
     target="_blank"
-    @click="
-      emit('click');
-      console.log('SimulatorMenuLink clicked!');
-    "
+    @click="emit('click')"
     class="group p-3"
   >
     <div
