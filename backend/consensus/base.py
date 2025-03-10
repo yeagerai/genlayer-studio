@@ -11,6 +11,7 @@ import time
 from abc import ABC, abstractmethod
 import threading
 import random
+import copy
 
 from sqlalchemy.orm import Session
 from backend.consensus.vrf import get_validators_for_transaction
@@ -1659,7 +1660,7 @@ class CommittingState(TransactionState):
                 validator,
                 ExecutionMode.VALIDATOR,
                 (
-                    context.transaction.contract_snapshot
+                    copy.deepcopy(context.transaction.contract_snapshot)
                     if context.transaction.contract_snapshot
                     else context.contract_snapshot_supplier()
                 ),
