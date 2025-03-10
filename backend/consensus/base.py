@@ -992,9 +992,16 @@ class ConsensusAlgorithm:
         transactions_processor.set_transaction_appeal(transaction.hash, False)
         transaction.appealed = False
 
-        if len(transaction.consensus_data.validators) + 1 == len(
-            chain_snapshot.get_all_validators()
-        ):
+        used_leader_addresses = (
+            ConsensusAlgorithm.get_used_leader_addresses_from_consensus_history(
+                context.transactions_processor.get_transaction_by_hash(
+                    context.transaction.hash
+                )["consensus_history"]
+            )
+        )
+        if len(transaction.consensus_data.validators) + len(
+            used_leader_addresses
+        ) >= len(chain_snapshot.get_all_validators()):
             self.msg_handler.send_message(
                 LogEvent(
                     "consensus_event",
