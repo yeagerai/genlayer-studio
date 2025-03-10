@@ -6,6 +6,62 @@ import { v4 as uuidv4 } from 'uuid';
 import ContractItem from '@/components/Simulator/ContractItem.vue';
 import MainTitle from '@/components/Simulator/MainTitle.vue';
 import { useEventTracking } from '@/hooks';
+import { InboxArrowDownIcon } from '@heroicons/vue/24/solid';
+import { RpcClient } from '@/clients/rpc.ts';
+import type { JsonRPCRequest, JsonRPCResponse } from '@/types';
+
+const rpcClient = new RpcClient();
+const responseData = ref<JsonRPCResponse<any> | null>(null);
+const showInputModal = ref(false);
+const contractAddress = ref(''); // Store the input field value
+
+function toggleInputModal() {
+  console.log('toggleInputModal executed!');
+  showInputModal.value = !showInputModal.value;
+}
+
+async function callRpcMethod(address: string) {
+  try {
+    const request: JsonRPCRequest = {
+      method: 'gen_getContractByAddress',
+      params: [address],
+    };
+
+    console.log('Sending RPC request:', request);
+    const response = await rpcClient.call(request);
+    responseData.value = response;
+    console.log('RPC Response:', response);
+
+    if (response.result) {
+      const id = uuidv4();
+      const content = (response.result.contract_code as string)
+        .replace(/^b'/, '') // Remove b' prefix
+        .replace(/'$/, '') // Remove trailing '
+        .replace(/\\n/g, '\n') // Convert \n to actual newlines
+        .replace(/\\t/g, '\t') // Convert \t to actual tabs
+        .replace(/\\"/g, '"') // Convert \" to actual quotes
+        .replace(/\\\\/g, '\\'); // Convert \\ to actual backslashes
+
+      store.addContractFile({
+        id,
+        name: `contract_${address.slice(0, 8)}.gpy`,
+        content,
+      });
+      store.openFile(id);
+      toggleInputModal(); // Close the modal after successful import
+    }
+  } catch (error) {
+    console.error('RPC Call Failed:', error);
+  }
+}
+
+function importContract() {
+  if (!contractAddress.value.trim()) {
+    console.error('Please enter a valid contract address');
+    return;
+  }
+  callRpcMethod(contractAddress.value);
+}
 
 const store = useContractsStore();
 const showNewFileInput = ref(false);
@@ -80,6 +136,13 @@ const handleSaveNewFile = (name: string) => {
             <Upload :size="16" />
           </label>
         </GhostBtn>
+
+        <GhostBtn
+          v-tooltip="'Import Contract from Address'"
+          @click="toggleInputModal"
+        >
+          <InboxArrowDownIcon class="h-4 w-4" />
+        </GhostBtn>
       </template>
     </MainTitle>
 
@@ -99,6 +162,38 @@ const handleSaveNewFile = (name: string) => {
       @save="handleSaveNewFile"
       @cancel="showNewFileInput = false"
     />
+  </div>
+
+  <!-- Modal -->
+  <div
+    v-if="showInputModal"
+    class="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-50"
+  >
+    <div class="relative z-[10000] w-96 rounded-lg bg-white p-6 shadow-lg">
+      <h2 class="mb-4 text-lg font-semibold">Import Contract</h2>
+      <input
+        type="text"
+        v-model="contractAddress"
+        class="w-full rounded-md border p-2"
+        placeholder="Enter contract address"
+      />
+
+      <!-- Button Row -->
+      <div class="mt-4 flex justify-end space-x-3">
+        <button
+          @click="toggleInputModal"
+          class="rounded-md bg-gray-300 px-4 py-2 text-gray-700"
+        >
+          Cancel
+        </button>
+        <button
+          @click="importContract"
+          class="rounded-md bg-green-500 px-4 py-2 text-white"
+        >
+          Import
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
