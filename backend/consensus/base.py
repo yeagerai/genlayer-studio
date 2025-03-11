@@ -74,6 +74,7 @@ def node_factory(
         msg_handler=msg_handler,
         validator=Validator(
             address=validator["address"],
+            private_key=validator["private_key"],
             stake=validator["stake"],
             llmprovider=LLMProvider(
                 provider=validator["provider"],
