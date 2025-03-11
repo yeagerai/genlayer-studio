@@ -1158,9 +1158,12 @@ class ConsensusAlgorithm:
                     )
 
                     # Get the previous state of the contract
-                    previous_contact_state = (
-                        context.transaction.contract_snapshot.encoded_state
-                    )
+                    if context.transaction.contract_snapshot:
+                        previous_contact_state = (
+                            context.transaction.contract_snapshot.encoded_state
+                        )
+                    else:
+                        previous_contact_state = None
 
                     # Restore the contract state
                     if previous_contact_state:
