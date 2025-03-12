@@ -4,9 +4,7 @@ from unittest.mock import AsyncMock, Mock, MagicMock
 import time
 import threading
 import pytest
-from backend.consensus.base import (
-    ConsensusAlgorithm,
-)
+from backend.consensus.helpers.consensus_algorithm import ConsensusAlgorithm
 from backend.database_handler.transactions_processor import TransactionsProcessor
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.models import TransactionStatus
