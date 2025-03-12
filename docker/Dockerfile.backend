@@ -29,6 +29,7 @@ RUN groupadd -r backend-group \
     && chown -R backend-user:backend-group /home/backend-user \
     && chown -R backend-user:backend-group $path \
     && mkdir -p /genvm
+RUN mkdir -p $path/shared
 
 ENV PYTHONPATH "${PYTHONPATH}:/${path}"
 ENV FLASK_APP backend/protocol_rpc/server.py
@@ -62,6 +63,7 @@ RUN cd /genvm \
 RUN su - backend-user -c '/genvm/bin/genvm precompile'
 
 COPY ../.env .
+RUN echo "$GENVM_TAG" > $path/shared/genvm_version.txt
 COPY backend $path/backend
 
 HEALTHCHECK --interval=1s --timeout=1s --retries=30 --start-period=3s CMD python3 backend/healthcheck.py --port ${FLASK_SERVER_PORT}
