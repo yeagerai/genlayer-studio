@@ -42,7 +42,7 @@ from backend.database_handler.transactions_processor import (
 )
 from backend.node.base import Node, SIMULATOR_CHAIN_ID
 from backend.node.types import ExecutionMode, ExecutionResultStatus
-from backend.consensus.base import ConsensusAlgorithm
+from backend.consensus.helpers.consensus_algorithm import ConsensusAlgorithm
 
 from flask import request
 from flask_jsonrpc.exceptions import JSONRPCError

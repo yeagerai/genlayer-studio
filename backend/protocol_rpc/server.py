@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from backend.database_handler.transactions_processor import TransactionsProcessor
 from backend.database_handler.validators_registry import ValidatorsRegistry
 from backend.database_handler.accounts_manager import AccountsManager
-from backend.consensus.base import ConsensusAlgorithm
+from backend.consensus.helpers.consensus_algorithm import ConsensusAlgorithm
 from backend.database_handler.models import Base
 from backend.rollup.consensus_service import ConsensusService
 
