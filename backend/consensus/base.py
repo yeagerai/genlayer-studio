@@ -1170,19 +1170,18 @@ class ConsensusAlgorithm:
                             context.transaction.contract_snapshot.encoded_state
                         )
                     else:
-                        previous_contact_state = None
+                        previous_contact_state = {}
 
                     # Restore the contract state
-                    if previous_contact_state:
-                        # Get the contract snapshot for the transaction's target address
-                        leaders_contract_snapshot = context.contract_snapshot_factory(
-                            context.transaction.to_address
-                        )
+                    # Get the contract snapshot for the transaction's target address
+                    leaders_contract_snapshot = context.contract_snapshot_factory(
+                        context.transaction.to_address
+                    )
 
-                        # Update the contract state with the previous state
-                        leaders_contract_snapshot.update_contract_state(
-                            accepted_state=previous_contact_state
-                        )
+                    # Update the contract state with the previous state
+                    leaders_contract_snapshot.update_contract_state(
+                        accepted_state=previous_contact_state
+                    )
 
                     # Transaction will be picked up by _crawl_snapshot
                     break
