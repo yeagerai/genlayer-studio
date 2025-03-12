@@ -92,7 +92,7 @@ def fund_account(
 
     nonce = transactions_processor.get_transaction_count(None)
     transaction_hash = transactions_processor.insert_transaction(
-        None, account_address, None, amount, 0, nonce, False
+        None, account_address, None, amount, 0, nonce, False, 0
     )
     return transaction_hash
 
@@ -533,6 +533,7 @@ def send_raw_transaction(
         genlayer_transaction.type.value,
         nonce,
         leader_only,
+        genlayer_transaction.max_rotations,
     )
     consensus_service.forward_transaction(signed_rollup_transaction)
 
