@@ -213,7 +213,7 @@ export function useContractQueries() {
       kwargs: { [key: string]: CalldataEncodable };
     };
     leaderOnly: boolean;
-    consensusMaxRotations: number;
+    consensusMaxRotations?: number;
   }) {
     try {
       if (!accountsStore.selectedAccount) {
