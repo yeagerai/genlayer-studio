@@ -841,6 +841,12 @@ class ConsensusAlgorithm:
             )
             transaction.appeal_undetermined = True
 
+            context.contract_snapshot_supplier = (
+                lambda: context.contract_snapshot_factory(
+                    context.transaction.to_address
+                )
+            )
+
             # Begin state transitions starting from PendingState
             state = PendingState()
             while True:
