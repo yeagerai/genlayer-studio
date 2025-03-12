@@ -8,6 +8,7 @@ from eth_account._utils.legacy_transactions import Transaction
 import eth_utils
 from eth_utils import to_checksum_address
 from hexbytes import HexBytes
+import os
 from backend.rollup.consensus_service import ConsensusService
 from backend.domain.types import TransactionType
 
@@ -196,6 +197,7 @@ class TransactionParser:
                 from_address=rollup_transaction.from_address,
                 to_address=rollup_transaction.to_address,
                 data=None,
+                max_rotations=int(os.getenv("VITE_MAX_ROTATIONS", 3)),
             )
 
         sender = rollup_transaction.data.args.sender
