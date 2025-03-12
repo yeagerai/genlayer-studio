@@ -28,6 +28,7 @@ contract MockGenStaking {
 	}
 
 	mapping(address => ValidatorBan) public validatorBans;
+	uint256 public validatorBansCount;
 	mapping(address => address) public hotToColdWallet;
 	mapping(address => address) public coldToHotWallet;
 
@@ -86,6 +87,8 @@ contract MockGenStaking {
 				topStakersHot.push(validator);
 				previousTopStakersHot.push(validator);
 				isValidator[validator] = true;
+				hotToColdWallet[validator] = validator;
+				coldToHotWallet[validator] = validator;
 
 				// Calculate weight for this validator - weight decreases with index
 				// Using smaller numbers to prevent overflow
@@ -128,8 +131,26 @@ contract MockGenStaking {
 		bytes32 _randomSeed
 	) external view returns (address) {
 		if (validators.length == 0) revert NoValidatorsAvailable();
-		uint256 randomIndex = uint256(_randomSeed) % validators.length;
-		return validators[randomIndex];
+
+		// Get initial random index
+		uint256 startIndex = uint256(_randomSeed) % validators.length;
+		uint256 currentIndex = startIndex;
+
+		// Try each validator starting from random index until we find a non-banned one
+		for (uint256 i = 0; i < validators.length; i++) {
+			address validator = validators[currentIndex];
+			address coldWallet = hotToColdWallet[validator];
+
+			if (!validatorBans[coldWallet].isBanned) {
+				return validator;
+			}
+
+			// Move to next index, wrapping around if necessary
+			currentIndex = (currentIndex + 1) % validators.length;
+		}
+
+		// If we've checked all validators and they're all banned
+		return address(0); //NoValidatorsAvailable();
 	}
 
 	function getValidatorsLen() public view returns (uint256) {
@@ -171,18 +192,15 @@ contract MockGenStaking {
 		if (maxValidators == 0) {
 			revert NoValidatorsAvailable();
 		}
-
 		// If we request more validators than are available, revert.
 		if (requestedValidatorsCount > maxValidators) {
 			revert NotEnoughValidators();
 		}
-
 		uint256 alreadyConsumedCount = consumedValidators.length;
 		if (alreadyConsumedCount >= maxValidators) {
 			revert AllValidatorsConsumed();
 		}
 		uint256 nonConsumedCount = maxValidators - alreadyConsumedCount;
-
 		// If the number of requested validators is greater or equal to the number
 		// of non-consumed validators, simply return all non-consumed, non-banned validators.
 		if (requestedValidatorsCount >= nonConsumedCount) {
@@ -330,6 +348,11 @@ contract MockGenStaking {
 			}
 		}
 
+		// If randomStake is greater than the last accumulated weight, return the last index
+		if (low > high) {
+			return previousAccumulatedWeights.length - 1;
+		}
+
 		// If not found directly (due to how we adjust low/high),
 		// high will represent the last suitable validator index.
 		return high;
@@ -355,7 +378,9 @@ contract MockGenStaking {
 			) {
 				startIndex = (startIndex + 1) % maxValidators;
 				// If we've looped around back to the original index, no suitable validator is found.
-				if (startIndex == originalIndex) break;
+				if (startIndex == originalIndex) {
+					break;
+				}
 				continue;
 			}
 
@@ -379,5 +404,19 @@ contract MockGenStaking {
 			}
 		}
 		return false;
+	}
+
+	function validatorSlash(
+		address _validator,
+		uint256 _epoch,
+		bool _deterministic
+	) external {
+		validatorBans[hotToColdWallet[_validator]].isBanned = true;
+		validatorBansCount++;
+		// TODO: slash validator in some form, placeholder
+	}
+
+	function getValidatorBansCount() external view returns (uint256) {
+		return validatorBansCount;
 	}
 }
