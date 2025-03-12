@@ -3,6 +3,7 @@ from backend.database_handler.transactions_processor import TransactionStatus
 from backend.node.types import ExecutionMode
 from backend.consensus.base import TransactionState
 from backend.consensus.states.committing_state import CommittingState
+from copy import deepcopy
 
 
 class ProposingState(TransactionState):
@@ -44,16 +45,21 @@ class ProposingState(TransactionState):
         if context.transaction.leader_only:
             context.remaining_validators = []
 
-        # Create a contract snapshot for the transaction
-        contract_snapshot_supplier = lambda: context.contract_snapshot_factory(
-            context.transaction.to_address
-        )
+        # Create a contract snapshot for the transaction if not exists
+        if context.transaction.contract_snapshot:
+            contract_snapshot = deepcopy(context.transaction.contract_snapshot)
+        else:
+            contract_snapshot_supplier = lambda: context.contract_snapshot_factory(
+                context.transaction.to_address
+            )
+            context.contract_snapshot_supplier = contract_snapshot_supplier
+            contract_snapshot = contract_snapshot_supplier()
 
         # Create a leader node for executing the transaction
         leader_node = context.node_factory(
             leader,
             ExecutionMode.LEADER,
-            contract_snapshot_supplier(),
+            contract_snapshot,
             None,
             context.msg_handler,
             context.contract_snapshot_factory,
@@ -73,7 +79,6 @@ class ProposingState(TransactionState):
 
         # Set the validators and other context attributes
         context.num_validators = len(context.remaining_validators) + 1
-        context.contract_snapshot_supplier = contract_snapshot_supplier
         context.votes = votes
 
         # Transition to the CommittingState

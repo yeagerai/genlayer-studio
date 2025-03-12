@@ -108,9 +108,10 @@ class AcceptedState(TransactionState):
             leaders_contract_snapshot = context.contract_snapshot_supplier()
 
             # Set the contract snapshot for the transaction for a future rollback
-            context.transactions_processor.set_transaction_contract_snapshot(
-                context.transaction.hash, leaders_contract_snapshot.to_dict()
-            )
+            if not context.transaction.contract_snapshot:
+                context.transactions_processor.set_transaction_contract_snapshot(
+                    context.transaction.hash, leaders_contract_snapshot.to_dict()
+                )
 
             # Do not deploy or update the contract if the execution failed
             if leader_receipt.execution_result == ExecutionResultStatus.SUCCESS:
