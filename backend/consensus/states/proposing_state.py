@@ -31,9 +31,9 @@ class ProposingState(TransactionState):
             context.msg_handler,
         )
 
-        context.transactions_processor.create_rollup_transaction(
-            context.transaction.hash
-        )
+        # context.transactions_processor.create_rollup_transaction(
+        #     context.transaction.hash
+        # )
 
         # The leader is elected randomly
         random.shuffle(context.involved_validators)

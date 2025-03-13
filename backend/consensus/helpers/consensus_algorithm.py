@@ -435,7 +435,7 @@ class ConsensusAlgorithm:
                     msg_handler,
                 )
 
-                transactions_processor.create_rollup_transaction(transaction.hash)
+                # transactions_processor.create_rollup_transaction(transaction.hash)
                 return
 
             # Update the balance of the sender account
@@ -461,7 +461,7 @@ class ConsensusAlgorithm:
             msg_handler,
         )
 
-        transactions_processor.create_rollup_transaction(transaction.hash)
+        # transactions_processor.create_rollup_transaction(transaction.hash)
 
     def run_appeal_window_loop(
         self,

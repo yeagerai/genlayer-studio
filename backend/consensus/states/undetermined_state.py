@@ -88,8 +88,8 @@ class UndeterminedState(TransactionState):
             context.consensus_data.validators,
         )
 
-        context.transactions_processor.create_rollup_transaction(
-            context.transaction.hash
-        )
+        # context.transactions_processor.create_rollup_transaction(
+        #     context.transaction.hash
+        # )
 
         return None
