@@ -13,7 +13,7 @@ import backend.node.genvm.origin.calldata as genvm_calldata
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
 from backend.rollup.consensus_service import ConsensusService
-from backend.database_handler.models import Base, Transactions, db_session
+from backend.database_handler.models import Base, Transactions
 from backend.domain.types import LLMProvider, Validator, TransactionType
 from backend.node.create_nodes.providers import (
     get_default_provider_for,
@@ -726,27 +726,28 @@ def get_contract(consensus_service: ConsensusService, contract_name: str) -> dic
     }
 
 
-def get_contract_by_address(address: str) -> dict[str:Transactions] | None:
+def get_contract_by_address(
+    request_session: Session, accounts_manager: AccountsManager, address: str
+) -> dict[str:Transactions] | None:
     import base64
 
-    with db_session() as session:
-        if AccountsManager(session).is_valid_address(address):
-            deployed_contract: Transactions = (
-                session.query(Transactions)
-                .filter(
-                    Transactions.type == TransactionType.DEPLOY_CONTRACT,
-                    Transactions.to_address == address,
-                )
-                .one()
+    if accounts_manager.is_valid_address(address):
+        deployed_contract: Transactions = (
+            request_session.query(Transactions)
+            .filter(
+                Transactions.type == TransactionType.DEPLOY_CONTRACT,
+                Transactions.to_address == address,
             )
-            if deployed_contract:
-                return {
-                    "transactions": deployed_contract.hash,
-                    "contract_code": base64.b64decode(
-                        deployed_contract.data.get("contract_code")
-                    ),
-                    "contract_address": deployed_contract.to_address,
-                }
+            .one()
+        )
+        if deployed_contract:
+            return {
+                "transactions": deployed_contract.hash,
+                "contract_code": base64.b64decode(
+                    deployed_contract.data.get("contract_code")
+                ),
+                "contract_address": deployed_contract.to_address,
+            }
 
 
 def register_all_rpc_endpoints(
@@ -919,6 +920,6 @@ def register_all_rpc_endpoints(
         method_name="eth_getBlockByHash",
     )
     register_rpc_endpoint(
-        get_contract_by_address,
+        partial(get_contract_by_address, request_session, accounts_manager),
         method_name="gen_getContractByAddress",
     )
