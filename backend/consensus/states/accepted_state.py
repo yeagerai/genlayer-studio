@@ -80,9 +80,9 @@ class AcceptedState(TransactionState):
             context.validation_results,
         )
 
-        context.transactions_processor.create_rollup_transaction(
-            context.transaction.hash
-        )
+        # context.transactions_processor.create_rollup_transaction(
+        #     context.transaction.hash
+        # )
 
         # Send a message indicating consensus was reached
         context.msg_handler.send_message(

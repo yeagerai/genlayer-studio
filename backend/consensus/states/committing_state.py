@@ -34,9 +34,9 @@ class CommittingState(TransactionState):
             context.msg_handler,
         )
 
-        context.transactions_processor.create_rollup_transaction(
-            context.transaction.hash
-        )
+        # context.transactions_processor.create_rollup_transaction(
+        #     context.transaction.hash
+        # )
 
         # Create validator nodes for each validator
         context.validator_nodes = [

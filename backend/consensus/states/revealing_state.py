@@ -36,9 +36,9 @@ class RevealingState(TransactionState):
             context.msg_handler,
         )
 
-        context.transactions_processor.create_rollup_transaction(
-            context.transaction.hash
-        )
+        # context.transactions_processor.create_rollup_transaction(
+        #     context.transaction.hash
+        # )
 
         # Process each validation result and update the context
         for i, validation_result in enumerate(context.validation_results):
@@ -115,9 +115,9 @@ class RevealingState(TransactionState):
                     context.transaction.hash, context.consensus_data.to_dict()
                 )
 
-                context.transactions_processor.create_rollup_transaction(
-                    context.transaction.hash
-                )
+                # context.transactions_processor.create_rollup_transaction(
+                #     context.transaction.hash
+                # )
 
                 context.transactions_processor.set_transaction_appeal_failed(
                     context.transaction.hash,
