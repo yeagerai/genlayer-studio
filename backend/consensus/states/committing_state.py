@@ -7,6 +7,7 @@ from backend.node.types import (
 )
 from backend.consensus.states.transaction_state import TransactionState
 from backend.consensus.states.revealing_state import RevealingState
+from backend.consensus.algorithm.transaction_status import TransactionStatusManager
 
 
 class CommittingState(TransactionState):
@@ -21,10 +22,8 @@ class CommittingState(TransactionState):
         Returns:
             TransactionState: The RevealingState.
         """
-        from backend.consensus.consensus_algorithm import ConsensusAlgorithm
-
         # Dispatch a transaction status update to COMMITTING
-        ConsensusAlgorithm.dispatch_transaction_status_update(
+        TransactionStatusManager.dispatch_transaction_status_update(
             context.transactions_processor,
             context.transaction.hash,
             TransactionStatus.COMMITTING,

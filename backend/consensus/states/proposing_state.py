@@ -3,6 +3,7 @@ from backend.database_handler.transactions_processor import TransactionStatus
 from backend.node.types import ExecutionMode
 from backend.consensus.states.transaction_state import TransactionState
 from backend.consensus.states.committing_state import CommittingState
+from backend.consensus.algorithm.transaction_status import TransactionStatusManager
 from copy import deepcopy
 
 
@@ -18,10 +19,9 @@ class ProposingState(TransactionState):
         Returns:
             TransactionState: The CommittingState or UndeterminedState if all rotations are done.
         """
-        from backend.consensus.consensus_algorithm import ConsensusAlgorithm
 
         # Dispatch a transaction status update to PROPOSING
-        ConsensusAlgorithm.dispatch_transaction_status_update(
+        TransactionStatusManager.dispatch_transaction_status_update(
             context.transactions_processor,
             context.transaction.hash,
             TransactionStatus.PROPOSING,
