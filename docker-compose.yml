@@ -193,14 +193,15 @@ services:
       - hardhat_artifacts:/app/artifacts
       - hardhat_cache:/app/cache
       - hardhat_deployments:/app/deployments
+      - geth_data:/app/geth-data
     environment:
       - HARDHAT_NETWORK=hardhat
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-X", "POST", "-H", "Content-Type: application/json", "--fail", "http://localhost:8545", "-d", '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}']
-      interval: 60s
+      test: ["CMD", "sh", "-c", "curl --fail -s -X POST -H 'Content-Type: application/json' http://localhost:8545 -d '{\"jsonrpc\":\"2.0\",\"method\":\"net_version\",\"params\":[],\"id\":1}' >/dev/null && test -d /app/deployments/localhost && [ -n \"$(ls -A /app/deployments/localhost 2>/dev/null)\" ]"]
+      interval: 10s
       timeout: 30s
-      retries: 5
+      retries: 30
       start_period: 60s
     labels:
       traefik.enable: true
@@ -212,3 +213,4 @@ volumes:
   hardhat_artifacts:
   hardhat_cache:
   hardhat_deployments:
+  geth_data:

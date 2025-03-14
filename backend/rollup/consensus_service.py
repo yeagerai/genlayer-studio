@@ -12,36 +12,14 @@ class ConsensusService:
         """
         Initialize the ConsensusService class
         """
-        # Connect to Hardhat Network - probamos varias URLs
-        urls_to_try = [
-            os.environ.get("HARDHAT_URL", "http://hardhat")
-            + ":"
-            + os.environ.get("HARDHAT_PORT", "8545"),
-            "http://hardhat:8545",  # Nombre del servicio en la red Docker
-            "http://genlayer-studio-hardhat-1:8545",  # Nombre completo del contenedor
-            "http://localhost:8545",
-            "http://127.0.0.1:8545",
-            "http://0.0.0.0:8545",
-            "http://jsonrpc:8545",
-            "http://genlayer-studio_default:8545",
-        ]
+        # Connect to Hardhat Network
+        port = os.environ.get("HARDHAT_PORT")
+        url = os.environ.get("HARDHAT_URL")
+        hardhat_url = f"{url}:{port}"
+        self.web3 = Web3(Web3.HTTPProvider(hardhat_url))
 
-        connected = False
-        for url in urls_to_try:
-            print(f"[CONSENSUS_SERVICE] Trying to connect to: {url}")
-            self.web3 = Web3(Web3.HTTPProvider(url))
-            if self.web3.is_connected():
-                print(f"[CONSENSUS_SERVICE] ✅ Successfully connected to {url}")
-                connected = True
-                # Mostrar información sobre la conexión
-                print(f"[CONSENSUS_SERVICE] Chain ID: {self.web3.eth.chain_id}")
-                print(f"[CONSENSUS_SERVICE] Block number: {self.web3.eth.block_number}")
-                break
-            else:
-                print(f"[CONSENSUS_SERVICE] ❌ Failed to connect to {url}")
-
-        if not connected:
-            print(f"[CONSENSUS_SERVICE] Failed to connect to any Ethereum node")
+        if not self.web3.is_connected():
+            raise ConnectionError(f"Failed to connect to Hardhat node at {hardhat_url}")
 
     def load_contract(self, contract_name: str) -> Optional[dict]:
         """
