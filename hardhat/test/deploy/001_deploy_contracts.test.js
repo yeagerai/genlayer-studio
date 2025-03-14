@@ -31,12 +31,33 @@ describe("Deploy Script", function () {
     before(async function () {
         [owner, validator1, validator2, validator3, validator4, validator5] = await ethers.getSigners();
 
-        // Execute the deployment using Ignition
-        const DeployFixture = require("../../ignition/modules/DeployFixture");
-        const result = await hre.ignition.deploy(DeployFixture);
+        // Cargar los contratos desde los archivos de despliegue
+        console.log("Loading contracts from deployment files...");
+        const deployPath = path.join('./deployments/localhost');
 
-        // Save the references to the contracts
-        contracts = result;
+        // Verificar que el directorio existe
+        if (!await fs.pathExists(deployPath)) {
+            throw new Error(`Deployment directory not found: ${deployPath}. Run deploy.js script first.`);
+        }
+
+        // Cargar cada contrato desde su archivo de despliegue
+        for (const contractName of expectedContracts) {
+            const deployFilePath = path.join(deployPath, `${contractName}.json`);
+
+            if (!await fs.pathExists(deployFilePath)) {
+                throw new Error(`Deployment file not found for ${contractName}: ${deployFilePath}`);
+            }
+
+            const deployData = await fs.readJson(deployFilePath);
+
+            // Crear una instancia del contrato usando la dirección y el ABI
+            contracts[contractName] = await ethers.getContractAt(
+                deployData.abi,
+                deployData.address
+            );
+
+            console.log(`Loaded ${contractName} from ${deployFilePath}`);
+        }
     });
 
     describe("Deployment Files Verification", function() {
@@ -52,7 +73,6 @@ describe("Deploy Script", function () {
                     await fs.pathExists(deployContractPath),
                     `${contractName} should exist in deployments directory`
                 ).to.be.true;
-
 
                 // Verify that the files are valid and match
                 const deployData = JSON.parse(await fs.readFile(deployContractPath, 'utf8'));

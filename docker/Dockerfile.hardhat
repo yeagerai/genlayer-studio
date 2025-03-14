@@ -2,40 +2,107 @@ FROM node:22.12-alpine3.19
 
 WORKDIR /app
 
-# Install necessary packages and set up the environment
-RUN apk add --no-cache curl g++ make netcat-openbsd python3
+# Install required packages
+RUN apk add --no-cache curl g++ make nano netcat-openbsd python3 geth jq
 
+# Copy and install Hardhat
 COPY ./hardhat/package*.json ./
 RUN npm install --ignore-scripts
 
 COPY ./hardhat .
 
-# Download compiler
+# Pre-download Solidity compiler
 RUN npx hardhat compile || true
 
-# Create directories and set permissions
-RUN mkdir -p /app/deployments/localhost && \
-    mkdir -p /app/deployments/hardhat && \
-    mkdir -p /app/artifacts/build-info && \
-    mkdir -p /app/artifacts/contracts && \
-    mkdir -p /app/cache && \
-    mkdir -p /app/ignition/deployments && \
-    mkdir -p /app/scripts && \
-    mkdir -p /app/test && \
+# Create directories with appropriate permissions
+RUN mkdir -p /app/deployments/localhost \
+    /app/deployments/hardhat \
+    /app/artifacts/build-info \
+    /app/artifacts/contracts \
+    /app/cache \
+    /app/ignition/deployments \
+    /app/scripts \
+    /app/test \
+    /app/geth-data && \
     chmod -R 777 /app
 
 ENV PATH="/app/node_modules/.bin:${PATH}"
 
-# Add the start script
+# Create files with Hardhat private keys
+RUN echo "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" > /app/key1 && \
+    echo "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d" > /app/key2 && \
+    echo "5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a" > /app/key3 && \
+    echo "7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6" > /app/key4 && \
+    echo "47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a" > /app/key5 && \
+    echo "8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba" > /app/key6 && \
+    echo "92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e" > /app/key7 && \
+    echo "4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356" > /app/key8 && \
+    echo "dbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97" > /app/key9 && \
+    echo "2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6" > /app/key10 && \
+    echo "f214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897" > /app/key11
+
+# Create a simple password file
+COPY ./hardhat/password.txt /app/password.txt
+
+# Import Hardhat private keys
+RUN geth account import --datadir /app/geth-data --password /app/password.txt /app/key1 && \
+    geth account import --datadir /app/geth-data --password /app/password.txt /app/key2 && \
+    geth account import --datadir /app/geth-data --password /app/password.txt /app/key3 && \
+    geth account import --datadir /app/geth-data --password /app/password.txt /app/key4 && \
+    geth account import --datadir /app/geth-data --password /app/password.txt /app/key5 && \
+    geth account import --datadir /app/geth-data --password /app/password.txt /app/key6 && \
+    geth account import --datadir /app/geth-data --password /app/password.txt /app/key7 && \
+    geth account import --datadir /app/geth-data --password /app/password.txt /app/key8 && \
+    geth account import --datadir /app/geth-data --password /app/password.txt /app/key9 && \
+    geth account import --datadir /app/geth-data --password /app/password.txt /app/key10 && \
+    geth account import --datadir /app/geth-data --password /app/password.txt /app/key11
+
+COPY ./hardhat/genesis.json /app/genesis.json
+
+# Initialize geth with genesis block
+RUN geth --datadir /app/geth-data init /app/genesis.json
+
+EXPOSE 8545 8546
+
+# Create startup script
 RUN echo '#!/bin/sh' > /app/start.sh && \
-    echo 'echo "Checking and compiling contracts if needed..."' >> /app/start.sh && \
-    echo 'npx hardhat compile' >> /app/start.sh && \
-    echo 'echo "Starting Hardhat node..."' >> /app/start.sh && \
-    echo 'npx hardhat node --hostname 0.0.0.0 & sleep 5' >> /app/start.sh && \
-    echo 'echo "Deploying contracts with Ignition..."' >> /app/start.sh && \
-    echo 'npx hardhat run scripts/deploy.js --network localhost' >> /app/start.sh && \
-    echo 'npx hardhat test' >> /app/start.sh && \
-    echo 'wait' >> /app/start.sh && \
+    echo 'set -e' >> /app/start.sh && \
+    echo 'echo "1) Starting local blockchain with Hardhat accounts..."' >> /app/start.sh && \
+    echo 'echo "Main account: 0xf39fd6e51aad88F6F4ce6aB8827279cfffb92266"' >> /app/start.sh && \
+    echo '# Iniciar Geth en segundo plano' >> /app/start.sh && \
+    echo 'geth --datadir /app/geth-data --http --http.addr 0.0.0.0 --http.api eth,net,web3,personal,debug,miner --http.corsdomain "*" --http.vhosts="*" --password /app/password.txt --mine --allow-insecure-unlock --unlock 0xf39fd6e51aad88F6F4ce6aB8827279cffFb92266 --miner.etherbase 0xf39fd6e51aad88F6F4ce6aB8827279cffFb92266 &' >> /app/start.sh && \
+    echo 'GETH_PID=$!' >> /app/start.sh && \
+    echo 'echo "Geth started in background with PID: $GETH_PID"' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Esperar a que Geth esté listo' >> /app/start.sh && \
+    echo 'echo "Waiting for Geth to be ready..."' >> /app/start.sh && \
+    echo 'while ! nc -z localhost 8545; do' >> /app/start.sh && \
+    echo '  sleep 1' >> /app/start.sh && \
+    echo 'done' >> /app/start.sh && \
+    echo 'echo "Geth is ready!"' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Esperar un poco más para asegurar que la cadena esté completamente inicializada' >> /app/start.sh && \
+    echo 'sleep 5' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Ejecutar comandos de Hardhat' >> /app/start.sh && \
+    echo 'echo "2) Compiling contracts..."' >> /app/start.sh && \
+    echo 'npx hardhat compile --network gethLocal' >> /app/start.sh && \
+    echo 'echo "3) Deploying contracts..."' >> /app/start.sh && \
+    echo 'npx hardhat run scripts/deploy.js --network gethLocal' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Esperar a que todas las transacciones se completen' >> /app/start.sh && \
+    echo 'echo "Waiting for all transactions to be mined..."' >> /app/start.sh && \
+    echo 'sleep 5' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo 'echo "4) Launching Tests..."' >> /app/start.sh && \
+    echo 'npx hardhat test --network gethLocal' >> /app/start.sh && \
+    echo 'TEST_EXIT_CODE=$?' >> /app/start.sh && \
+    echo 'echo "5) Tests completed with exit code: $TEST_EXIT_CODE"' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Mantener el contenedor vivo' >> /app/start.sh && \
+    echo 'echo "Geth is running in background. You can access the node at http://localhost:8545"' >> /app/start.sh && \
+    echo 'echo "Press Ctrl+C to stop."' >> /app/start.sh && \
+    echo 'wait $GETH_PID' >> /app/start.sh && \
     chmod +x /app/start.sh
 
 EXPOSE 8545
