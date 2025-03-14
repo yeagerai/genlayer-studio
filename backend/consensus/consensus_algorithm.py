@@ -16,7 +16,14 @@ from backend.node.base import Node
 from backend.node.types import ExecutionMode, Receipt
 from backend.protocol_rpc.message_handler.base import MessageHandler
 from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
-from backend.consensus.helpers.factories import DEFAULT_CONSENSUS_SLEEP_TIME
+from backend.consensus.helpers.factories import (
+    chain_snapshot_factory,
+    transactions_processor_factory,
+    accounts_manager_factory,
+    contract_snapshot_factory,
+    node_factory,
+    DEFAULT_CONSENSUS_SLEEP_TIME,
+)
 from backend.consensus.algorithm.transaction_processor import TransactionProcessor
 from backend.consensus.algorithm.appeal_processor import AppealProcessor
 from backend.consensus.algorithm.finalization_processor import FinalizationProcessor
@@ -76,8 +83,12 @@ class ConsensusAlgorithm:
 
     def run_crawl_snapshot_loop(
         self,
-        chain_snapshot_factory: Callable[[Session], ChainSnapshot],
-        transactions_processor_factory: Callable[[Session], TransactionsProcessor],
+        chain_snapshot_factory: Callable[
+            [Session], ChainSnapshot
+        ] = chain_snapshot_factory,
+        transactions_processor_factory: Callable[
+            [Session], TransactionsProcessor
+        ] = transactions_processor_factory,
         stop_event: threading.Event = threading.Event(),
     ):
         """Run the loop to crawl snapshots."""
@@ -131,12 +142,18 @@ class ConsensusAlgorithm:
 
     def run_process_pending_transactions_loop(
         self,
-        chain_snapshot_factory: Callable[[Session], ChainSnapshot],
-        transactions_processor_factory: Callable[[Session], TransactionsProcessor],
-        accounts_manager_factory: Callable[[Session], AccountsManager],
+        chain_snapshot_factory: Callable[
+            [Session], ChainSnapshot
+        ] = chain_snapshot_factory,
+        transactions_processor_factory: Callable[
+            [Session], TransactionsProcessor
+        ] = transactions_processor_factory,
+        accounts_manager_factory: Callable[
+            [Session], AccountsManager
+        ] = accounts_manager_factory,
         contract_snapshot_factory: Callable[
             [str, Session, Transaction], ContractSnapshot
-        ],
+        ] = contract_snapshot_factory,
         node_factory: Callable[
             [
                 dict,
@@ -147,7 +164,7 @@ class ConsensusAlgorithm:
                 Callable[[str], ContractSnapshot],
             ],
             Node,
-        ],
+        ] = node_factory,
         stop_event: threading.Event = threading.Event(),
     ):
         """Run the process pending transactions loop."""
@@ -242,12 +259,18 @@ class ConsensusAlgorithm:
 
     def run_appeal_window_loop(
         self,
-        chain_snapshot_factory: Callable[[Session], ChainSnapshot],
-        transactions_processor_factory: Callable[[Session], TransactionsProcessor],
-        accounts_manager_factory: Callable[[Session], AccountsManager],
+        chain_snapshot_factory: Callable[
+            [Session], ChainSnapshot
+        ] = chain_snapshot_factory,
+        transactions_processor_factory: Callable[
+            [Session], TransactionsProcessor
+        ] = transactions_processor_factory,
+        accounts_manager_factory: Callable[
+            [Session], AccountsManager
+        ] = accounts_manager_factory,
         contract_snapshot_factory: Callable[
             [str, Session, Transaction], ContractSnapshot
-        ],
+        ] = contract_snapshot_factory,
         node_factory: Callable[
             [
                 dict,
@@ -258,7 +281,7 @@ class ConsensusAlgorithm:
                 Callable[[str], ContractSnapshot],
             ],
             Node,
-        ],
+        ] = node_factory,
         stop_event: threading.Event = threading.Event(),
     ):
         """Run the loop to handle the appeal window."""
