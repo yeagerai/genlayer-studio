@@ -10,9 +10,6 @@ from backend.consensus.base import TransactionState, _emit_transactions
 
 
 class AcceptedState(TransactionState):
-    """
-    Class representing the accepted state of a transaction.
-    """
 
     async def handle(self, context):
         """

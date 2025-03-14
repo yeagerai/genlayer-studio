@@ -7,9 +7,6 @@ from copy import deepcopy
 
 
 class ProposingState(TransactionState):
-    """
-    Class representing the proposing state of a transaction.
-    """
 
     async def handle(self, context):
         """

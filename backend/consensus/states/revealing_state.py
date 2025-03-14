@@ -11,9 +11,6 @@ from backend.consensus.states.undetermined_state import UndeterminedState
 
 
 class RevealingState(TransactionState):
-    """
-    Class representing the revealing state of a transaction.
-    """
 
     async def handle(self, context):
         """

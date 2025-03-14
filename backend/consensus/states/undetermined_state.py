@@ -8,9 +8,6 @@ from backend.consensus.base import TransactionState
 
 
 class UndeterminedState(TransactionState):
-    """
-    Class representing the undetermined state of a transaction.
-    """
 
     async def handle(self, context):
         """

@@ -10,9 +10,6 @@ from backend.consensus.states.revealing_state import RevealingState
 
 
 class CommittingState(TransactionState):
-    """
-    Class representing the committing state of a transaction.
-    """
 
     async def handle(self, context):
         """
