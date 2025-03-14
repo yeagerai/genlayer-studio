@@ -43,10 +43,11 @@ class UndeterminedState(TransactionState):
 
         # Set the transaction appeal undetermined status to false
         if context.transaction.appeal_undetermined:
-            context.transactions_processor.set_transaction_appeal_undetermined(
-                context.transaction.hash, False
+            context.transaction.appeal_undetermined = (
+                context.transactions_processor.set_transaction_appeal_undetermined(
+                    context.transaction.hash, False
+                )
             )
-            context.transaction.appeal_undetermined = False
             consensus_round = "Leader Appeal Failed"
         else:
             consensus_round = "Undetermined"

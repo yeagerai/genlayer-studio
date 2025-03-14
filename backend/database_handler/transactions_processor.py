@@ -359,6 +359,8 @@ class TransactionsProcessor:
         )
         transaction.appeal_undetermined = appeal_undetermined
 
+        return appeal_undetermined
+
     def get_highest_timestamp(self) -> int:
         transaction = (
             self.session.query(Transactions)
