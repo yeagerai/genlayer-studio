@@ -1,7 +1,7 @@
 import pytest
 from backend.database_handler.models import TransactionStatus
 from backend.node.types import Vote
-from backend.consensus.base import DEFAULT_VALIDATORS_COUNT
+from backend.consensus.helpers.factories import DEFAULT_VALIDATORS_COUNT
 from tests.unit.consensus.test_helpers import (
     TransactionsProcessorMock,
     transaction_to_dict,

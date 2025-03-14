@@ -1,4 +1,4 @@
-from backend.consensus.vrf import get_validators_for_transaction
+from backend.consensus.helpers.vrf import get_validators_for_transaction
 from backend.domain.types import (
     Transaction,
     TransactionType,
@@ -8,8 +8,8 @@ from backend.protocol_rpc.message_handler.types import (
     EventType,
     EventScope,
 )
-from backend.consensus.base import TransactionState
-from backend.consensus.base import DEFAULT_VALIDATORS_COUNT
+from backend.consensus.states.transaction_state import TransactionState
+from backend.consensus.helpers.factories import DEFAULT_VALIDATORS_COUNT
 from backend.consensus.states.proposing_state import ProposingState
 
 
@@ -25,7 +25,7 @@ class PendingState(TransactionState):
         Returns:
             TransactionState | None: The ProposingState or None if the transaction is already in process, when it is a transaction or when there are no validators.
         """
-        from backend.consensus.helpers.consensus_algorithm import ConsensusAlgorithm
+        from backend.consensus.consensus_algorithm import ConsensusAlgorithm
 
         # Transactions that are put back to pending are processed again, so we need to get the latest data of the transaction
         context.transaction = Transaction.from_dict(

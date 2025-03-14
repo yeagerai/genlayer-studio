@@ -1,6 +1,7 @@
 from backend.database_handler.transactions_processor import TransactionStatus
 from backend.node.types import ExecutionResultStatus
-from backend.consensus.base import TransactionState, _emit_transactions
+from backend.consensus.helpers.factories import _emit_transactions
+from backend.consensus.states.transaction_state import TransactionState
 
 
 class FinalizingState(TransactionState):
@@ -15,7 +16,7 @@ class FinalizingState(TransactionState):
         Returns:
             None: The transaction is finalized.
         """
-        from backend.consensus.helpers.consensus_algorithm import ConsensusAlgorithm
+        from backend.consensus.consensus_algorithm import ConsensusAlgorithm
 
         # Retrieve the leader's receipt from the consensus data
         leader_receipt = context.transaction.consensus_data.leader_receipt

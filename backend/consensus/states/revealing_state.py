@@ -5,7 +5,7 @@ from backend.protocol_rpc.message_handler.types import (
     EventType,
     EventScope,
 )
-from backend.consensus.base import TransactionState
+from backend.consensus.states.transaction_state import TransactionState
 from backend.consensus.states.accepted_state import AcceptedState
 from backend.consensus.states.undetermined_state import UndeterminedState
 
@@ -22,7 +22,7 @@ class RevealingState(TransactionState):
         Returns:
             TransactionState | None: The AcceptedState or ProposingState or None if the transaction is successfully appealed.
         """
-        from backend.consensus.helpers.consensus_algorithm import ConsensusAlgorithm
+        from backend.consensus.consensus_algorithm import ConsensusAlgorithm
         from backend.consensus.states.proposing_state import ProposingState
 
         # Update the transaction status to REVEALING
