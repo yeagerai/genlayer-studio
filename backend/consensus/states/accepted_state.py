@@ -8,6 +8,7 @@ from backend.protocol_rpc.message_handler.types import (
 from backend.node.types import ExecutionResultStatus
 from backend.consensus.helpers.factories import _emit_transactions
 from backend.consensus.states.transaction_state import TransactionState
+from backend.consensus.algorithm.transaction_status import TransactionStatusManager
 
 
 class AcceptedState(TransactionState):
@@ -22,8 +23,6 @@ class AcceptedState(TransactionState):
         Returns:
             None: The transaction is accepted.
         """
-        from backend.consensus.consensus_algorithm import ConsensusAlgorithm
-
         # When appeal fails, the appeal window is not reset
         if context.transaction.appeal_undetermined:
             consensus_round = "Leader Appeal Successful"
@@ -60,7 +59,7 @@ class AcceptedState(TransactionState):
         )
 
         # Update the transaction status to ACCEPTED
-        ConsensusAlgorithm.dispatch_transaction_status_update(
+        TransactionStatusManager.dispatch_transaction_status_update(
             context.transactions_processor,
             context.transaction.hash,
             TransactionStatus.ACCEPTED,

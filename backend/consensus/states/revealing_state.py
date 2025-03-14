@@ -8,6 +8,8 @@ from backend.protocol_rpc.message_handler.types import (
 from backend.consensus.states.transaction_state import TransactionState
 from backend.consensus.states.accepted_state import AcceptedState
 from backend.consensus.states.undetermined_state import UndeterminedState
+from backend.consensus.algorithm.transaction_status import TransactionStatusManager
+from backend.consensus.algorithm.validator_management import ValidatorManagement
 
 
 class RevealingState(TransactionState):
@@ -22,11 +24,10 @@ class RevealingState(TransactionState):
         Returns:
             TransactionState | None: The AcceptedState or ProposingState or None if the transaction is successfully appealed.
         """
-        from backend.consensus.consensus_algorithm import ConsensusAlgorithm
         from backend.consensus.states.proposing_state import ProposingState
 
         # Update the transaction status to REVEALING
-        ConsensusAlgorithm.dispatch_transaction_status_update(
+        TransactionStatusManager.dispatch_transaction_status_update(
             context.transactions_processor,
             context.transaction.hash,
             TransactionStatus.REVEALING,
@@ -150,17 +151,15 @@ class RevealingState(TransactionState):
                 return UndeterminedState()
 
             else:
-                used_leader_addresses = (
-                    ConsensusAlgorithm.get_used_leader_addresses_from_consensus_history(
-                        context.transactions_processor.get_transaction_by_hash(
-                            context.transaction.hash
-                        )["consensus_history"],
-                        context.consensus_data.leader_receipt,
-                    )
+                used_leader_addresses = ValidatorManagement.get_used_leader_addresses_from_consensus_history(
+                    context.transactions_processor.get_transaction_by_hash(
+                        context.transaction.hash
+                    )["consensus_history"],
+                    context.consensus_data.leader_receipt,
                 )
                 # Add a new validator to the list of current validators when a rotation happens
                 try:
-                    context.involved_validators = ConsensusAlgorithm.add_new_validator(
+                    context.involved_validators = ValidatorManagement.add_new_validator(
                         context.chain_snapshot.get_all_validators(),
                         context.remaining_validators,
                         used_leader_addresses,

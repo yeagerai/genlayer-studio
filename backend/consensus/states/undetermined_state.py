@@ -5,6 +5,7 @@ from backend.protocol_rpc.message_handler.types import (
     EventScope,
 )
 from backend.consensus.states.transaction_state import TransactionState
+from backend.consensus.algorithm.transaction_status import TransactionStatusManager
 
 
 class UndeterminedState(TransactionState):
@@ -19,8 +20,6 @@ class UndeterminedState(TransactionState):
         Returns:
             None: The transaction remains in an undetermined state.
         """
-        from backend.consensus.consensus_algorithm import ConsensusAlgorithm
-
         # Send a message indicating consensus failure
         context.msg_handler.send_message(
             LogEvent(
@@ -71,7 +70,7 @@ class UndeterminedState(TransactionState):
             )
 
         # Update the transaction status to undetermined
-        ConsensusAlgorithm.dispatch_transaction_status_update(
+        TransactionStatusManager.dispatch_transaction_status_update(
             context.transactions_processor,
             context.transaction.hash,
             TransactionStatus.UNDETERMINED,
