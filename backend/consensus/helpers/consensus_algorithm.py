@@ -44,16 +44,6 @@ from backend.consensus.states.finalizing_state import FinalizingState
 
 
 class ConsensusAlgorithm:
-    """
-    Class representing the consensus algorithm.
-
-    Attributes:
-        get_session (Callable[[], Session]): Function to get a database session.
-        msg_handler (MessageHandler): Handler for messaging.
-        pending_queues (dict[str, asyncio.Queue]): Dictionary of pending_queues for transactions.
-        finality_window_time (int): Time in seconds for the finality window.
-        consensus_sleep_time (int): Time in seconds for the consensus sleep time.
-    """
 
     def __init__(
         self,

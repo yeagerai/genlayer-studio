@@ -14,9 +14,6 @@ from backend.consensus.states.proposing_state import ProposingState
 
 
 class PendingState(TransactionState):
-    """
-    Class representing the pending state of a transaction.
-    """
 
     async def handle(self, context):
         """

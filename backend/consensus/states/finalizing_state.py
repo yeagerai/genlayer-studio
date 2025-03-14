@@ -4,9 +4,6 @@ from backend.consensus.base import TransactionState, _emit_transactions
 
 
 class FinalizingState(TransactionState):
-    """
-    Class representing the finalizing state of a transaction.
-    """
 
     async def handle(self, context):
         """
