@@ -540,8 +540,9 @@ def send_raw_transaction(
         genlayer_transaction.type.value,
         nonce,
         leader_only,
+        None,
+        consensus_service,
     )
-    consensus_service.forward_transaction(signed_rollup_transaction)
 
     return transaction_hash
 

@@ -116,9 +116,6 @@ class TransactionsProcessorMock:
             transactions_by_address[address].append(transaction)
         return transactions_by_address
 
-    def create_rollup_transaction(self, transaction_hash: str):
-        pass
-
     def set_transaction_appeal_failed(self, transaction_hash: str, appeal_failed: int):
         if appeal_failed < 0:
             raise ValueError("appeal_failed must be a non-negative integer")

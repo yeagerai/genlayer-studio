@@ -1,0 +1,17 @@
+{
+  "name": "event-listener",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@openzeppelin/contracts-upgradeable": "^5.2.0",
+    "ethers": "^6.13.5",
+    "solc": "^0.8.29"
+  }
+}
