@@ -146,6 +146,7 @@ class Validators(Base):
     created_at: Mapped[Optional[datetime.datetime]] = mapped_column(
         DateTime(True), server_default=func.current_timestamp(), init=False
     )
+    private_key: Mapped[Optional[str]] = mapped_column(String(255))
 
 
 class LLMProviderDBModel(Base):

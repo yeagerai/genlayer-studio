@@ -3,7 +3,7 @@ import os
 from web3 import Web3
 from typing import Optional, Dict, Any
 from pathlib import Path
-from backend.protocol_rpc.message_handler.types import EventType, EventScope, LogEvent
+from hexbytes import HexBytes
 
 
 class ConsensusService:
@@ -19,6 +19,14 @@ class ConsensusService:
 
         if not self.web3.is_connected():
             raise ConnectionError(f"Failed to connect to Hardhat node at {hardhat_url}")
+
+        # Load the ConsensusMain ABI
+        contract_data = self.load_contract("ConsensusMain")
+        if not contract_data:
+            raise Exception("Failed to load ConsensusMain contract")
+        self.consensus_contract = self.web3.eth.contract(
+            address=contract_data["address"], abi=contract_data["abi"]
+        )
 
     def load_contract(self, contract_name: str) -> Optional[dict]:
         """
@@ -44,7 +52,7 @@ class ConsensusService:
             }
 
         except Exception as e:
-            print(f"[CONSENSUS_SERVICE] Error loading contract: {str(e)}")
+            print(f"[CONSENSUS_SERVICE]: Error loading contract: {str(e)}")
             return None
 
     def _load_compiled_contract(self, contract_name: str) -> Optional[Dict[str, Any]]:
@@ -106,7 +114,7 @@ class ConsensusService:
             print(f"[CONSENSUS_SERVICE]: Error loading deployment data: {str(e)}")
             return None
 
-    def forward_transaction(self, transaction: dict) -> str:
+    def forward_transaction(self, transaction: str | HexBytes) -> str:
         """
         Forward a transaction to the consensus rollup
         """
@@ -116,4 +124,41 @@ class ConsensusService:
             return receipt
         except Exception as e:
             print(f"[CONSENSUS_SERVICE]: Error forwarding transaction: {str(e)}")
+            return None
+
+    def emit_transaction_event(
+        self, event_name: str, account_address: str, account_private_key: str, *args
+    ):
+        """
+        Generic method to emit transaction events
+
+        Args:
+            event_name (str): Name of the event function to call
+            account_address (str): Address of the account sending the transaction
+            account_private_key (str): Private key of the account sending the transaction
+            *args: Arguments to pass to the event function
+        """
+        try:
+            # Get the function from the contract
+            event_function = getattr(self.consensus_contract.functions, event_name)
+
+            # Build and send transaction
+            tx = event_function(*args).build_transaction(
+                {
+                    "from": account_address,
+                    "gas": 500000,
+                    "gasPrice": 0,
+                    "nonce": self.web3.eth.get_transaction_count(account_address),
+                }
+            )
+
+            # Sign and send transaction
+            signed_tx = self.web3.eth.account.sign_transaction(
+                tx, private_key=account_private_key
+            )
+
+            return self.forward_transaction(signed_tx.raw_transaction)
+
+        except Exception as e:
+            print(f"[CONSENSUS_SERVICE]: Error emitting {event_name}: {str(e)}")
             return None

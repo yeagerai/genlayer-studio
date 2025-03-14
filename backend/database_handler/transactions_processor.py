@@ -17,7 +17,6 @@ from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
 from sqlalchemy.orm.attributes import flag_modified
 from backend.domain.types import MAX_ROTATIONS
-
 from backend.rollup.consensus_service import ConsensusService
 
 
@@ -181,6 +180,7 @@ class TransactionsProcessor:
         triggered_by_hash: (
             str | None
         ) = None,  # If filled, the transaction must be present in the database (committed)
+        consensus_service: ConsensusService = None,
     ) -> str:
         current_nonce = self.get_transaction_count(from_address)
 
@@ -234,6 +234,19 @@ class TransactionsProcessor:
 
         self.session.flush()  # So that `created_at` gets set
 
+        # Send events in rollup to communicate the new transaction
+        if consensus_service:
+            consensus_service.emit_transaction_event(
+                "emitNewTransaction",
+                self.web3.eth.accounts[
+                    0
+                ],  # TODO: maybe the from_address but I don't have a key
+                os.environ.get("HARDHAT_PRIVATE_KEY"),
+                transaction_hash,
+                to_address,
+                self.web3.eth.accounts[0],  # TODO: should be activator address
+            )
+
         return new_transaction.hash
 
     def get_transaction_by_hash(self, transaction_hash: str) -> dict | None:
@@ -275,53 +288,6 @@ class TransactionsProcessor:
         )
         transaction.consensus_data = consensus_data
         self.session.commit()
-
-    def create_rollup_transaction(self, transaction_hash: str):
-        transaction = (
-            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
-        )
-        rollup_input_data = json.dumps(
-            self._parse_transaction_data(transaction)
-        ).encode("utf-8")
-
-        # Hardhat transaction
-        account = self.web3.eth.accounts[0]
-        private_key = os.environ.get("HARDHAT_PRIVATE_KEY")
-
-        try:
-            gas_estimate = self.web3.eth.estimate_gas(
-                {
-                    "from": account,
-                    "to": transaction.ghost_contract_address,
-                    "value": transaction.value,
-                    "data": rollup_input_data,
-                }
-            )
-
-            transaction = {
-                "from": account,
-                "to": transaction.ghost_contract_address,
-                "value": transaction.value,
-                "data": rollup_input_data,
-                "nonce": self.web3.eth.get_transaction_count(account),
-                "gas": gas_estimate,
-                "gasPrice": 0,
-            }
-
-            # Sign and send the transaction
-            signed_tx = self.web3.eth.account.sign_transaction(
-                transaction, private_key=private_key
-            )
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-
-            # Wait for transaction to be actually mined and get the receipt
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-
-            # Get full transaction details including input data
-            transaction = self.web3.eth.get_transaction(tx_hash)
-
-        except Exception as e:
-            print(f"Error creating rollup transaction: {e}")
 
     def get_transaction_count(self, address: str) -> int:
         count = (

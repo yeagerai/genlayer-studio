@@ -73,7 +73,7 @@ def create_app():
     initialize_validators_db_session.commit()
 
     consensus = ConsensusAlgorithm(
-        lambda: Session(engine, expire_on_commit=False), msg_handler
+        lambda: Session(engine, expire_on_commit=False), msg_handler, consensus_service
     )
     return (
         app,
