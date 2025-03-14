@@ -5,10 +5,8 @@ import eth_utils
 from functools import partial, wraps
 from typing import Any
 from flask_jsonrpc import JSONRPC
-from flask_jsonrpc.exceptions import JSONRPCError
 from sqlalchemy import Table
 from sqlalchemy.orm import Session
-import backend.node.genvm.origin.calldata as genvm_calldata
 
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
@@ -42,9 +40,8 @@ from backend.database_handler.transactions_processor import (
 )
 from backend.node.base import Node, SIMULATOR_CHAIN_ID
 from backend.node.types import ExecutionMode, ExecutionResultStatus
-from backend.consensus.helpers.consensus_algorithm import ConsensusAlgorithm
+from backend.consensus.consensus_algorithm import ConsensusAlgorithm
 
-from flask import request
 from flask_jsonrpc.exceptions import JSONRPCError
 import base64
 import os

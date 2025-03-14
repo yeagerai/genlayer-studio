@@ -6,7 +6,7 @@ import time
 import threading
 
 from sqlalchemy.orm import Session
-from backend.consensus.vrf import get_validators_for_transaction
+from backend.consensus.helpers.vrf import get_validators_for_transaction
 from backend.database_handler.chain_snapshot import ChainSnapshot
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.transactions_processor import (
@@ -29,7 +29,7 @@ from backend.protocol_rpc.message_handler.types import (
     EventType,
     EventScope,
 )
-from backend.consensus.base import (
+from backend.consensus.helpers.factories import (
     chain_snapshot_factory,
     transactions_processor_factory,
     accounts_manager_factory,

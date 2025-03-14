@@ -6,7 +6,8 @@ from backend.protocol_rpc.message_handler.types import (
     EventScope,
 )
 from backend.node.types import ExecutionResultStatus
-from backend.consensus.base import TransactionState, _emit_transactions
+from backend.consensus.helpers.factories import _emit_transactions
+from backend.consensus.states.transaction_state import TransactionState
 
 
 class AcceptedState(TransactionState):
@@ -21,7 +22,7 @@ class AcceptedState(TransactionState):
         Returns:
             None: The transaction is accepted.
         """
-        from backend.consensus.helpers.consensus_algorithm import ConsensusAlgorithm
+        from backend.consensus.consensus_algorithm import ConsensusAlgorithm
 
         # When appeal fails, the appeal window is not reset
         if context.transaction.appeal_undetermined:

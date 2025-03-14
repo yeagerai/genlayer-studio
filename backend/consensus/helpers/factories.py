@@ -1,4 +1,4 @@
-# backend/consensus/base.py
+# backend/consensus/factories.py
 
 DEFAULT_VALIDATORS_COUNT = 5
 DEFAULT_CONSENSUS_SLEEP_TIME = 5
@@ -146,22 +146,6 @@ def accounts_manager_factory(session: Session):
         AccountsManager: A new AccountsManager instance.
     """
     return AccountsManager(session)
-
-
-class TransactionState(ABC):
-    """
-    Abstract base class representing a state in the transaction process.
-    """
-
-    @abstractmethod
-    async def handle(self, context: TransactionContext):
-        """
-        Handle the state transition.
-
-        Args:
-            context (TransactionContext): The context of the transaction.
-        """
-        pass
 
 
 def _emit_transactions(
