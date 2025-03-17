@@ -15,25 +15,7 @@ module.exports = {
   namedAccounts: {
     deployer: {
       default: 0,
-    },
-    owner: {
-      default: 1,
-    },
-    validator1: {
-      default: 2,
-    },
-    validator2: {
-      default: 3,
-    },
-    validator3: {
-      default: 4,
-    },
-    validator4: {
-      default: 5,
-    },
-    validator5: {
-      default: 6,
-    },
+    }
   },
   networks: {
     gethLocal: {

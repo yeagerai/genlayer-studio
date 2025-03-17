@@ -112,7 +112,7 @@ RUN echo '#!/bin/sh' > /app/start.sh && \
     echo 'echo "1) Starting local blockchain with Hardhat accounts..."' >> /app/start.sh && \
     echo 'echo "Main account: 0xf39fd6e51aad88F6F4ce6aB8827279cfffb92266"' >> /app/start.sh && \
     echo '# Start Geth in background without automatic mining' >> /app/start.sh && \
-    echo 'geth --datadir /app/geth-data --networkid 31337 --http --http.addr 0.0.0.0 --http.api eth,net,web3,personal,debug,miner,txpool --http.corsdomain "*" --http.vhosts="*" --password /app/password.txt --allow-insecure-unlock --unlock 0xf39fd6e51aad88F6F4ce6aB8827279cffFb92266 --miner.etherbase 0xf39fd6e51aad88F6F4ce6aB8827279cffFb92266 --nodiscover --ipcdisable &' >> /app/start.sh && \
+    echo 'geth --datadir /app/geth-data --networkid 31337 --http --http.addr 0.0.0.0 --http.api eth,net,web3,personal,debug,miner,txpool --http.corsdomain "*" --http.vhosts="*" --password /app/password.txt --allow-insecure-unlock --unlock "0,1,2,3,4,5,6,7,8,9,10" --rpc.allow-unprotected-txs --miner.etherbase 0xf39fd6e51aad88F6F4ce6aB8827279cffFb92266 --nodiscover --ipcdisable &' >> /app/start.sh && \
     echo 'GETH_PID=$!' >> /app/start.sh && \
     echo 'echo "Geth started in background with PID: $GETH_PID"' >> /app/start.sh && \
     echo '' >> /app/start.sh && \
