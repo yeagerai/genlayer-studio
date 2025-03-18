@@ -3,4 +3,4 @@ python-dotenv==1.0.1
 black==25.1.0
 pytest==8.3.5
 pytest-mock==3.14.0
-pre-commit==4.1.0
+pre-commit==4.2.0
