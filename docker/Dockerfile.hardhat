@@ -65,46 +65,60 @@ COPY ./hardhat/genesis.json /app/genesis.json
 # Initialize geth with genesis block
 RUN geth --datadir /app/geth-data init /app/genesis.json
 
-# Create mining control script for just mining whenever a new transaction is received
+# Create mining control script for mining one block per pending transaction and funding zero-balance accounts
 RUN echo '#!/bin/sh' > /app/mining-control.sh && \
     echo 'echo "Mining control script started"' >> /app/mining-control.sh && \
     echo 'LAST_BLOCK=0' >> /app/mining-control.sh && \
     echo 'MINING_STATE=0' >> /app/mining-control.sh && \
+    echo 'FAUCET="0xbcd4042de499d14e55001ccbb24a551f3b954096"' >> /app/mining-control.sh && \
     echo 'while true; do' >> /app/mining-control.sh && \
-    echo '  # Check pending transactions' >> /app/mining-control.sh && \
-    echo '  TX_PENDING=$(curl -s -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"txpool_status\",\"params\":[],\"id\":1}" -H "Content-Type: application/json" http://localhost:8545 | jq -r ".result.pending")' >> /app/mining-control.sh && \
-    echo '  # Check if there are pending transactions or if we are at the initial block' >> /app/mining-control.sh && \
-    echo '  CURRENT_BLOCK=$(curl -s -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}" -H "Content-Type: application/json" http://localhost:8545 | jq -r ".result")' >> /app/mining-control.sh && \
-    echo '  CURRENT_BLOCK=$((16#${CURRENT_BLOCK:2}))' >> /app/mining-control.sh && \
-    echo '  if [ "$TX_PENDING" != "0x0" ] && [ "$TX_PENDING" != "null" ]; then' >> /app/mining-control.sh && \
-    echo '    if [ "$MINING_STATE" -eq 0 ]; then' >> /app/mining-control.sh && \
-    echo '      echo "$(date): Pending transactions detected. Starting mining..."' >> /app/mining-control.sh && \
-    echo '      curl -s -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"miner_start\",\"params\":[1],\"id\":1}" -H "Content-Type: application/json" http://localhost:8545 > /dev/null' >> /app/mining-control.sh && \
-    echo '      MINING_STATE=1' >> /app/mining-control.sh && \
+    echo '  # Retrieve txpool content' >> /app/mining-control.sh && \
+    echo '  TXPOOL=$(curl -s -X POST --data '\''{"jsonrpc":"2.0","method":"txpool_content","params":[],"id":1}'\'' -H "Content-Type: application/json" http://localhost:8545)' >> /app/mining-control.sh && \
+    echo '  # Count the number of pending transactions' >> /app/mining-control.sh && \
+    echo '  PENDING_COUNT=$(echo $TXPOOL | jq '\''.result.pending | keys | length'\'')' >> /app/mining-control.sh && \
+    echo '  # For each sender in the pending pool, check its balance and fund if zero' >> /app/mining-control.sh && \
+    echo '  for SENDER in $(echo $TXPOOL | jq -r '\''.result.pending | keys[]'\''); do' >> /app/mining-control.sh && \
+    echo '    BALANCE=$(curl -s -X POST --data '\''{"jsonrpc":"2.0","method":"eth_getBalance","params":["$SENDER", "latest"],"id":1}'\'' -H "Content-Type: application/json" http://localhost:8545 | jq -r '\''.result'\'')' >> /app/mining-control.sh && \
+    echo '    if [ "$BALANCE" = "0x0" ]; then' >> /app/mining-control.sh && \
+    echo '      echo "$(date): Account $SENDER has zero balance. Funding with 1 Ether..."' >> /app/mining-control.sh && \
+    echo '      curl -s -X POST --data '\''{"jsonrpc":"2.0","method":"eth_sendTransaction","params":[{"from": "$FAUCET", "to": "$SENDER", "value": "0xde0b6b3a7640000"}],"id":1}'\'' -H "Content-Type: application/json" http://localhost:8545' >> /app/mining-control.sh && \
     echo '    fi' >> /app/mining-control.sh && \
-    echo '  elif [ "$CURRENT_BLOCK" -lt 1 ]; then' >> /app/mining-control.sh && \
-    echo '    # Mine at least one block at startup for the chain to work properly' >> /app/mining-control.sh && \
+    echo '  done' >> /app/mining-control.sh && \
+    echo '  # If there are pending transactions, start mining and wait for one new block' >> /app/mining-control.sh && \
+    echo '  if [ "$PENDING_COUNT" -gt 0 ]; then' >> /app/mining-control.sh && \
     echo '    if [ "$MINING_STATE" -eq 0 ]; then' >> /app/mining-control.sh && \
-    echo '      echo "$(date): Mining initial block..."' >> /app/mining-control.sh && \
-    echo '      curl -s -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"miner_start\",\"params\":[1],\"id\":1}" -H "Content-Type: application/json" http://localhost:8545 > /dev/null' >> /app/mining-control.sh && \
+    echo '      echo "$(date): Pending transactions detected ($PENDING_COUNT). Starting mining..."' >> /app/mining-control.sh && \
+    echo '      curl -s -X POST --data '\''{"jsonrpc":"2.0","method":"miner_start","params":[1],"id":1}'\'' -H "Content-Type: application/json" http://localhost:8545 > /dev/null' >> /app/mining-control.sh && \
     echo '      MINING_STATE=1' >> /app/mining-control.sh && \
+    echo '      OLD_BLOCK_HEX=$(curl -s -X POST --data '\''{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'\'' -H "Content-Type: application/json" http://localhost:8545 | jq -r '\''.result'\'')' >> /app/mining-control.sh && \
+    echo '      OLD_BLOCK=$((16#${OLD_BLOCK_HEX#0x}))' >> /app/mining-control.sh && \
+    echo '      while true; do' >> /app/mining-control.sh && \
+    echo '        NEW_BLOCK_HEX=$(curl -s -X POST --data '\''{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'\'' -H "Content-Type: application/json" http://localhost:8545 | jq -r '\''.result'\'')' >> /app/mining-control.sh && \
+    echo '        NEW_BLOCK=$((16#${NEW_BLOCK_HEX#0x}))' >> /app/mining-control.sh && \
+    echo '        if [ "$NEW_BLOCK" -gt "$OLD_BLOCK" ]; then' >> /app/mining-control.sh && \
+    echo '          echo "$(date): New block mined: $NEW_BLOCK. Stopping mining..."' >> /app/mining-control.sh && \
+    echo '          curl -s -X POST --data '\''{"jsonrpc":"2.0","method":"miner_stop","params":[],"id":1}'\'' -H "Content-Type: application/json" http://localhost:8545 > /dev/null' >> /app/mining-control.sh && \
+    echo '          MINING_STATE=0' >> /app/mining-control.sh && \
+    echo '          LAST_BLOCK=$NEW_BLOCK' >> /app/mining-control.sh && \
+    echo '          break' >> /app/mining-control.sh && \
+    echo '        fi' >> /app/mining-control.sh && \
+    echo '        sleep 0.5' >> /app/mining-control.sh && \
+    echo '      done' >> /app/mining-control.sh && \
     echo '    fi' >> /app/mining-control.sh && \
     echo '  else' >> /app/mining-control.sh && \
-    echo '    # If there are no pending transactions and we already have at least one block, stop mining' >> /app/mining-control.sh && \
     echo '    if [ "$MINING_STATE" -eq 1 ]; then' >> /app/mining-control.sh && \
-    echo '      echo "$(date): No pending transactions. Stopping mining..."' >> /app/mining-control.sh && \
-    echo '      curl -s -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"miner_stop\",\"params\":[],\"id\":1}" -H "Content-Type: application/json" http://localhost:8545 > /dev/null' >> /app/mining-control.sh && \
+    echo '      echo "$(date): No pending transactions detected. Stopping mining..."' >> /app/mining-control.sh && \
+    echo '      curl -s -X POST --data '\''{"jsonrpc":"2.0","method":"miner_stop","params":[],"id":1}'\'' -H "Content-Type: application/json" http://localhost:8545 > /dev/null' >> /app/mining-control.sh && \
     echo '      MINING_STATE=0' >> /app/mining-control.sh && \
     echo '    fi' >> /app/mining-control.sh && \
     echo '  fi' >> /app/mining-control.sh && \
-    echo '  # Check if a new block has been mined' >> /app/mining-control.sh && \
-    echo '  if [ "$CURRENT_BLOCK" -gt "$LAST_BLOCK" ]; then' >> /app/mining-control.sh && \
-    echo '    echo "$(date): New block mined: $CURRENT_BLOCK"' >> /app/mining-control.sh && \
-    echo '    LAST_BLOCK=$CURRENT_BLOCK' >> /app/mining-control.sh && \
-    echo '  fi' >> /app/mining-control.sh && \
+    echo '  # Print detailed pending transactions' >> /app/mining-control.sh && \
+    echo '  echo "$(date): Detailed pending transactions:"' >> /app/mining-control.sh && \
+    echo '  echo $TXPOOL | jq ".result.pending"' >> /app/mining-control.sh && \
     echo '  sleep 1' >> /app/mining-control.sh && \
     echo 'done' >> /app/mining-control.sh && \
     chmod +x /app/mining-control.sh
+
 
 # Create startup script
 RUN echo '#!/bin/sh' > /app/start.sh && \
@@ -112,7 +126,7 @@ RUN echo '#!/bin/sh' > /app/start.sh && \
     echo 'echo "1) Starting local blockchain with Hardhat accounts..."' >> /app/start.sh && \
     echo 'echo "Main account: 0xf39fd6e51aad88F6F4ce6aB8827279cfffb92266"' >> /app/start.sh && \
     echo '# Start Geth in background without automatic mining' >> /app/start.sh && \
-    echo 'geth --datadir /app/geth-data --networkid 31337 --http --http.addr 0.0.0.0 --http.api eth,net,web3,personal,debug,miner,txpool --http.corsdomain "*" --http.vhosts="*" --password /app/password.txt --allow-insecure-unlock --unlock "0,1,2,3,4,5,6,7,8,9,10" --rpc.allow-unprotected-txs --miner.etherbase 0xf39fd6e51aad88F6F4ce6aB8827279cffFb92266 --nodiscover --ipcdisable &' >> /app/start.sh && \
+    echo 'geth --datadir /app/geth-data --networkid 31337 --http --http.addr 0.0.0.0 --http.api eth,net,web3,personal,debug,miner,txpool --http.corsdomain "*" --http.vhosts="*" --password /app/password.txt --allow-insecure-unlock --unlock "0,1,2,3,4,5,6,7,8,9,10" --rpc.allow-unprotected-txs --miner.etherbase 0xf39fd6e51aad88F6F4ce6aB8827279cffFb92266 --miner.gasprice=0 --txpool.pricelimit=0 --nodiscover --ipcdisable &' >> /app/start.sh && \
     echo 'GETH_PID=$!' >> /app/start.sh && \
     echo 'echo "Geth started in background with PID: $GETH_PID"' >> /app/start.sh && \
     echo '' >> /app/start.sh && \
