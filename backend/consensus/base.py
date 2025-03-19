@@ -1648,7 +1648,8 @@ class ProposingState(TransactionState):
                 leader["private_key"],
                 context.transaction.hash,
                 leader["address"],
-                [v["address"] for v in context.remaining_validators],
+                [leader["address"]]
+                + [v["address"] for v in context.remaining_validators],
             )
 
         # Create a contract snapshot for the transaction if not exists
@@ -1752,6 +1753,14 @@ class CommittingState(TransactionState):
         context.validation_results = await asyncio.gather(*validation_tasks)
 
         # Send events in rollup to communicate the votes are committed
+        context.consensus_service.emit_transaction_event(
+            "emitVoteCommitted",
+            context.consensus_data.leader_receipt.node_config["address"],
+            context.consensus_data.leader_receipt.node_config["private_key"],
+            context.transaction.hash,
+            context.consensus_data.leader_receipt.node_config["address"],
+            False,
+        )
         for i, validator in enumerate(context.remaining_validators):
             context.consensus_service.emit_transaction_event(
                 "emitVoteCommitted",
@@ -1803,6 +1812,16 @@ class RevealingState(TransactionState):
         )
 
         # Send event in rollup to communicate the votes are revealed
+        context.consensus_service.emit_transaction_event(
+            "emitVoteRevealed",
+            context.consensus_data.leader_receipt.node_config["address"],
+            context.consensus_data.leader_receipt.node_config["private_key"],
+            context.transaction.hash,
+            context.consensus_data.leader_receipt.node_config["address"],
+            1,
+            False,
+            0,
+        )
         for i, validation_result in enumerate(context.validation_results):
             if validation_result.vote == Vote.AGREE:
                 type_vote = 1
