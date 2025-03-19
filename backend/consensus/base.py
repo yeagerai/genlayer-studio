@@ -1644,7 +1644,7 @@ class ProposingState(TransactionState):
         if self.activate:
             context.consensus_service.emit_transaction_event(
                 "emitTransactionActivated",
-                leader["address"],  # TODO: use random validator as activator
+                leader["address"],
                 leader["private_key"],
                 context.transaction.hash,
                 leader["address"],
@@ -2280,12 +2280,8 @@ class FinalizingState(TransactionState):
         # Send events in rollup to communicate the transaction is finalized
         context.consensus_service.emit_transaction_event(
             "emitTransactionFinalized",
-            leader_receipt.node_config[
-                "address"
-            ],  # TODO: should be the recipient which is the contract address
-            leader_receipt.node_config[
-                "private_key"
-            ],  # TODO: I do not have a key of the contract address
+            leader_receipt.node_config["address"],
+            leader_receipt.node_config["private_key"],
             context.transaction.hash,
         )
 

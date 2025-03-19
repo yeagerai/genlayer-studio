@@ -240,11 +240,11 @@ class TransactionsProcessor:
                 "emitNewTransaction",
                 self.web3.eth.accounts[
                     0
-                ],  # TODO: maybe the from_address but I don't have a key
+                ],  # for now okay but should be the from_address
                 os.environ.get("HARDHAT_PRIVATE_KEY"),
                 transaction_hash,
                 to_address,
-                self.web3.eth.accounts[0],  # TODO: should be activator address
+                self.web3.eth.accounts[0],  # for now okay but should be a validator
             )
 
         return new_transaction.hash
