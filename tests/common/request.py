@@ -276,3 +276,10 @@ def decode_nested_data(data):
         return [decode_nested_data(item) for item in data]
     else:
         return data
+
+
+async def get_contract_transactions_by_address(address: str):
+    payload_data = payload("gen_getContractByAddress", address)
+    raw_response = post_request_localhost(payload_data)
+    status_code, parsed_raw_response = raw_response.status_code, raw_response.json()
+    return status_code, parsed_raw_response
