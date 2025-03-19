@@ -31,7 +31,9 @@ async function callRpcMethod(address: string) {
 
     if (response.result) {
       const id = uuidv4();
-      const content = (response.result.contract_code as string)
+      const content = (
+        response.result as { contract_code: string }
+      ).contract_code
         .replace(/^b'/, '') // Remove b' prefix
         .replace(/'$/, '') // Remove trailing '
         .replace(/\\n/g, '\n') // Convert \n to actual newlines
