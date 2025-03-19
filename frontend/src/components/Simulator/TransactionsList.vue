@@ -6,11 +6,12 @@ import TransactionItem from './TransactionItem.vue';
 import PageSection from './PageSection.vue';
 import EmptyListPlaceholder from '@/components/Simulator/EmptyListPlaceholder.vue';
 import { RpcClient } from '@/clients/rpc.ts';
+import type { TransactionItem as TransactionItemType } from '@/types';
 
 const contractsStore = useContractsStore();
 const transactionsStore = useTransactionsStore();
 const rpcClient = new RpcClient();
-const relatedTransactions = ref([]);
+const relatedTransactions = ref<TransactionItemType[]>([]);
 
 const props = defineProps({
   finalityWindow: Number,
@@ -27,7 +28,7 @@ const fetchRelatedTransactions = async (contractAddress: string) => {
     });
 
     if (response.result) {
-      relatedTransactions.value = response.result;
+      relatedTransactions.value = response.result as TransactionItemType[];
     }
   } catch (error) {
     console.error('Error fetching related transactions:', error);
