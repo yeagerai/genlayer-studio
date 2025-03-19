@@ -55,13 +55,11 @@ const transactions = computed(() => {
     (t) => t.localContractId === contractsStore.currentContractId,
   );
 
-  console.log('RELATED TRANSACTIONS', relatedTransactions.value);
   // Combine both transaction sets
   const allTransactions = [
     ...contractTransactions,
     ...relatedTransactions.value,
   ];
-  console.log('CONTRACT TRANSACTIONS', contractTransactions);
 
   // Sort all transactions by date
   const transactionsOrderedByDate = allTransactions
