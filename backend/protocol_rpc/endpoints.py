@@ -752,7 +752,6 @@ def get_transactions_by_related_contract(
             tx_processor = TransactionsProcessor(request_session)
             multi_contract_trigger = []
             for tx in current_contract:
-                print("CURRENT CONTRACT", tx.hash)
                 tx_data = tx_processor.get_transaction_by_hash(tx.hash)
 
                 # Extract calldata
@@ -816,8 +815,6 @@ def get_transactions_by_related_contract(
                         "created_at": tx.created_at,
                         "decodedData": {
                             "functionName": function_name,
-                            #     "args": args if isinstance(args, list) else [],
-                            #     "kwargs": kwargs if isinstance(kwargs, dict) else {}
                         },
                     }
                 )
