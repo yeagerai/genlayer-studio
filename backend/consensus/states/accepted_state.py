@@ -6,7 +6,7 @@ from backend.protocol_rpc.message_handler.types import (
     EventScope,
 )
 from backend.node.types import ExecutionResultStatus
-from backend.consensus.helpers.factories import _emit_transactions
+from backend.consensus.helpers.utils import _emit_transactions
 from backend.consensus.states.transaction_state import TransactionState
 from backend.consensus.algorithm.transaction_status import TransactionStatusManager
 

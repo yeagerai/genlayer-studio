@@ -1,6 +1,6 @@
 from backend.database_handler.transactions_processor import TransactionStatus
 from backend.node.types import ExecutionResultStatus
-from backend.consensus.helpers.factories import _emit_transactions
+from backend.consensus.helpers.utils import _emit_transactions
 from backend.consensus.states.transaction_state import TransactionState
 from backend.consensus.algorithm.transaction_status import TransactionStatusManager
 

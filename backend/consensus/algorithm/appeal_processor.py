@@ -16,6 +16,8 @@ from backend.consensus.helpers.vrf import get_validators_for_transaction
 from backend.consensus.helpers.transaction_context import TransactionContext
 from backend.consensus.states.pending_state import PendingState
 from backend.consensus.states.committing_state import CommittingState
+from backend.consensus.algorithm.transaction_processor import process_transaction
+from backend.consensus.algorithm.validator_management import ValidatorManagement
 
 
 class AppealProcessor:
@@ -54,7 +56,7 @@ class AppealProcessor:
         transaction.appealed = False
 
         used_leader_addresses = (
-            AppealProcessor.get_used_leader_addresses_from_consensus_history(
+            ValidatorManagement.get_used_leader_addresses_from_consensus_history(
                 context.transactions_processor.get_transaction_by_hash(
                     context.transaction.hash
                 )["consensus_history"]
@@ -94,15 +96,7 @@ class AppealProcessor:
                 )
             )
 
-            state = PendingState()
-            while True:
-                next_state = await state.handle(context)
-                if next_state is None:
-                    break
-                elif next_state == "leader_appeal_success":
-                    AppealProcessor.rollback_transactions(context)
-                    break
-                state = next_state
+            await process_transaction(context, PendingState)
 
     @staticmethod
     async def process_validator_appeal(
@@ -182,30 +176,13 @@ class AppealProcessor:
                 )
             )
 
-            state = CommittingState()
-            while True:
-                next_state = await state.handle(context)
-                if next_state is None:
-                    break
-                elif next_state == "validator_appeal_success":
-                    AppealProcessor.rollback_transactions(context)
-                    transactions_processor.update_transaction_status(
-                        context.transaction.hash,
-                        TransactionStatus.PENDING,
-                    )
-
-                    previous_contact_state = (
-                        context.transaction.contract_snapshot.encoded_state
-                    )
-                    if previous_contact_state:
-                        leaders_contract_snapshot = context.contract_snapshot_factory(
-                            context.transaction.to_address
-                        )
-                        leaders_contract_snapshot.update_contract_state(
-                            accepted_state=previous_contact_state
-                        )
-                    break
-                state = next_state
+            # state = CommittingState(state_name="CommittingState")
+            await process_transaction(
+                context,
+                CommittingState,
+                transactions_processor=transactions_processor,
+                state_name="CommittingState",
+            )
 
     @staticmethod
     def rollback_transactions(context: TransactionContext):
@@ -232,13 +209,13 @@ class AppealProcessor:
     ):
         """Get extra validators for the appeal process."""
         current_validators, validator_map = (
-            AppealProcessor.get_validators_from_consensus_data(
+            ValidatorManagement.get_validators_from_consensus_data(
                 all_validators, consensus_data, False
             )
         )
 
         used_leader_addresses = (
-            AppealProcessor.get_used_leader_addresses_from_consensus_history(
+            ValidatorManagement.get_used_leader_addresses_from_consensus_history(
                 consensus_history
             )
         )
@@ -271,52 +248,24 @@ class AppealProcessor:
 
         return current_validators, extra_validators
 
-    @staticmethod
-    def get_validators_from_consensus_data(
-        all_validators: List[dict],
-        consensus_data: ConsensusData,
-        include_leader: bool,
-    ):
-        """Get validators from consensus data."""
-        validator_map = {
-            validator["address"]: validator for validator in all_validators
-        }
-
-        if include_leader:
-            receipt_addresses = [consensus_data.leader_receipt.node_config["address"]]
-        else:
-            receipt_addresses = []
-
-        receipt_addresses += [
-            receipt.node_config["address"] for receipt in consensus_data.validators
-        ]
-
-        validators = [
-            validator_map.pop(receipt_address)
-            for receipt_address in receipt_addresses
-            if receipt_address in validator_map
-        ]
-
-        return validators, validator_map
-
-    @staticmethod
-    def get_used_leader_addresses_from_consensus_history(
-        consensus_history: dict,
-        current_leader_receipt: Receipt | None = None,
-    ):
-        """Get the used leader addresses from the consensus history."""
-        used_leader_addresses = set()
-        if "consensus_results" in consensus_history:
-            for consensus_round in consensus_history["consensus_results"]:
-                leader_receipt = consensus_round["leader_result"]
-                if leader_receipt:
-                    used_leader_addresses.update(
-                        [leader_receipt["node_config"]["address"]]
-                    )
-
-        if current_leader_receipt:
-            used_leader_addresses.update(
-                [current_leader_receipt.node_config["address"]]
-            )
-
-        return used_leader_addresses
+    # @staticmethod
+    # def get_used_leader_addresses_from_consensus_history(
+    #     consensus_history: dict,
+    #     current_leader_receipt: Receipt | None = None,
+    # ):
+    #     """Get the used leader addresses from the consensus history."""
+    #     used_leader_addresses = set()
+    #     if "consensus_results" in consensus_history:
+    #         for consensus_round in consensus_history["consensus_results"]:
+    #             leader_receipt = consensus_round["leader_result"]
+    #             if leader_receipt:
+    #                 used_leader_addresses.update(
+    #                     [leader_receipt["node_config"]["address"]]
+    #                 )
+    #
+    #     if current_leader_receipt:
+    #         used_leader_addresses.update(
+    #             [current_leader_receipt.node_config["address"]]
+    #         )
+    #
+    #     return used_leader_addresses

@@ -12,56 +12,6 @@ from backend.consensus.helpers.transaction_context import TransactionContext
 from backend.consensus.states.finalizing_state import FinalizingState
 
 
-def can_finalize_transaction(
-    transactions_processor: TransactionsProcessor,
-    transaction: Transaction,
-    index: int,
-    accepted_undetermined_queue: List[Dict],
-    finality_window_time: int,
-) -> bool:
-    """
-    Check if a transaction can be finalized based on criteria.
-
-    Args:
-        transactions_processor (TransactionsProcessor): The transactions processor.
-        transaction (Transaction): The transaction to check.
-        index (int): Index in the queue.
-        accepted_undetermined_queue (List[Dict]): Queue of accepted/undetermined transactions.
-        finality_window_time (int): Time window for finalization.
-
-    Returns:
-        bool: Whether the transaction can be finalized.
-    """
-    if transaction.leader_only or (
-        (
-            int(time.time())
-            - transaction.timestamp_awaiting_finalization
-            - transaction.appeal_processing_time
-        )
-        > finality_window_time
-    ):
-        if index == 0:
-            return True
-        else:
-            previous_transaction_hash = accepted_undetermined_queue[index - 1]["hash"]
-            previous_transaction = transactions_processor.get_transaction_by_hash(
-                previous_transaction_hash
-            )
-            return previous_transaction["status"] == "FINALIZED"
-    return False
-
-
-async def process_finalization(context: TransactionContext):
-    """
-    Process the finalization of a transaction.
-
-    Args:
-        context (TransactionContext): The transaction context.
-    """
-    state = FinalizingState()
-    await state.handle(context)
-
-
 class FinalizationProcessor:
     @staticmethod
     async def process_finalization(

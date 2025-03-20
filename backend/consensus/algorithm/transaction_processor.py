@@ -14,6 +14,7 @@ from backend.node.base import Node
 from backend.node.types import ExecutionMode, Receipt
 from backend.consensus.helpers.transaction_context import TransactionContext
 from backend.consensus.states.pending_state import PendingState
+from backend.consensus.states.transaction_state import TransactionState
 import asyncio
 
 
@@ -83,7 +84,9 @@ def execute_transfer(
 
 async def process_transaction(
     context: TransactionContext,
-    initial_state_class,
+    initial_state_class: TransactionState,
+    transactions_processor: TransactionsProcessor = None,
+    state_name: str = None,
 ):
     """
     Process a transaction through state transitions.
@@ -93,11 +96,36 @@ async def process_transaction(
         initial_state_class: The initial state class to start with.
     """
     state = initial_state_class()
-    while True:
-        next_state = await state.handle(context)
-        if next_state is None:
-            break
-        state = next_state
+    if not state_name:
+        while True:
+            next_state = await state.handle(context)
+            if next_state is None:
+                break
+            state = next_state
+    elif state_name.lower() == "committingstate":
+        while True:
+            next_state = await state.handle(context)
+            if next_state is None:
+                break
+            elif next_state == "validator_appeal_success":
+                # AppealProcessor.rollback_transactions(context)
+                transactions_processor.update_transaction_status(
+                    context.transaction.hash,
+                    TransactionStatus.PENDING,
+                )
+
+                previous_contact_state = (
+                    context.transaction.contract_snapshot.encoded_state
+                )
+                if previous_contact_state:
+                    leaders_contract_snapshot = context.contract_snapshot_factory(
+                        context.transaction.to_address
+                    )
+                    leaders_contract_snapshot.update_contract_state(
+                        accepted_state=previous_contact_state
+                    )
+                break
+            state = next_state
 
 
 class TransactionProcessor:
@@ -210,9 +238,4 @@ class TransactionProcessor:
             msg_handler=msg_handler,
         )
 
-        state = PendingState()
-        while True:
-            next_state = await state.handle(context)
-            if next_state is None:
-                break
-            state = next_state
+        await process_transaction(context, PendingState)
