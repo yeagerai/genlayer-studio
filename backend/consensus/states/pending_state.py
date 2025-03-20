@@ -90,10 +90,11 @@ class PendingState(TransactionState):
             )
 
             # Reset the transaction appeal status
-            context.transactions_processor.set_transaction_appeal(
-                context.transaction.hash, False
+            context.transaction.appealed = (
+                context.transactions_processor.set_transaction_appeal(
+                    context.transaction.hash, False
+                )
             )
-            context.transaction.appealed = False
 
         elif context.transaction.appeal_undetermined:
             # Add n+2 validators, remove the old leader
