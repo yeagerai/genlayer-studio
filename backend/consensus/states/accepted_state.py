@@ -153,10 +153,11 @@ class AcceptedState(TransactionState):
 
         # Set the transaction appeal undetermined status to false and return appeal status
         if context.transaction.appeal_undetermined:
-            context.transactions_processor.set_transaction_appeal_undetermined(
-                context.transaction.hash, False
+            context.transaction.appeal_undetermined = (
+                context.transactions_processor.set_transaction_appeal_undetermined(
+                    context.transaction.hash, False
+                )
             )
-            context.transaction.appeal_undetermined = False
             return "leader_appeal_success"
         else:
             return None

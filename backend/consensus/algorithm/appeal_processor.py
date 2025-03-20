@@ -52,8 +52,9 @@ class AppealProcessor:
             msg_handler=msg_handler,
         )
 
-        transactions_processor.set_transaction_appeal(transaction.hash, False)
-        transaction.appealed = False
+        transaction.appealed = transactions_processor.set_transaction_appeal(
+            transaction.hash, False
+        )
 
         used_leader_addresses = (
             ValidatorManagement.get_used_leader_addresses_from_consensus_history(
@@ -86,10 +87,11 @@ class AppealProcessor:
                 log_to_terminal=False,
             )
         else:
-            transactions_processor.set_transaction_appeal_undetermined(
-                transaction.hash, True
+            transaction.appeal_undetermined = (
+                transactions_processor.set_transaction_appeal_undetermined(
+                    transaction.hash, True
+                )
             )
-            transaction.appeal_undetermined = True
             context.contract_snapshot_supplier = (
                 lambda: context.contract_snapshot_factory(
                     context.transaction.to_address
@@ -150,10 +152,12 @@ class AppealProcessor:
                     transaction_hash=context.transaction.hash,
                 )
             )
-            context.transactions_processor.set_transaction_appeal(
-                context.transaction.hash, False
+
+            context.transaction.appealed = (
+                context.transactions_processor.set_transaction_appeal(
+                    context.transaction.hash, False
+                )
             )
-            context.transaction.appealed = False
             msg_handler.send_message(
                 log_event=LogEvent(
                     "transaction_appeal_updated",
