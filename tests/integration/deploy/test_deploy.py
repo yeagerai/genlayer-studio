@@ -3,7 +3,6 @@ import zipfile
 import io
 import base64
 import pytest
-from numpy.ma.core import resize
 
 from tests.common.request import (
     deploy_intelligent_contract,
