@@ -48,10 +48,31 @@ def test_deploy(setup_validators, from_account):
     assert res == "123"
 
 
+@pytest.mark.parametrize(
+    "address, status, expected_result",
+    [
+        (
+            "test_address",
+            200,
+            None,
+        ),
+        (
+            "0x9C778c9688dAA91FDa539399B817C8732c284F19",
+            200,
+            dict,
+        ),
+    ],
+)
 @pytest.mark.asyncio
-async def test_get_contract_by_address():
-    status_code, contract = await get_contract_by_address("test_address")
-    result = contract["result"]
+async def test_get_contract_by_address(
+    address: str, status: int, expected_result: dict | None
+):
+    status_code, contract = await get_contract_by_address(address)
+    result = contract.get("result")
 
-    assert status_code == 200
-    assert isinstance(result, (dict | None))
+    assert status_code == status
+    if expected_result is None:
+        assert result is None
+    else:
+        assert isinstance(result, dict)
+        assert "contract_code" in result
