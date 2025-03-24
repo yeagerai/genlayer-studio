@@ -5,13 +5,10 @@ import { ref } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import ContractItem from '@/components/Simulator/ContractItem.vue';
 import MainTitle from '@/components/Simulator/MainTitle.vue';
-import { useEventTracking } from '@/hooks';
+import { useRpcClient, useEventTracking } from '@/hooks';
 import { InboxArrowDownIcon } from '@heroicons/vue/24/solid';
-import { RpcClient } from '@/clients/rpc.ts';
-import type { JsonRPCRequest, JsonRPCResponse } from '@/types';
 
-const rpcClient = new RpcClient();
-const responseData = ref<JsonRPCResponse<any> | null>(null);
+const rpcClient = useRpcClient();
 const showInputModal = ref(false);
 const contractAddress = ref(''); // Store the input field value
 
@@ -21,19 +18,11 @@ function toggleInputModal() {
 
 async function getContractByAddress(address: string) {
   try {
-    const request: JsonRPCRequest = {
-      method: 'gen_getContractByAddress',
-      params: [address],
-    };
+    const response = await rpcClient.gen_getContractByAddress(address);
 
-    const response = await rpcClient.call(request);
-    responseData.value = response;
-
-    if (response.result) {
+    if (response) {
       const id = uuidv4();
-      const content = (
-        response.result as { contract_code: string }
-      ).contract_code
+      const content = (response as { contract_code: string }).contract_code
         .replace(/^b'/, '') // Remove b' prefix
         .replace(/'$/, '') // Remove trailing '
         .replace(/\\n/g, '\n') // Convert \n to actual newlines
