@@ -72,4 +72,4 @@ async def test_get_contract_by_address(address: str, status: int):
         assert result is None
     else:
         assert isinstance(result, dict)
-        assert "contract_code" in result
+        assert "contract_code" in result.keys()

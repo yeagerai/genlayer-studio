@@ -731,7 +731,9 @@ def get_contract_by_address(
 ) -> dict[str:CurrentState] | None:
     if accounts_manager.is_valid_address(address):
         deployed_contract: CurrentState = (
-            request_session.query(CurrentState).filter(CurrentState.id == address).one()
+            request_session.query(CurrentState)
+            .filter(CurrentState.id == address)
+            .first()
         )
         if deployed_contract:
             return {
