@@ -126,18 +126,24 @@ class ConsensusService:
             print(f"[CONSENSUS_SERVICE]: Error forwarding transaction: {str(e)}")
             return None
 
-    def emit_transaction_event(
-        self, event_name: str, account_address: str, account_private_key: str, *args
-    ):
+    def emit_transaction_event(self, event_name: str, account: dict, *args):
         """
         Generic method to emit transaction events
 
         Args:
             event_name (str): Name of the event function to call
-            account_address (str): Address of the account sending the transaction
-            account_private_key (str): Private key of the account sending the transaction
+            account (dict): Account object containing address and private key
             *args: Arguments to pass to the event function
         """
+        if "private_key" in account:
+            account_address = account["address"]
+            account_private_key = account["private_key"]
+        else:
+            print(
+                f"[CONSENSUS_SERVICE]: Error emitting {event_name}: Account object must contain private_key"
+            )
+            return None
+
         try:
             # Get the function from the contract
             event_function = getattr(self.consensus_contract.functions, event_name)

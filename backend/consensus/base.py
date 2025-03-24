@@ -1162,8 +1162,7 @@ class ConsensusAlgorithm:
             # Send events in rollup to communicate the appeal is started
             context.consensus_service.emit_transaction_event(
                 "emitAppealStarted",
-                context.remaining_validators[0]["address"],
-                context.remaining_validators[0]["private_key"],
+                context.remaining_validators[0],
                 context.transaction.hash,
                 context.remaining_validators[0]["address"],
                 0,
@@ -1574,8 +1573,7 @@ class PendingState(TransactionState):
             # Send events in rollup to communicate the appeal is started
             context.consensus_service.emit_transaction_event(
                 "emitAppealStarted",
-                context.involved_validators[0]["address"],
-                context.involved_validators[0]["private_key"],
+                context.involved_validators[0],
                 context.transaction.hash,
                 context.involved_validators[0]["address"],
                 0,
@@ -1644,8 +1642,7 @@ class ProposingState(TransactionState):
         if self.activate:
             context.consensus_service.emit_transaction_event(
                 "emitTransactionActivated",
-                leader["address"],
-                leader["private_key"],
+                leader,
                 context.transaction.hash,
                 leader["address"],
                 [leader["address"]]
@@ -1678,8 +1675,7 @@ class ProposingState(TransactionState):
         # Send event in rollup to communicate the receipt proposed
         context.consensus_service.emit_transaction_event(
             "emitTransactionReceiptProposed",
-            leader["address"],
-            leader["private_key"],
+            leader,
             context.transaction.hash,
         )
 
@@ -1755,8 +1751,7 @@ class CommittingState(TransactionState):
         # Send events in rollup to communicate the votes are committed
         context.consensus_service.emit_transaction_event(
             "emitVoteCommitted",
-            context.consensus_data.leader_receipt.node_config["address"],
-            context.consensus_data.leader_receipt.node_config["private_key"],
+            context.consensus_data.leader_receipt.node_config,
             context.transaction.hash,
             context.consensus_data.leader_receipt.node_config["address"],
             False,
@@ -1764,8 +1759,7 @@ class CommittingState(TransactionState):
         for i, validator in enumerate(context.remaining_validators):
             context.consensus_service.emit_transaction_event(
                 "emitVoteCommitted",
-                validator["address"],
-                validator["private_key"],
+                validator,
                 context.transaction.hash,
                 validator["address"],
                 True if i == len(context.remaining_validators) - 1 else False,
@@ -1814,8 +1808,7 @@ class RevealingState(TransactionState):
         # Send event in rollup to communicate the votes are revealed
         context.consensus_service.emit_transaction_event(
             "emitVoteRevealed",
-            context.consensus_data.leader_receipt.node_config["address"],
-            context.consensus_data.leader_receipt.node_config["private_key"],
+            context.consensus_data.leader_receipt.node_config,
             context.transaction.hash,
             context.consensus_data.leader_receipt.node_config["address"],
             1,
@@ -1842,8 +1835,7 @@ class RevealingState(TransactionState):
 
             context.consensus_service.emit_transaction_event(
                 "emitVoteRevealed",
-                validation_result.node_config["address"],
-                validation_result.node_config["private_key"],
+                validation_result.node_config,
                 context.transaction.hash,
                 validation_result.node_config["address"],
                 type_vote,
@@ -1979,8 +1971,7 @@ class RevealingState(TransactionState):
                 # Send events in rollup to communicate the leader rotation
                 context.consensus_service.emit_transaction_event(
                     "emitTransactionLeaderRotated",
-                    context.consensus_data.leader_receipt.node_config["address"],
-                    context.consensus_data.leader_receipt.node_config["private_key"],
+                    context.consensus_data.leader_receipt.node_config,
                     context.transaction.hash,
                     context.involved_validators[0]["address"],
                 )
@@ -2071,8 +2062,7 @@ class AcceptedState(TransactionState):
         # Send events in rollup to communicate the transaction is accepted
         context.consensus_service.emit_transaction_event(
             "emitTransactionAccepted",
-            context.consensus_data.leader_receipt.node_config["address"],
-            context.consensus_data.leader_receipt.node_config["private_key"],
+            context.consensus_data.leader_receipt.node_config,
             context.transaction.hash,
         )
 
@@ -2280,8 +2270,7 @@ class FinalizingState(TransactionState):
         # Send events in rollup to communicate the transaction is finalized
         context.consensus_service.emit_transaction_event(
             "emitTransactionFinalized",
-            leader_receipt.node_config["address"],
-            leader_receipt.node_config["private_key"],
+            leader_receipt.node_config,
             context.transaction.hash,
         )
 

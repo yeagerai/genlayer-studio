@@ -238,10 +238,12 @@ class TransactionsProcessor:
         if consensus_service:
             consensus_service.emit_transaction_event(
                 "emitNewTransaction",
-                self.web3.eth.accounts[
-                    0
-                ],  # for now okay but should be the from_address
-                os.environ.get("HARDHAT_PRIVATE_KEY"),
+                {
+                    "address": self.web3.eth.accounts[
+                        0
+                    ],  # for now okay but should be the from_address
+                    "private_key": os.environ.get("HARDHAT_PRIVATE_KEY"),
+                },
                 transaction_hash,
                 to_address,
                 self.web3.eth.accounts[0],  # for now okay but should be a validator
