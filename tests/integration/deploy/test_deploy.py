@@ -3,6 +3,8 @@ import zipfile
 import io
 import base64
 import pytest
+from numpy.ma.core import resize
+
 from tests.common.request import (
     deploy_intelligent_contract,
     write_intelligent_contract,
@@ -49,29 +51,25 @@ def test_deploy(setup_validators, from_account):
 
 
 @pytest.mark.parametrize(
-    "address, status, expected_result",
+    "address, status",
     [
         (
             "test_address",
             200,
-            None,
         ),
         (
             "0x9C778c9688dAA91FDa539399B817C8732c284F19",
             200,
-            dict,
         ),
     ],
 )
 @pytest.mark.asyncio
-async def test_get_contract_by_address(
-    address: str, status: int, expected_result: dict | None
-):
+async def test_get_contract_by_address(address: str, status: int):
     status_code, contract = await get_contract_by_address(address)
     result = contract.get("result")
 
     assert status_code == status
-    if expected_result is None:
+    if result is None:
         assert result is None
     else:
         assert isinstance(result, dict)
