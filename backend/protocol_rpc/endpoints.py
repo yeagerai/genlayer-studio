@@ -9,11 +9,11 @@ from flask_jsonrpc.exceptions import JSONRPCError
 from sqlalchemy import Table
 from sqlalchemy.orm import Session
 import backend.node.genvm.origin.calldata as genvm_calldata
-
+import base64
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
 from backend.rollup.consensus_service import ConsensusService
-from backend.database_handler.models import Base, Transactions
+from backend.database_handler.models import Base, CurrentState
 from backend.domain.types import LLMProvider, Validator, TransactionType
 from backend.node.create_nodes.providers import (
     get_default_provider_for,
@@ -728,25 +728,14 @@ def get_contract(consensus_service: ConsensusService, contract_name: str) -> dic
 
 def get_contract_by_address(
     request_session: Session, accounts_manager: AccountsManager, address: str
-) -> dict[str:Transactions] | None:
-    import base64
-
+) -> dict[str:CurrentState] | None:
     if accounts_manager.is_valid_address(address):
-        deployed_contract: Transactions = (
-            request_session.query(Transactions)
-            .filter(
-                Transactions.type == TransactionType.DEPLOY_CONTRACT,
-                Transactions.to_address == address,
-            )
-            .one()
+        deployed_contract: CurrentState = (
+            request_session.query(CurrentState).filter(CurrentState.id == address).one()
         )
         if deployed_contract:
             return {
-                "transactions": deployed_contract.hash,
-                "contract_code": base64.b64decode(
-                    deployed_contract.data.get("contract_code")
-                ),
-                "contract_address": deployed_contract.to_address,
+                "contract_code": base64.b64decode(deployed_contract.data.get("code"))
             }
 
 
