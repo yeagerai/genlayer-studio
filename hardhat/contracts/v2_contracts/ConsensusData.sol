@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "./interfaces/ITransactions.sol";
 import "./interfaces/IQueues.sol";
+import "./interfaces/IGenManager.sol";
 import "./interfaces/IConsensusMain.sol";
 import "./interfaces/IMessages.sol";
 
@@ -68,45 +69,145 @@ contract ConsensusData is
 	) external view returns (TransactionData memory) {
 		ITransactions.Transaction memory transaction = transactions
 			.getTransaction(_tx_id);
-
-		address activator = consensusMain.txActivator(_tx_id);
-		uint validatorsCount = consensusMain.validatorsCountForTx(_tx_id);
-		uint leaderIndex = consensusMain.txLeaderIndex(_tx_id);
-		address[] memory validators = consensusMain.getValidatorsForTx(_tx_id);
+		bytes32 randomSeed = consensusMain
+			.contracts()
+			.genManager
+			.recipientRandomSeed(transaction.recipient);
+		// uint256 txSlot = queues.getTransactionQueuePosition(_tx_id);
+		// address activator = consensusMain.getActivatorForTx(randomSeed, txSlot);
+		address activator = transaction.activator;
+		uint256 txSlot = transaction.txSlot;
+		uint lastRound = transaction.roundData.length > 0
+			? transaction.roundData.length - 1
+			: 0;
+		ITransactions.RoundData memory lastRoundData = transaction
+			.roundData
+			.length > 0
+			? transaction.roundData[lastRound]
+			: ITransactions.RoundData(
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				ITransactions.ResultType(0),
+				new address[](0),
+				new bytes32[](0),
+				new ITransactions.VoteType[](0)
+			);
+		uint validatorsCount = lastRoundData.roundValidators.length;
+		uint leaderIndex = lastRoundData.leaderIndex;
+		address[] memory validators = lastRoundData.roundValidators;
 		address leader = validatorsCount > 0
 			? validators[leaderIndex]
 			: address(0);
-
+		randomSeed = transaction.randomSeed != bytes32(0)
+			? transaction.randomSeed
+			: randomSeed;
 		TransactionData memory txData = TransactionData({
 			// Basic transaction info
 			sender: transaction.sender,
 			recipient: transaction.recipient,
 			numOfInitialValidators: transaction.numOfInitialValidators,
-			txSlot: transaction.txSlot,
+			txSlot: txSlot,
 			timestamp: transaction.timestamp,
 			lastVoteTimestamp: transaction.lastVoteTimestamp,
-			randomSeed: transaction.randomSeed,
-			result: transaction.result,
+			randomSeed: randomSeed,
+			result: lastRoundData.result,
 			txData: transaction.txData,
 			txReceipt: transaction.txReceipt,
 			messages: transaction.messages,
-			// // Validator info
-			validators: transaction.validators,
-			validatorVotesHash: transaction.validatorVotesHash,
-			validatorVotes: transaction.validatorVotes,
+			// Validator info
+			validators: validators,
+			validatorVotesHash: lastRoundData.validatorVotesHash,
+			validatorVotes: lastRoundData.validatorVotes,
 			// Queue info
 			queueType: queues.getTransactionQueueType(_tx_id),
 			queuePosition: queues.getTransactionQueuePosition(_tx_id),
-			// // Status info
+			// Status info
 			activator: activator,
 			leader: leader,
-			status: consensusMain.txStatus(_tx_id),
-			committedVotesCount: consensusMain.voteCommittedCountForTx(_tx_id),
-			revealedVotesCount: consensusMain.voteRevealedCountForTx(_tx_id),
-			rotationsLeft: transaction.rotationsLeft
+			status: transaction.status,
+			committedVotesCount: lastRoundData.votesCommitted,
+			revealedVotesCount: lastRoundData.votesRevealed,
+			rotationsLeft: lastRoundData.rotationsLeft
 		});
 
 		return txData;
+	}
+
+	function getValidatorsForLastAppeal(
+		bytes32 _tx_id
+	) external view returns (address[] memory) {
+		ITransactions.Transaction memory transaction = transactions
+			.getTransaction(_tx_id);
+		uint256 lastRound = transaction.roundData.length > 0
+			? transaction.roundData.length - 1
+			: 0;
+		if (lastRound > 0) {
+			if (lastRound % 2 == 1) {
+				return transaction.roundData[lastRound].roundValidators;
+			} else {
+				return transaction.roundData[lastRound - 1].roundValidators;
+			}
+		} else {
+			return new address[](0);
+		}
+	}
+
+	function getValidatorsForLastRound(
+		bytes32 _tx_id
+	) external view returns (address[] memory) {
+		ITransactions.Transaction memory transaction = transactions
+			.getTransaction(_tx_id);
+		uint256 lastRound = transaction.roundData.length > 0
+			? transaction.roundData.length - 1
+			: 0;
+		return transaction.roundData[lastRound].roundValidators;
+	}
+
+	function getLastAppealResult(
+		bytes32 _tx_id
+	) external view returns (ITransactions.ResultType) {
+		ITransactions.Transaction memory transaction = transactions
+			.getTransaction(_tx_id);
+		uint256 lastRound = transaction.roundData.length > 0
+			? transaction.roundData.length - 1
+			: 0;
+		if (lastRound > 0) {
+			if (lastRound % 2 == 1) {
+				return transaction.roundData[lastRound].result;
+			} else {
+				return transaction.roundData[lastRound - 1].result;
+			}
+		} else {
+			return ITransactions.ResultType(0);
+		}
+	}
+
+	function getTransactionStatus(
+		bytes32 _tx_id
+	) external view returns (ITransactions.TransactionStatus) {
+		return transactions.getTransaction(_tx_id).status;
+	}
+
+	function hasTransactionOnAcceptanceMessages(
+		bytes32 _tx_id
+	) external view returns (bool) {
+		return transactions.getTransaction(_tx_id).onAcceptanceMessages;
+	}
+
+	function hasTransactionOnFinalizationMessages(
+		bytes32 _tx_id
+	) external view returns (bool) {
+		return transactions.hasMessagesOnFinalization(_tx_id);
+	}
+
+	function getMessagesForTransaction(
+		bytes32 _tx_id
+	) external view returns (IMessages.SubmittedMessage[] memory) {
+		return transactions.getMessagesForTransaction(_tx_id);
 	}
 
 	// Setter functions
