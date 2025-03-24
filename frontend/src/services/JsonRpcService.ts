@@ -210,6 +210,7 @@ export class JsonRpcService implements IJsonRpcService {
       'Error getting finality window time',
     );
   }
+
   async gen_getContractByAddress(address: string): Promise<any> {
     return this.callRpcMethod<any>(
       'gen_getContractByAddress',
