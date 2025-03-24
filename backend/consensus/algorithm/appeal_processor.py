@@ -251,25 +251,3 @@ class AppealProcessor:
             extra_validators = current_validators[n - 1 :] + extra_validators
 
         return current_validators, extra_validators
-
-    # @staticmethod
-    # def get_used_leader_addresses_from_consensus_history(
-    #     consensus_history: dict,
-    #     current_leader_receipt: Receipt | None = None,
-    # ):
-    #     """Get the used leader addresses from the consensus history."""
-    #     used_leader_addresses = set()
-    #     if "consensus_results" in consensus_history:
-    #         for consensus_round in consensus_history["consensus_results"]:
-    #             leader_receipt = consensus_round["leader_result"]
-    #             if leader_receipt:
-    #                 used_leader_addresses.update(
-    #                     [leader_receipt["node_config"]["address"]]
-    #                 )
-    #
-    #     if current_leader_receipt:
-    #         used_leader_addresses.update(
-    #             [current_leader_receipt.node_config["address"]]
-    #         )
-    #
-    #     return used_leader_addresses
