@@ -19,7 +19,7 @@ function toggleInputModal() {
   showInputModal.value = !showInputModal.value;
 }
 
-async function callRpcMethod(address: string) {
+async function getContractByAddress(address: string) {
   try {
     const request: JsonRPCRequest = {
       method: 'gen_getContractByAddress',
@@ -59,7 +59,7 @@ function importContract() {
     console.error('Please enter a valid contract address');
     return;
   }
-  callRpcMethod(contractAddress.value);
+  getContractByAddress(contractAddress.value);
 }
 
 const store = useContractsStore();
