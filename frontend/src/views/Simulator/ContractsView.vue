@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { useContractsStore } from '@/stores';
-import { FilePlus2, Upload } from 'lucide-vue-next';
+import { FilePlus2, Upload, ArrowDownToLine } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import ContractItem from '@/components/Simulator/ContractItem.vue';
 import MainTitle from '@/components/Simulator/MainTitle.vue';
 import { useRpcClient, useEventTracking } from '@/hooks';
-import { InboxArrowDownIcon } from '@heroicons/vue/24/solid';
 
 const rpcClient = useRpcClient();
 const showInputModal = ref(false);
@@ -129,7 +128,7 @@ const handleSaveNewFile = (name: string) => {
           v-tooltip="'Import Contract from Address'"
           @click="toggleInputModal"
         >
-          <InboxArrowDownIcon class="h-4 w-4" />
+          <ArrowDownToLine class="h-4 w-4" />
         </GhostBtn>
       </template>
     </MainTitle>
