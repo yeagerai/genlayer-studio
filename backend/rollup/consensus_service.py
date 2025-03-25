@@ -95,7 +95,7 @@ class ConsensusService:
         """
         if not self.web3:
             print("[CONSENSUS_SERVICE]: Web3 not set")
-            return None
+            return {"recipient": transaction["to"]}
 
         try:
             tx_hash = self.web3.eth.send_raw_transaction(transaction)
