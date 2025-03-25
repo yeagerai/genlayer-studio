@@ -157,29 +157,32 @@ const handleSaveNewFile = (name: string) => {
     v-if="showInputModal"
     class="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-50"
   >
-    <div class="relative z-[10000] w-96 rounded-lg bg-white p-6 shadow-lg">
-      <h2 class="mb-4 text-lg font-semibold">Import Contract</h2>
+    <div
+      class="relative z-[10000] w-96 rounded-lg bg-white p-6 shadow-lg dark:bg-zinc-800"
+    >
+      <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
+        Import Contract
+      </h2>
       <input
         type="text"
         v-model="contractAddress"
-        class="w-full rounded-md border p-2"
+        class="w-full rounded-md border border-gray-300 bg-white p-2 text-gray-900 dark:border-gray-600 dark:bg-zinc-700 dark:text-gray-200"
         placeholder="Enter contract address"
       />
-
-      <!-- Button Row -->
-      <div class="mt-4 flex justify-end space-x-3">
-        <button
+      <div class="mt-4 flex justify-end">
+        <Btn
           @click="toggleInputModal"
-          class="rounded-md bg-gray-300 px-4 py-2 text-gray-700"
+          class="mr-4 !h-[36px] !px-[12px] !py-[8px] !text-[14px] !font-medium dark:bg-gray-400"
         >
           Cancel
-        </button>
-        <button
+        </Btn>
+
+        <Btn
           @click="importContract"
-          class="rounded-md bg-green-500 px-4 py-2 text-white"
+          class="!h-[36px] !px-[12px] !py-[8px] !text-[14px] !font-medium dark:bg-gray-400"
         >
           Import
-        </button>
+        </Btn>
       </div>
     </div>
   </div>
