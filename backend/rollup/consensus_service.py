@@ -15,11 +15,18 @@ class ConsensusService:
         # Connect to Hardhat Network
         port = os.environ.get("HARDHAT_PORT")
         url = os.environ.get("HARDHAT_URL")
-        hardhat_url = f"{url}:{port}"
-        self.web3 = Web3(Web3.HTTPProvider(hardhat_url))
+        compose_profile = os.environ.get("COMPOSE_PROFILES")
 
-        if not self.web3.is_connected():
-            raise ConnectionError(f"Failed to connect to Hardhat node at {hardhat_url}")
+        self.web3 = None
+
+        if compose_profile == "hardhat":
+            hardhat_url = f"{url}:{port}"
+            self.web3 = Web3(Web3.HTTPProvider(hardhat_url))
+
+            if not self.web3.is_connected():
+                raise ConnectionError(
+                    f"Failed to connect to Hardhat node at {hardhat_url}"
+                )
 
     def load_contract(self, contract_name: str) -> Optional[dict]:
         """
@@ -33,6 +40,10 @@ class ConsensusService:
         """
         try:
             # compiled_data = self._load_compiled_contract(contract_name)
+            if not self.web3:
+                print("[CONSENSUS_SERVICE]: Web3 not set")
+                return None
+
             deployment_data = self._load_deployment_data(contract_name)
 
             # if not compiled_data or not deployment_data:
@@ -46,37 +57,6 @@ class ConsensusService:
 
         except Exception as e:
             print(f"[CONSENSUS_SERVICE] Error loading contract: {str(e)}")
-            return None
-
-    def _load_compiled_contract(self, contract_name: str) -> Optional[Dict[str, Any]]:
-        """
-        Load compiled contract data from artifacts
-
-        Args:
-            contract_name (str): The name of the contract to load
-
-        Returns:
-            Optional[Dict[str, Any]]: The compiled contract data or None if loading fails
-        """
-        try:
-            compiled_contract_path = (
-                Path(
-                    f"/app/hardhat/artifacts/contracts/v2_contracts/{contract_name}.sol"
-                )
-                / f"{contract_name}.json"
-            )
-
-            if not compiled_contract_path.exists():
-                print(
-                    f"[CONSENSUS_SERVICE]: Compiled contract not found at {compiled_contract_path}"
-                )
-                return None
-
-            with open(compiled_contract_path, "r") as f:
-                return json.load(f)
-
-        except Exception as e:
-            print(f"[CONSENSUS_SERVICE]: Error loading compiled contract: {str(e)}")
             return None
 
     def _load_deployment_data(self, contract_name: str) -> Optional[Dict[str, Any]]:
@@ -113,6 +93,10 @@ class ConsensusService:
         """
         Forward a transaction to the consensus rollup and wait for NewTransaction event
         """
+        if not self.web3:
+            print("[CONSENSUS_SERVICE]: Web3 not set")
+            return None
+
         try:
             tx_hash = self.web3.eth.send_raw_transaction(transaction)
             receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
