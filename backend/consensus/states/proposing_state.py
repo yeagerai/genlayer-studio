@@ -42,7 +42,7 @@ class ProposingState(TransactionState):
         if context.transaction.leader_only:
             context.remaining_validators = []
 
-        # Create a contract snapshot for the transaction if not exists
+        # Copy contract snapshot if it exists, otherwise create one
         if context.transaction.contract_snapshot:
             contract_snapshot = deepcopy(context.transaction.contract_snapshot)
         else:
