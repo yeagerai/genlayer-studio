@@ -1,0 +1,12 @@
+FROM fabiocicerchia/nginx-lua:1.27.2-almalinux9.4-20240923
+
+RUN luarocks install lua-cjson
+
+RUN echo 'server { \
+    listen 80; \
+    location / { \
+        proxy_pass http://mock-server:8000; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
