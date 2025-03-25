@@ -37,7 +37,6 @@ def execute_transfer(
         accounts_manager (AccountsManager): Manager to handle account balance updates.
         msg_handler (MessageHandler): The message handler.
     """
-
     # Check if the transaction is a fund_account call
     if not transaction.from_address is None:
         # Get the balance of the sender account
@@ -86,7 +85,6 @@ async def process_transaction(
     context: TransactionContext,
     initial_state_class: TransactionState,
     transactions_processor: TransactionsProcessor = None,
-    state_name: str = None,
 ):
     """
     Process a transaction through state transitions.
@@ -96,36 +94,30 @@ async def process_transaction(
         initial_state_class: The initial state class to start with.
     """
     state = initial_state_class()
-    if not state_name:
-        while True:
-            next_state = await state.handle(context)
-            if next_state is None:
-                break
-            state = next_state
-    elif state_name.lower() == "committingstate":
-        while True:
-            next_state = await state.handle(context)
-            if next_state is None:
-                break
-            elif next_state == "validator_appeal_success":
-                # AppealProcessor.rollback_transactions(context)
-                transactions_processor.update_transaction_status(
-                    context.transaction.hash,
-                    TransactionStatus.PENDING,
-                )
+    while True:
+        next_state = await state.handle(context)
+        if next_state is None:
+            break
+        elif next_state == "leader_appeal_success":
+            TransactionProcessor.rollback_transactions(context)
+            break
+        elif next_state == "validator_appeal_success":
+            TransactionProcessor.rollback_transactions(context)
+            transactions_processor.update_transaction_status(
+                context.transaction.hash,
+                TransactionStatus.PENDING,
+            )
 
-                previous_contact_state = (
-                    context.transaction.contract_snapshot.encoded_state
+            previous_contact_state = context.transaction.contract_snapshot.encoded_state
+            if previous_contact_state:
+                leaders_contract_snapshot = context.contract_snapshot_factory(
+                    context.transaction.to_address
                 )
-                if previous_contact_state:
-                    leaders_contract_snapshot = context.contract_snapshot_factory(
-                        context.transaction.to_address
-                    )
-                    leaders_contract_snapshot.update_contract_state(
-                        accepted_state=previous_contact_state
-                    )
-                break
-            state = next_state
+                leaders_contract_snapshot.update_contract_state(
+                    accepted_state=previous_contact_state
+                )
+            break
+        state = next_state
 
 
 class TransactionProcessor:
@@ -239,3 +231,19 @@ class TransactionProcessor:
         )
 
         await process_transaction(context, PendingState)
+
+    @staticmethod
+    def rollback_transactions(context: TransactionContext):
+        """Rollback newer transactions."""
+        address = context.transaction.to_address
+        future_transactions = context.transactions_processor.get_newer_transactions(
+            context.transaction.hash
+        )
+        for future_transaction in future_transactions:
+            context.transactions_processor.update_transaction_status(
+                future_transaction["hash"],
+                TransactionStatus.PENDING,
+            )
+            context.transactions_processor.set_transaction_contract_snapshot(
+                future_transaction["hash"], None
+            )

@@ -12,6 +12,7 @@ from backend.consensus.states.transaction_state import TransactionState
 from backend.consensus.helpers.factories import DEFAULT_VALIDATORS_COUNT
 from backend.consensus.states.proposing_state import ProposingState
 from backend.consensus.algorithm.validator_management import ValidatorManagement
+from backend.consensus.algorithm import transaction_processor
 
 
 class PendingState(TransactionState):
@@ -26,9 +27,6 @@ class PendingState(TransactionState):
         Returns:
             TransactionState | None: The ProposingState or None if the transaction is already in process, when it is a transaction or when there are no validators.
         """
-        from backend.consensus.algorithm.appeal_processor import AppealProcessor
-        from backend.consensus.algorithm import transaction_processor
-
         # Transactions that are put back to pending are processed again, so we need to get the latest data of the transaction
         context.transaction = Transaction.from_dict(
             context.transactions_processor.get_transaction_by_hash(
@@ -98,11 +96,13 @@ class PendingState(TransactionState):
 
         elif context.transaction.appeal_undetermined:
             # Add n+2 validators, remove the old leader
-            current_validators, extra_validators = AppealProcessor.get_extra_validators(
-                all_validators,
-                context.transaction.consensus_history,
-                context.transaction.consensus_data,
-                0,
+            current_validators, extra_validators = (
+                ValidatorManagement.get_extra_validators(
+                    all_validators,
+                    context.transaction.consensus_history,
+                    context.transaction.consensus_data,
+                    0,
+                )
             )
             context.involved_validators = current_validators + extra_validators
 
