@@ -99,7 +99,8 @@ class AcceptedState(TransactionState):
         # Retrieve the leader's receipt from the consensus data
         leader_receipt = context.consensus_data.leader_receipt
 
-        # Do not deploy or update the contract if validator appeal failed
+        # Contract won't be deployed or updated if validator appeal fails. But if transaction didn't come
+        # from a validator appeal, a leader appeal will deploy/update the contract.
         if not context.transaction.appealed:
             # Get the contract snapshot for the transaction's target address
             leaders_contract_snapshot = context.contract_snapshot_supplier()
