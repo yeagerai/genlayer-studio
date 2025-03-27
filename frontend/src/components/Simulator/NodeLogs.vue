@@ -7,10 +7,13 @@ import EmptyListPlaceholder from './EmptyListPlaceholder.vue';
 import { Ban, SearchIcon, X } from 'lucide-vue-next';
 import LogFilterBtn from '@/components/Simulator/LogFilterBtn.vue';
 import TextInput from '../global/inputs/TextInput.vue';
+import { useScroll } from '@vueuse/core';
+import { useTemplateRef } from 'vue';
 
 const nodeStore = useNodeStore();
 const uiStore = useUIStore();
-const scrollContainer = ref<HTMLDivElement>();
+const scrollContainer = useTemplateRef<HTMLElement>('scrollContainer');
+const { y, isScrolling, arrivedState, directions } = useScroll(scrollContainer);
 
 type ColorMapType = {
   [key: string]: string;
@@ -23,13 +26,25 @@ const colorMap: ComputedRef<ColorMapType> = computed(() => ({
   success: 'text-green-400',
 }));
 
-watch(nodeStore.logs, () => {
-  nextTick(() => {
-    scrollContainer.value?.scrollTo({
-      top: scrollContainer.value.scrollHeight,
-      behavior: 'smooth',
+const wasAtBottom = ref(false);
+
+watch(
+  () => nodeStore.logs.length,
+  () => {
+    nextTick(() => {
+      if (!wasAtBottom.value && scrollContainer.value) {
+        scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight;
+      }
     });
-  });
+  },
+);
+
+watch(y, () => {
+  if (directions.top) {
+    wasAtBottom.value = true;
+  } else if (arrivedState.bottom) {
+    wasAtBottom.value = false;
+  }
 });
 
 const scopes = ref(['RPC', 'GenVM', 'Consensus']);
