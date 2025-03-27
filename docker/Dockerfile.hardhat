@@ -3,7 +3,7 @@ FROM node:22.12-alpine3.19
 WORKDIR /app
 
 # Install necessary packages and set up the environment
-RUN apk add --no-cache curl g++ make netcat-openbsd python3
+RUN apk add --no-cache curl g++ make netcat-openbsd python3 jq
 
 COPY ./hardhat/package*.json ./
 RUN npm install --ignore-scripts
@@ -22,21 +22,60 @@ RUN mkdir -p /app/deployments/localhost && \
     mkdir -p /app/ignition/deployments && \
     mkdir -p /app/scripts && \
     mkdir -p /app/test && \
+    mkdir -p /app/snapshots && \
     chmod -R 777 /app
 
 ENV PATH="/app/node_modules/.bin:${PATH}"
 
-# Add the start script
+# Add the start script with snapshot functionality
 RUN echo '#!/bin/sh' > /app/start.sh && \
-    echo 'echo "Checking and compiling contracts if needed..."' >> /app/start.sh && \
-    echo 'npx hardhat compile' >> /app/start.sh && \
-    echo 'echo "Starting Hardhat node..."' >> /app/start.sh && \
-    echo 'npx hardhat node --hostname 0.0.0.0 & sleep 5' >> /app/start.sh && \
-    echo 'echo "Deploying contracts with Ignition..."' >> /app/start.sh && \
-    echo 'npx hardhat run scripts/deploy.js --network localhost' >> /app/start.sh && \
+    echo 'echo "[$(date +"%Y-%m-%d %H:%M:%S")] Starting Hardhat node initialization..."' >> /app/start.sh && \
+    echo 'if [ -f "/app/snapshots/latest.json" ]; then' >> /app/start.sh && \
+    echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Found existing snapshot, restoring state..."' >> /app/start.sh && \
+    echo '  npx hardhat node --hostname 0.0.0.0 &' >> /app/start.sh && \
+    echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Waiting for node to start..."' >> /app/start.sh && \
+    echo '  sleep 10' >> /app/start.sh && \
+    echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Verifying node is ready..."' >> /app/start.sh && \
+    echo '  while ! curl -s -X POST -H "Content-Type: application/json" --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}" http://localhost:8545 > /dev/null; do' >> /app/start.sh && \
+    echo '    echo "[$(date +"%Y-%m-%d %H:%M:%S")] Waiting for node to be ready..."' >> /app/start.sh && \
+    echo '    sleep 1' >> /app/start.sh && \
+    echo '  done' >> /app/start.sh && \
+    echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Node is ready, restoring snapshot..."' >> /app/start.sh && \
+    echo '  npx hardhat run scripts/restore.js --network localhost' >> /app/start.sh && \
+    echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] State restored successfully from snapshot"' >> /app/start.sh && \
+    echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Creating new snapshot after restore..."' >> /app/start.sh && \
+    echo '  npx hardhat run scripts/snapshot.js --network localhost' >> /app/start.sh && \
+    echo 'else' >> /app/start.sh && \
+    echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] No snapshot found, starting fresh node..."' >> /app/start.sh && \
+    echo '  npx hardhat node --hostname 0.0.0.0 &' >> /app/start.sh && \
+    echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Waiting for node to start..."' >> /app/start.sh && \
+    echo '  sleep 10' >> /app/start.sh && \
+    echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Verifying node is ready..."' >> /app/start.sh && \
+    echo '  while ! curl -s -X POST -H "Content-Type: application/json" --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}" http://localhost:8545 > /dev/null; do' >> /app/start.sh && \
+    echo '    echo "[$(date +"%Y-%m-%d %H:%M:%S")] Waiting for node to be ready..."' >> /app/start.sh && \
+    echo '    sleep 1' >> /app/start.sh && \
+    echo '  done' >> /app/start.sh && \
+    echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Node is ready, deploying contracts..."' >> /app/start.sh && \
+    echo '  npx hardhat run scripts/deploy.js --network localhost' >> /app/start.sh && \
+    echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Contracts deployed successfully"' >> /app/start.sh && \
+    echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Creating initial snapshot..."' >> /app/start.sh && \
+    echo '  npx hardhat run scripts/snapshot.js --network localhost' >> /app/start.sh && \
+    echo 'fi' >> /app/start.sh && \
+    echo 'echo "[$(date +"%Y-%m-%d %H:%M:%S")] Running tests..."' >> /app/start.sh && \
     echo 'npx hardhat test' >> /app/start.sh && \
+    echo 'echo "[$(date +"%Y-%m-%d %H:%M:%S")] Tests completed"' >> /app/start.sh && \
+    echo 'echo "[$(date +"%Y-%m-%d %H:%M:%S")] Starting automatic snapshot service..."' >> /app/start.sh && \
+    echo '/app/snapshot.sh &' >> /app/start.sh && \
     echo 'wait' >> /app/start.sh && \
     chmod +x /app/start.sh
+
+# Add the automatic snapshot script
+RUN echo '#!/bin/sh' > /app/snapshot.sh && \
+    echo 'while true; do' >> /app/snapshot.sh && \
+    echo '  npx hardhat run scripts/snapshot.js --network localhost' >> /app/snapshot.sh && \
+    echo '  sleep 5' >> /app/snapshot.sh && \
+    echo 'done' >> /app/snapshot.sh && \
+    chmod +x /app/snapshot.sh
 
 EXPOSE 8545
 

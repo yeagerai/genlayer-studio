@@ -49,7 +49,6 @@ services:
       target: ${BACKEND_BUILD_TARGET:-prod}
     environment:
       - FLASK_SERVER_PORT=${RPCPORT}
-      # TODO: remove this in production
       - PYTHONUNBUFFERED=1
       - RPCDEBUGPORT=${RPCDEBUGPORT}
       - WEBREQUESTPORT=${WEBREQUESTPORT}
@@ -64,12 +63,13 @@ services:
       - hardhat_artifacts:/app/hardhat/artifacts
       - hardhat_deployments:/app/hardhat/deployments
     depends_on:
-      hardhat:
-        condition: service_healthy
       database-migration:
         condition: service_completed_successfully
       webrequest:
         condition: service_healthy
+      hardhat:
+        condition: service_healthy
+        required: false
     expose:
       - "${RPCPORT}"
     healthcheck:
@@ -180,6 +180,7 @@ services:
         condition: service_healthy
 
   hardhat:
+    profiles: ["hardhat"]
     build:
       context: .
       dockerfile: docker/Dockerfile.hardhat
@@ -195,6 +196,7 @@ services:
       - hardhat_cache:/app/cache
       - hardhat_deployments:/app/deployments
       - ignition_deployments:/app/ignition/deployments
+      - hardhat_snapshots:/app/snapshots
     environment:
       - HARDHAT_NETWORK=hardhat
     restart: always
@@ -215,3 +217,4 @@ volumes:
   hardhat_cache:
   hardhat_deployments:
   ignition_deployments:
+  hardhat_snapshots:
