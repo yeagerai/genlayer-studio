@@ -111,6 +111,74 @@ contract ConsensusMain is
 
 	// EXTERNAL FUNCTIONS - STATE CHANGING
 
+	function emitNewTransaction(
+		bytes32 tx_id,
+		address recipient,
+		address activator
+	) external {
+		emit NewTransaction(tx_id, recipient, activator);
+	}
+
+	function emitTransactionLeaderRotated(
+		bytes32 tx_id,
+		address newLeader
+	) external {
+		emit TransactionLeaderRotated(tx_id, newLeader);
+	}
+
+	function emitTransactionActivated(
+		bytes32 tx_id,
+		address leader,
+		address[] calldata validators
+	) external {
+		emit TransactionActivated(tx_id, leader, validators);
+	}
+
+	function emitTransactionReceiptProposed(
+		bytes32 tx_id
+	) external {
+		emit TransactionReceiptProposed(tx_id);
+	}
+
+	function emitVoteCommitted(
+		bytes32 tx_id,
+		address validator,
+		bool isLastVote
+	) external {
+		emit VoteCommitted(tx_id, validator, isLastVote);
+	}
+
+	function emitVoteRevealed(
+		bytes32 tx_id,
+		address validator,
+		ITransactions.VoteType voteType,
+		bool isLastVote,
+		ITransactions.ResultType result
+	) external {
+		emit VoteRevealed(tx_id, validator, voteType, isLastVote, result);
+	}
+
+	function emitTransactionAccepted(
+		bytes32 tx_id
+	) external {
+		emit TransactionAccepted(tx_id);
+	}
+
+	function emitTransactionFinalized(
+		bytes32 tx_id
+	) external {
+		emit TransactionFinalized(tx_id);
+	}
+
+	function emitAppealStarted(
+		bytes32 tx_id,
+		address appealer,
+		uint256 appealBond,
+		address[] calldata appealValidators
+	) external {
+		emit AppealStarted(tx_id, appealer, appealBond, appealValidators);
+	}
+
 	/**
 	 * @notice Adds a new transaction to the system
 	 * @param _sender Transaction sender address

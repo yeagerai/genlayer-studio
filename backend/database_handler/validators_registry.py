@@ -21,6 +21,7 @@ def to_dict(validator: Validators) -> dict:
         "plugin": validator.plugin,
         "plugin_config": validator.plugin_config,
         "created_at": validator.created_at.isoformat(),
+        "private_key": validator.private_key,
     }
 
 
@@ -105,4 +106,5 @@ def _to_db_model(validator: Validator) -> Validators:
         config=validator.llmprovider.config,
         plugin=validator.llmprovider.plugin,
         plugin_config=validator.llmprovider.plugin_config,
+        private_key=validator.private_key.to_0x_hex(),
     )
