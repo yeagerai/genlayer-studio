@@ -334,5 +334,9 @@ class Node:
                 calldata=calldata,
                 mode=self.validator_mode,
                 node_config=self.validator.to_dict(),
+                genvm_result={
+                    "stdout": res.stdout,
+                    "stderr": res.stderr,
+                },
             )
         )

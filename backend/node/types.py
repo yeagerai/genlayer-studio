@@ -178,6 +178,7 @@ class Receipt:
     execution_result: ExecutionResultStatus
     vote: Optional[Vote] = None
     pending_transactions: Iterable[PendingTransaction] = ()
+    genvm_result: dict[str, str] | None = None
 
     def to_dict(self):
         return {
@@ -194,6 +195,7 @@ class Receipt:
                 pending_transaction.to_dict()
                 for pending_transaction in self.pending_transactions
             ],
+            "genvm_result": self.genvm_result,
         }
 
     @classmethod
@@ -215,6 +217,7 @@ class Receipt:
                     PendingTransaction.from_dict(pending_transaction)
                     for pending_transaction in input.get("pending_transactions", [])
                 ],
+                genvm_result=input.get("genvm_result"),
             )
         else:
             return None
