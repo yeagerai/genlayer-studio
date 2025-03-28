@@ -4,6 +4,7 @@ from web3 import Web3
 from typing import Optional, Dict, Any
 from pathlib import Path
 from backend.protocol_rpc.message_handler.types import EventType, EventScope, LogEvent
+import re
 
 
 class ConsensusService:
@@ -106,14 +107,84 @@ class ConsensusService:
             print(f"[CONSENSUS_SERVICE]: Error loading deployment data: {str(e)}")
             return None
 
-    def forward_transaction(self, transaction: dict) -> str:
+    def forward_transaction(
+        self, transaction: dict, from_address: str, retry: bool = True
+    ) -> str:
         """
-        Forward a transaction to the consensus rollup
+        Forward a transaction to the consensus rollup and wait for NewTransaction event
         """
         try:
             tx_hash = self.web3.eth.send_raw_transaction(transaction)
             receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            return receipt
+
+            # Load ConsensusMain contract
+            consensus_contract_data = self.load_contract("ConsensusMain")
+            if not consensus_contract_data:
+                print("[CONSENSUS_SERVICE]: Failed to load ConsensusMain contract")
+                return None
+
+            # Create contract instance
+            consensus_contract = self.web3.eth.contract(
+                address=consensus_contract_data["address"],
+                abi=consensus_contract_data["abi"],
+            )
+
+            # Get NewTransaction events from receipt
+            new_tx_events = consensus_contract.events.NewTransaction().process_receipt(
+                receipt
+            )
+
+            if new_tx_events:
+                # Extract event data
+                tx_id = new_tx_events[0]["args"]["txId"]
+                recipient = new_tx_events[0]["args"]["recipient"]
+                activator = new_tx_events[0]["args"]["activator"]
+
+                # Convert tx_id from bytes to hex string for better readability
+                tx_id_hex = "0x" + tx_id.hex() if isinstance(tx_id, bytes) else tx_id
+
+                return {
+                    "receipt": receipt,
+                    "tx_id": tx_id,
+                    "tx_id_hex": tx_id_hex,  # Adding hex version for easier reading
+                    "recipient": recipient,
+                    "activator": activator,
+                }
+            else:
+                print("[CONSENSUS_SERVICE]: No NewTransaction event found in receipt")
+                return receipt
+
         except Exception as e:
-            print(f"[CONSENSUS_SERVICE]: Error forwarding transaction: {str(e)}")
+            error_str = str(e)
+            error_type = (
+                "nonce_too_high"
+                if "nonce too high" in error_str.lower()
+                else "nonce_too_low" if "nonce too low" in error_str.lower() else None
+            )
+            if error_type:
+                # Extract expected and current nonce from error message
+                match = re.search(
+                    r"Expected nonce to be (\d+) but got (\d+)", error_str
+                )
+                if match:
+                    current_nonce = int(match.group(2))
+
+                    # Set the nonce to the expected value
+                    print(
+                        f"[CONSENSUS_SERVICE]: Setting nonce for {from_address} to {current_nonce}"
+                    )
+                    self.web3.provider.make_request(
+                        "hardhat_setNonce", [from_address, hex(current_nonce)]
+                    )
+
+                    if retry:
+                        return self.forward_transaction(
+                            transaction, from_address, retry=False
+                        )
+                else:
+                    print(
+                        f"[CONSENSUS_SERVICE]: Could not parse nonce from error message: {error_str}"
+                    )
+
+            print(f"[CONSENSUS_SERVICE]: Error forwarding transaction: {error_str}")
             return None

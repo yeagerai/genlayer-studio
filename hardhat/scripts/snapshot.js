@@ -2,19 +2,6 @@ const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
 
-async function loadDeployment(name) {
-  try {
-    const deploymentPath = path.join(__dirname, '../deployments/localhost', `${name}.json`);
-    if (fs.existsSync(deploymentPath)) {
-      return JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
-    }
-    return null;
-  } catch (error) {
-    console.error(`Error loading deployment for ${name}:`, error);
-    return null;
-  }
-}
-
 async function getAccountBalance(address) {
   try {
     const balance = await hre.network.provider.send("eth_getBalance", [address, "latest"]);
@@ -25,45 +12,9 @@ async function getAccountBalance(address) {
   }
 }
 
-async function getAllAccounts() {
-  try {
-    // Get the default accounts
-    const defaultAccounts = await hre.network.provider.send("eth_accounts");
-
-    // Get the latest block
-    const latestBlock = await hre.network.provider.send("eth_getBlockByNumber", ["latest", true]);
-
-    // Extract unique addresses from transactions
-    const uniqueAddresses = new Set(defaultAccounts);
-
-    // Add addresses from transactions
-    for (const tx of latestBlock.transactions) {
-      if (tx.from) uniqueAddresses.add(tx.from);
-      if (tx.to) uniqueAddresses.add(tx.to);
-    }
-
-    // Get previous blocks to find more addresses
-    const currentBlockNumber = parseInt(latestBlock.number, 16);
-    const startBlock = Math.max(0, currentBlockNumber - 100); // Look at last 100 blocks
-
-    for (let i = startBlock; i <= currentBlockNumber; i++) {
-      const block = await hre.network.provider.send("eth_getBlockByNumber", [`0x${i.toString(16)}`, true]);
-      for (const tx of block.transactions) {
-        if (tx.from) uniqueAddresses.add(tx.from);
-        if (tx.to) uniqueAddresses.add(tx.to);
-      }
-    }
-
-    return Array.from(uniqueAddresses);
-  } catch (error) {
-    console.error(`Error getting all accounts:`, error);
-    return [];
-  }
-}
-
 async function main() {
   try {
-    // console.log(`[${new Date().toISOString()}] Starting snapshot process...`);
+    console.log(`[${new Date().toISOString()}] Starting snapshot process...`);
 
     // Wait for any pending transactions to be mined
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -75,23 +26,22 @@ async function main() {
     // Get the latest block details
     const latestBlock = await hre.network.provider.send("eth_getBlockByNumber", ["latest", true]);
 
-    // Get all accounts that have interacted with the node
-    const accounts = await getAllAccounts();
-    // console.log(`[${new Date().toISOString()}] Found ${accounts.length} unique accounts`);
+    // Get accounts using the correct method
+    const accounts = await hre.network.provider.send("eth_accounts");
 
     // Get network information
     const chainId = await hre.network.provider.send("eth_chainId");
     const gasPrice = await hre.network.provider.send("eth_gasPrice");
 
     // Take a snapshot of the current state
-    // console.log(`[${new Date().toISOString()}] Taking EVM snapshot...`);
+    console.log(`[${new Date().toISOString()}] Taking EVM snapshot...`);
     const snapshotId = await hre.network.provider.send("evm_snapshot");
     console.log(`[${new Date().toISOString()}] Snapshot taken successfully with ID: ${snapshotId}`);
 
     // Create timestamp for the snapshot file
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
-    // Load all deployments
+    // Get all deployments using hardhat-deploy
     const deployments = {};
     const contractNames = [
       "ConsensusMain",
@@ -107,9 +57,13 @@ async function main() {
     ];
 
     for (const name of contractNames) {
-      const deployment = await loadDeployment(name);
+      const deployment = await hre.deployments.get(name);
       if (deployment) {
-        deployments[name] = deployment;
+        deployments[name] = {
+          address: deployment.address,
+          abi: deployment.abi,
+          bytecode: deployment.bytecode
+        };
       }
     }
 
@@ -147,7 +101,6 @@ async function main() {
         nonces: accountNonces
       },
       deployments: deployments,
-      // Include the original contracts mapping for backward compatibility
       contracts: {
         ConsensusMain: deployments.ConsensusMain?.address,
         ConsensusManager: deployments.ConsensusManager?.address,
@@ -173,13 +126,13 @@ async function main() {
       file: `snapshot-${timestamp}.json`
     }, null, 2));
 
-    // console.log(`[${new Date().toISOString()}] Snapshot data saved to ${snapshotPath}`);
-    // console.log(`[${new Date().toISOString()}] Current block number: ${blockNumberDec}`);
-    // console.log(`[${new Date().toISOString()}] Latest block hash: ${latestBlock.hash}`);
-    // console.log(`[${new Date().toISOString()}] Transactions in latest block: ${latestBlock.transactions.length}`);
-    // console.log(`[${new Date().toISOString()}] Gas used in latest block: ${parseInt(latestBlock.gasUsed, 16)}`);
-    // console.log(`[${new Date().toISOString()}] Number of accounts: ${accounts.length}`);
-    // console.log(`[${new Date().toISOString()}] Number of deployed contracts: ${Object.keys(deployments).length}`);
+    console.log(`[${new Date().toISOString()}] Snapshot data saved to ${snapshotPath}`);
+    console.log(`[${new Date().toISOString()}] Current block number: ${blockNumberDec}`);
+    console.log(`[${new Date().toISOString()}] Latest block hash: ${latestBlock.hash}`);
+    console.log(`[${new Date().toISOString()}] Transactions in latest block: ${latestBlock.transactions.length}`);
+    console.log(`[${new Date().toISOString()}] Gas used in latest block: ${parseInt(latestBlock.gasUsed, 16)}`);
+    console.log(`[${new Date().toISOString()}] Number of accounts: ${accounts.length}`);
+    console.log(`[${new Date().toISOString()}] Number of deployed contracts: ${Object.keys(deployments).length}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error taking snapshot:`, error);
     throw error;

@@ -6,18 +6,13 @@ async function restoreBlockchainState(snapshotData) {
   try {
     console.log(`[${new Date().toISOString()}] Restoring blockchain state...`);
 
-    // Restore block number
-    const currentBlockNumber = await hre.network.provider.send("eth_blockNumber");
-    const currentBlockNumberDec = parseInt(currentBlockNumber, 16);
-    const targetBlockNumber = snapshotData.blockNumber;
+    // Get the snapshot ID
+    const snapshotId = snapshotData.id;
+    console.log(`[${new Date().toISOString()}] Restoring snapshot with ID: ${snapshotId}`);
 
-    if (currentBlockNumberDec < targetBlockNumber) {
-      console.log(`[${new Date().toISOString()}] Mining blocks to reach target block number...`);
-      const blocksToMine = targetBlockNumber - currentBlockNumberDec;
-      for (let i = 0; i < blocksToMine; i++) {
-        await hre.network.provider.send("evm_mine");
-      }
-    }
+    // Restore the snapshot
+    await hre.network.provider.send("evm_revert", [snapshotId]);
+    console.log(`[${new Date().toISOString()}] Snapshot restored successfully`);
 
     // Get default accounts (predefined accounts)
     const defaultAccounts = await hre.network.provider.send("eth_accounts");
@@ -31,19 +26,14 @@ async function restoreBlockchainState(snapshotData) {
         const currentNonceDec = parseInt(currentNonce, 16);
 
         if (currentNonceDec < expectedNonce) {
-          // console.log(`[${new Date().toISOString()}] Setting nonce for ${address} from ${currentNonceDec} to ${expectedNonce}`);
+          console.log(`[${new Date().toISOString()}] Setting nonce for ${address} from ${currentNonceDec} to ${expectedNonce}`);
           // Send empty transactions to increase nonce
           for (let i = currentNonceDec; i < expectedNonce; i++) {
-            await hre.network.provider.send("eth_sendTransaction", [{
-              from: address,
-              to: address,
-              value: "0x0",
-              nonce: `0x${i.toString(16)}`
-            }]);
+            await hre.network.provider.send("evm_mine");
           }
         }
       } else {
-        // console.log(`[${new Date().toISOString()}] Skipping nonce restoration for external account ${address}`);
+        console.log(`[${new Date().toISOString()}] Skipping nonce restoration for external account ${address}`);
       }
     }
 
@@ -56,7 +46,7 @@ async function restoreBlockchainState(snapshotData) {
       const currentBalanceDec = parseInt(currentBalance, 16);
 
       if (currentBalanceDec !== expectedBalance) {
-        // console.log(`[${new Date().toISOString()}] Setting balance for ${address} from ${currentBalanceDec} to ${expectedBalance}`);
+        console.log(`[${new Date().toISOString()}] Setting balance for ${address} from ${currentBalanceDec} to ${expectedBalance}`);
         const balanceDiff = expectedBalance - currentBalanceDec;
 
         if (balanceDiff > 0) {
@@ -67,6 +57,17 @@ async function restoreBlockchainState(snapshotData) {
             value: `0x${balanceDiff.toString(16)}`
           }]);
         }
+      }
+    }
+
+    // Verify deployments are present
+    console.log(`[${new Date().toISOString()}] Verifying deployments...`);
+    for (const [name, deployment] of Object.entries(snapshotData.deployments)) {
+      const currentDeployment = await hre.deployments.get(name);
+      if (!currentDeployment || currentDeployment.address !== deployment.address) {
+        console.log(`[${new Date().toISOString()}] Warning: Deployment mismatch for ${name}`);
+        console.log(`Expected: ${deployment.address}`);
+        console.log(`Got: ${currentDeployment?.address || 'none'}`);
       }
     }
 
@@ -101,9 +102,9 @@ async function validateState(snapshotData) {
     for (const [address, expectedBalance] of Object.entries(snapshotData.accounts.balances)) {
       const currentBalance = await hre.network.provider.send("eth_getBalance", [address, "latest"]);
       const currentBalanceDec = parseInt(currentBalance, 16);
-      // console.log(`[${new Date().toISOString()}] Account ${address}:`);
-      // console.log(`  Current balance: ${currentBalanceDec}`);
-      // console.log(`  Expected balance: ${expectedBalance}`);
+      console.log(`[${new Date().toISOString()}] Account ${address}:`);
+      console.log(`  Current balance: ${currentBalanceDec}`);
+      console.log(`  Expected balance: ${expectedBalance}`);
     }
 
     // Validate nonces only for predefined accounts
@@ -111,20 +112,12 @@ async function validateState(snapshotData) {
       if (accounts.includes(address)) {
         const currentNonce = await hre.network.provider.send("eth_getTransactionCount", [address, "latest"]);
         const currentNonceDec = parseInt(currentNonce, 16);
-        // console.log(`[${new Date().toISOString()}] Account ${address}:`);
-        // console.log(`  Current nonce: ${currentNonceDec}`);
-        // console.log(`  Expected nonce: ${expectedNonce}`);
+        console.log(`[${new Date().toISOString()}] Account ${address}:`);
+        console.log(`  Current nonce: ${currentNonceDec}`);
+        console.log(`  Expected nonce: ${expectedNonce}`);
       } else {
         console.log(`[${new Date().toISOString()}] Skipping nonce validation for external account ${address}`);
       }
-    }
-
-    // Validate deployments
-    for (const [name, deployment] of Object.entries(snapshotData.deployments)) {
-      // console.log(`[${new Date().toISOString()}] Contract ${name}:`);
-      // console.log(`  Expected address: ${deployment.address}`);
-      // console.log(`  Expected ABI: ${JSON.stringify(deployment.abi).length} bytes`);
-      // console.log(`  Expected bytecode: ${deployment.bytecode.length} bytes`);
     }
 
     return true;
@@ -141,15 +134,6 @@ async function main() {
     // Read the snapshot file
     const snapshotPath = path.join(__dirname, '../snapshots/latest.json');
     const snapshotData = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
-
-    // Get the snapshot ID
-    const snapshotId = snapshotData.id;
-    console.log(`[${new Date().toISOString()}] Restoring snapshot with ID: ${snapshotId}`);
-
-    // Restore the snapshot
-    await hre.network.provider.send("evm_revert", [snapshotId]);
-
-    console.log(`[${new Date().toISOString()}] Snapshot restored successfully`);
 
     // Restore blockchain state
     const blockchainRestored = await restoreBlockchainState(snapshotData);
