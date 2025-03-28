@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./IMessages.sol";
+import { IGenStaking } from "../../interfaces/IGenStaking.sol";
+import { IMessages } from "../../interfaces/IMessages.sol";
+import { IIdleness } from "./IIdleness.sol";
+import { Rounds } from "../Rounds.sol";
+import { Voting } from "../Voting.sol";
+import { Utils } from "../Utils.sol";
 
 interface ITransactions {
 	struct Transaction {
+		bytes32 id;
 		address sender;
 		address recipient;
 		uint256 numOfInitialValidators;
@@ -12,18 +18,42 @@ interface ITransactions {
 		address activator;
 		TransactionStatus status;
 		TransactionStatus previousStatus;
-		uint256 timestamp;
-		uint256 activationTimestamp;
-		uint256 lastModification;
-		uint256 lastVoteTimestamp;
+		Timestamps timestamps;
 		bytes32 randomSeed;
 		bool onAcceptanceMessages;
 		ResultType result;
+		ReadStateBlockRange readStateBlockRange;
 		bytes txData;
 		bytes txReceipt;
 		IMessages.SubmittedMessage[] messages;
 		address[] consumedValidators;
 		RoundData[] roundData;
+	}
+
+	struct IdleTransactionInfo {
+		bytes32 id;
+		TransactionStatus status;
+		uint256 currentSlot;
+		address[] idleValidators;
+		address[] newValidators;
+	}
+
+	struct UpdateTransactionInfo {
+		bytes32 id;
+		address activator;
+		Timestamps timestamps;
+		address[] consumedValidators;
+		uint256 round;
+		RoundData roundData;
+	}
+
+	struct Timestamps {
+		uint256 created;
+		uint256 pending;
+		uint256 activated;
+		uint256 proposed;
+		uint256 committed;
+		uint256 lastVote;
 	}
 
 	struct RoundData {
@@ -53,6 +83,15 @@ interface ITransactions {
 		uint256 rotationsLeft;
 	}
 
+	struct ExternalContracts {
+		address genConsensus;
+		IGenStaking staking;
+		Rounds rounds;
+		Voting voting;
+		IIdleness idleness;
+		Utils utils;
+	}
+
 	enum TransactionStatus {
 		Uninitialized, // 0
 		Pending, // 1
@@ -64,7 +103,8 @@ interface ITransactions {
 		Finalized, // 7
 		Canceled, // 8
 		AppealRevealing, // 9
-		AppealCommitting // 10
+		AppealCommitting, // 10
+		ReadyToFinalize // 11
 	}
 	enum VoteType {
 		NotVoted,
@@ -85,51 +125,21 @@ interface ITransactions {
 		MajorityDisagree // 7
 	}
 
+	struct ReadStateBlockRange {
+		uint256 activationBlock;
+		uint256 processingBlock;
+		uint256 proposalBlock;
+	}
+
 	function addNewTransaction(
-		bytes32 txId,
+		bytes32 _txId,
 		Transaction memory newTx
 	) external returns (bytes32);
-	function getTransactionStatus(
-		bytes32 txId
-	) external view returns (TransactionStatus status);
-
-	function getTransaction(
-		bytes32 txId
-	) external view returns (Transaction memory);
-
-	function hasOnAcceptanceMessages(
-		bytes32 _tx_id
-	) external view returns (bool itHasMessagesOnAcceptance);
-
-	function hasMessagesOnFinalization(
-		bytes32 _tx_id
-	) external view returns (bool itHasMessagesOnFinalization);
-
-	function isVoteCommitted(
-		bytes32 _tx_id,
-		address _validator
-	) external view returns (bool);
-
-	function getValidatorsForTransactionLastRound(
-		bytes32 _tx_id
-	) external view returns (address[] memory txValidators);
-
-	function getValidatorsForLastAppeal(
-		bytes32 _tx_id
-	) external view returns (address[] memory appealValidators);
-
-	function getLastAppealResult(
-		bytes32 _tx_id
-	) external view returns (ResultType result);
-
-	function getTransactionRecipient(
-		bytes32 txId
-	) external view returns (address recipient);
 
 	function activateTransaction(
-		bytes32 txId,
-		address activator,
-		bytes32 randomSeed
+		bytes32 _txId,
+		address _activator,
+		bytes32 _randomSeed
 	)
 		external
 		returns (
@@ -139,8 +149,9 @@ interface ITransactions {
 		);
 
 	function proposeTransactionReceipt(
-		bytes32 _tx_id,
+		bytes32 _txId,
 		address _leader,
+		uint256 _processingBlock,
 		bytes calldata _txReceipt,
 		IMessages.SubmittedMessage[] calldata _messages
 	)
@@ -149,17 +160,17 @@ interface ITransactions {
 			address recipient,
 			bool leaderTimeout,
 			address newLeader,
-			uint round
+			uint256 round
 		);
 
 	function commitVote(
-		bytes32 _tx_id,
+		bytes32 _txId,
 		bytes32 _commitHash,
 		address _validator
 	) external returns (bool isLastVote);
 
 	function revealVote(
-		bytes32 _tx_id,
+		bytes32 _txId,
 		bytes32 _voteHash,
 		VoteType _voteType,
 		address _validator
@@ -169,33 +180,50 @@ interface ITransactions {
 			bool isLastVote,
 			ResultType result,
 			address recipient,
-			uint round,
+			uint256 round,
 			bool hasMessagesOnAcceptance,
-			uint rotationsLeft,
+			uint256 rotationsLeft,
 			NewRoundData memory newRoundData
 		);
 
 	function finalizeTransaction(
-		bytes32 _tx_id
+		bytes32 _txId
 	) external returns (address recipient, uint256 lastVoteTimestamp);
 
 	function cancelTransaction(
-		bytes32 _tx_id,
+		bytes32 _txId,
 		address _sender
 	) external returns (address recipient);
 
 	function submitAppeal(
-		bytes32 _tx_id,
+		bytes32 _txId,
 		uint256 _appealBond
-	) external returns (address[] memory appealValidators, uint round);
+	) external returns (address[] memory appealValidators, uint256 round);
 
-	function rotateLeader(bytes32 txId) external returns (address);
+	function rotateLeader(bytes32 _txId) external returns (address);
+
+	function getTransactionRecipient(
+		bytes32 _txId
+	) external view returns (address recipient);
+
+	function getTransaction(
+		bytes32 _txId
+	) external view returns (Transaction memory);
+
+	function hasMessagesOnFinalization(
+		bytes32 _txId
+	) external view returns (bool itHasMessagesOnFinalization);
 
 	function getMessagesForTransaction(
-		bytes32 _tx_id
+		bytes32 _txId
 	) external view returns (IMessages.SubmittedMessage[] memory);
 
-	function getTransactionLastModification(
-		bytes32 txId
-	) external view returns (uint256);
+	function setExternalContracts(
+		address _genConsensus,
+		address _staking,
+		address _rounds,
+		address _voting,
+		address _idleness,
+		address _utils
+	) external;
 }
