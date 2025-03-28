@@ -31,16 +31,16 @@ describe("Deploy Script", function () {
     before(async function () {
         [owner, validator1, validator2, validator3, validator4, validator5] = await ethers.getSigners();
 
-        // Cargar los contratos desde los archivos de despliegue
+        // Load contracts from deployment files
         console.log("Loading contracts from deployment files...");
         const deployPath = path.join('./deployments/localhost');
 
-        // Verificar que el directorio existe
+        // Verify that directory exists
         if (!await fs.pathExists(deployPath)) {
             throw new Error(`Deployment directory not found: ${deployPath}. Run deploy.js script first.`);
         }
 
-        // Cargar cada contrato desde su archivo de despliegue
+        // Load each contract from its deployment file
         for (const contractName of expectedContracts) {
             const deployFilePath = path.join(deployPath, `${contractName}.json`);
 
@@ -50,7 +50,7 @@ describe("Deploy Script", function () {
 
             const deployData = await fs.readJson(deployFilePath);
 
-            // Crear una instancia del contrato usando la dirección y el ABI
+            // Create contract instance using address and ABI
             contracts[contractName] = await ethers.getContractAt(
                 deployData.abi,
                 deployData.address
