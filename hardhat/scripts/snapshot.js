@@ -34,7 +34,7 @@ async function main() {
     const gasPrice = await hre.network.provider.send("eth_gasPrice");
 
     // Take a snapshot of the current state
-    console.log(`[${new Date().toISOString()}] Taking EVM snapshot...`);
+    //console.log(`[${new Date().toISOString()}] Taking EVM snapshot...`);
     const snapshotId = await hre.network.provider.send("evm_snapshot");
     console.log(`[${new Date().toISOString()}] Snapshot taken successfully with ID: ${snapshotId}`);
 
@@ -126,13 +126,13 @@ async function main() {
       file: `snapshot-${timestamp}.json`
     }, null, 2));
 
-    console.log(`[${new Date().toISOString()}] Snapshot data saved to ${snapshotPath}`);
-    console.log(`[${new Date().toISOString()}] Current block number: ${blockNumberDec}`);
-    console.log(`[${new Date().toISOString()}] Latest block hash: ${latestBlock.hash}`);
-    console.log(`[${new Date().toISOString()}] Transactions in latest block: ${latestBlock.transactions.length}`);
-    console.log(`[${new Date().toISOString()}] Gas used in latest block: ${parseInt(latestBlock.gasUsed, 16)}`);
-    console.log(`[${new Date().toISOString()}] Number of accounts: ${accounts.length}`);
-    console.log(`[${new Date().toISOString()}] Number of deployed contracts: ${Object.keys(deployments).length}`);
+    //console.log(`[${new Date().toISOString()}] Snapshot data saved to ${snapshotPath}`);
+    //console.log(`[${new Date().toISOString()}] Current block number: ${blockNumberDec}`);
+    //console.log(`[${new Date().toISOString()}] Latest block hash: ${latestBlock.hash}`);
+    //console.log(`[${new Date().toISOString()}] Transactions in latest block: ${latestBlock.transactions.length}`);
+    //console.log(`[${new Date().toISOString()}] Gas used in latest block: ${parseInt(latestBlock.gasUsed, 16)}`);
+    //console.log(`[${new Date().toISOString()}] Number of accounts: ${accounts.length}`);
+    //console.log(`[${new Date().toISOString()}] Number of deployed contracts: ${Object.keys(deployments).length}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error taking snapshot:`, error);
     throw error;
