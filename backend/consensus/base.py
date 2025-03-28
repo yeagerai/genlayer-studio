@@ -116,7 +116,6 @@ def contract_snapshot_factory(
         ret.contract_code = transaction.data["contract_code"]
         ret.balance = transaction.value or 0
         ret.states = {"accepted": {}, "finalized": {}}
-        ret.encoded_state = ret.states["accepted"]
         ret.ghost_contract_address = transaction.ghost_contract_address
         return ret
 
@@ -1165,7 +1164,7 @@ class ConsensusAlgorithm:
 
                     # Get the previous state of the contract
                     previous_contact_state = (
-                        context.transaction.contract_snapshot.encoded_state
+                        context.transaction.contract_snapshot.states["accepted"]
                     )
 
                     # Restore the contract state
