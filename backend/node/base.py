@@ -124,6 +124,7 @@ class Node:
                 transaction.from_address,
                 calldata,
                 transaction.hash,
+                transaction.value,
                 transaction.created_at,
             )
         else:
@@ -180,6 +181,7 @@ class Node:
         from_address: str,
         calldata: bytes,
         transaction_hash: str,
+        transaction_value: int,
         transaction_created_at: str | None = None,
     ) -> Receipt:
         return await self._run_genvm(
@@ -189,6 +191,7 @@ class Node:
             is_init=False,
             transaction_hash=transaction_hash,
             transaction_datetime=self._date_from_str(transaction_created_at),
+            transaction_value=transaction_value,
         )
 
     async def get_contract_data(
@@ -262,6 +265,7 @@ class Node:
         is_init: bool,
         transaction_hash: str | None = None,
         transaction_datetime: datetime.datetime | None,
+        transaction_value: int | None = None,
     ) -> Receipt:
         genvm = self._create_genvm()
         leader_res: None | dict[int, bytes]
@@ -310,6 +314,7 @@ class Node:
             config=json.dumps(config),
             date=transaction_datetime,
             chain_id=SIMULATOR_CHAIN_ID,
+            value=transaction_value,
         )
         await self._execution_finished(res, transaction_hash)
 

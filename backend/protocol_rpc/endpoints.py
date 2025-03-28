@@ -525,15 +525,23 @@ def send_raw_transaction(
         transaction_data = {"calldata": genlayer_transaction.data.calldata}
 
     # Insert transaction into the database
-    transaction_hash = transactions_processor.insert_transaction(
-        genlayer_transaction.from_address,
-        to_address,
-        transaction_data,
-        value,
-        genlayer_transaction.type.value,
-        nonce,
-        leader_only,
-    )
+    try:
+        transaction_hash = transactions_processor.insert_transaction(
+            genlayer_transaction.from_address,
+            to_address,
+            transaction_data,
+            value,
+            genlayer_transaction.type.value,
+            nonce,
+            leader_only,
+            None,
+            accounts_manager,
+        )
+    except ValueError as e:
+        raise JSONRPCError(
+            message=str(e),
+            data={"sender_address": genlayer_transaction.from_address},
+        )
     consensus_service.forward_transaction(signed_rollup_transaction)
 
     return transaction_hash

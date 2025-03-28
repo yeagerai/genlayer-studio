@@ -2045,6 +2045,24 @@ class AcceptedState(TransactionState):
                     context, leader_receipt.pending_transactions, "accepted"
                 )
 
+                # Update the balance of the sender account
+                from_balance = context.accounts_manager.get_account_balance(
+                    context.transaction.from_address
+                )
+                context.accounts_manager.update_account_balance(
+                    context.transaction.from_address,
+                    from_balance - context.transaction.value,
+                )
+
+                # Update the balance of the recipient account
+                to_balance = context.accounts_manager.get_account_balance(
+                    context.transaction.to_address
+                )
+                context.accounts_manager.update_account_balance(
+                    context.transaction.to_address,
+                    to_balance + context.transaction.value,
+                )
+
         else:
             context.transaction.appealed = False
 
@@ -2242,13 +2260,30 @@ def _emit_transactions(
             data = {
                 "calldata": pending_transaction.calldata,
             }
-        context.transactions_processor.insert_transaction(
-            context.transaction.to_address,  # new calls are done by the contract
-            pending_transaction.address,
-            data,
-            value=0,  # we only handle EOA transfers at the moment, so no value gets transferred
-            type=transaction_type.value,
-            nonce=nonce,
-            leader_only=context.transaction.leader_only,  # Cascade
-            triggered_by_hash=context.transaction.hash,
-        )
+
+        try:
+            context.transactions_processor.insert_transaction(
+                context.transaction.to_address,  # new calls are done by the contract
+                pending_transaction.address,
+                data,
+                value=0,  # we only handle EOA transfers at the moment, so no value gets transferred
+                type=transaction_type.value,
+                nonce=nonce,
+                leader_only=context.transaction.leader_only,  # Cascade
+                triggered_by_hash=context.transaction.hash,
+                accounts_manager=context.accounts_manager,
+            )
+        except ValueError as e:
+            context.msg_handler.send_message(
+                LogEvent(
+                    "consensus_event",
+                    EventType.ERROR,
+                    EventScope.CONSENSUS,
+                    str(e),
+                    {
+                        "transaction_hash": context.transaction.hash,
+                        "sender_address": context.transaction.from_address,
+                    },
+                    transaction_hash=context.transaction.hash,
+                )
+            )
