@@ -75,6 +75,7 @@ def node_factory(
         msg_handler=msg_handler,
         validator=Validator(
             address=validator["address"],
+            private_key=validator["private_key"],
             stake=validator["stake"],
             llmprovider=LLMProvider(
                 provider=validator["provider"],
@@ -1164,21 +1165,23 @@ class ConsensusAlgorithm:
                     )
 
                     # Get the previous state of the contract
-                    previous_contact_state = (
-                        context.transaction.contract_snapshot.encoded_state
-                    )
+                    if context.transaction.contract_snapshot:
+                        previous_contact_state = (
+                            context.transaction.contract_snapshot.encoded_state
+                        )
+                    else:
+                        previous_contact_state = {}
 
                     # Restore the contract state
-                    if previous_contact_state:
-                        # Get the contract snapshot for the transaction's target address
-                        leaders_contract_snapshot = context.contract_snapshot_factory(
-                            context.transaction.to_address
-                        )
+                    # Get the contract snapshot for the transaction's target address
+                    leaders_contract_snapshot = context.contract_snapshot_factory(
+                        context.transaction.to_address
+                    )
 
-                        # Update the contract state with the previous state
-                        leaders_contract_snapshot.update_contract_state(
-                            accepted_state=previous_contact_state
-                        )
+                    # Update the contract state with the previous state
+                    leaders_contract_snapshot.update_contract_state(
+                        accepted_state=previous_contact_state
+                    )
 
                     # Transaction will be picked up by _crawl_snapshot
                     break

@@ -169,10 +169,12 @@ def create_validator(
         )
         validate_provider(llm_provider)
 
-    new_address = accounts_manager.create_new_account().address
+    account = accounts_manager.create_new_account()
+
     return validators_registry.create_validator(
         Validator(
-            address=new_address,
+            address=account.address,
+            private_key=account.key,
             stake=stake,
             llmprovider=llm_provider,
         )
@@ -223,10 +225,15 @@ async def create_random_validators(
     response = []
     for detail in details:
         stake = random.randint(min_stake, max_stake)
-        validator_address = accounts_manager.create_new_account().address
+        validator_account = accounts_manager.create_new_account()
 
         validator = validators_registry.create_validator(
-            Validator(address=validator_address, stake=stake, llmprovider=detail)
+            Validator(
+                address=validator_account.address,
+                private_key=validator_account.key,
+                stake=stake,
+                llmprovider=detail,
+            )
         )
         response.append(validator)
 
