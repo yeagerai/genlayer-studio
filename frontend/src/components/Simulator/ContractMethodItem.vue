@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ContractMethod } from 'genlayer-js/types';
+import type { ContractMethod } from '@/types/contract';
 import { abi } from 'genlayer-js';
 import { ref } from 'vue';
 import { Collapse } from 'vue-collapsed';
@@ -148,7 +148,10 @@ const handleCallWriteMethod = async () => {
           "
         />
 
-        <div v-if="methodType === 'write'" class="flex flex-col justify-start">
+        <div
+          v-if="methodType === 'write' && props.method.payable"
+          class="flex flex-col justify-start"
+        >
           <component
             :is="inputMap.getComponent('int')"
             :model-value="value"
