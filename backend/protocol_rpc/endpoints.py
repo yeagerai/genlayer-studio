@@ -9,11 +9,11 @@ from flask_jsonrpc.exceptions import JSONRPCError
 from sqlalchemy import Table
 from sqlalchemy.orm import Session
 import backend.node.genvm.origin.calldata as genvm_calldata
-
+import base64
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
 from backend.rollup.consensus_service import ConsensusService
-from backend.database_handler.models import Base
+from backend.database_handler.models import Base, CurrentState
 from backend.domain.types import LLMProvider, Validator, TransactionType
 from backend.node.create_nodes.providers import (
     get_default_provider_for,
@@ -726,6 +726,21 @@ def get_contract(consensus_service: ConsensusService, contract_name: str) -> dic
     }
 
 
+def get_contract_by_address(
+    request_session: Session, accounts_manager: AccountsManager, address: str
+) -> dict[str:CurrentState] | None:
+    if accounts_manager.is_valid_address(address):
+        deployed_contract: CurrentState = (
+            request_session.query(CurrentState)
+            .filter(CurrentState.id == address)
+            .first()
+        )
+        if deployed_contract:
+            return {
+                "contract_code": base64.b64decode(deployed_contract.data.get("code"))
+            }
+
+
 def register_all_rpc_endpoints(
     jsonrpc: JSONRPC,
     msg_handler: MessageHandler,
@@ -894,4 +909,8 @@ def register_all_rpc_endpoints(
     register_rpc_endpoint(
         partial(get_block_by_hash, transactions_processor),
         method_name="eth_getBlockByHash",
+    )
+    register_rpc_endpoint(
+        partial(get_contract_by_address, request_session, accounts_manager),
+        method_name="gen_getContractByAddress",
     )

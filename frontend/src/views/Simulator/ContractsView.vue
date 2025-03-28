@@ -1,11 +1,54 @@
 <script setup lang="ts">
 import { useContractsStore } from '@/stores';
-import { FilePlus2, Upload } from 'lucide-vue-next';
+import { FilePlus2, Upload, ArrowDownToLine } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import ContractItem from '@/components/Simulator/ContractItem.vue';
 import MainTitle from '@/components/Simulator/MainTitle.vue';
-import { useEventTracking } from '@/hooks';
+import { useRpcClient, useEventTracking } from '@/hooks';
+
+const rpcClient = useRpcClient();
+const showInputModal = ref(false);
+const contractAddress = ref(''); // Store the input field value
+
+function toggleInputModal() {
+  showInputModal.value = !showInputModal.value;
+}
+
+async function getContractByAddress(address: string) {
+  try {
+    const response = await rpcClient.gen_getContractByAddress(address);
+
+    if (response) {
+      const id = uuidv4();
+      const content = (response as { contract_code: string }).contract_code
+        .replace(/^b'/, '') // Remove b' prefix
+        .replace(/'$/, '') // Remove trailing '
+        .replace(/\\n/g, '\n') // Convert \n to actual newlines
+        .replace(/\\t/g, '\t') // Convert \t to actual tabs
+        .replace(/\\"/g, '"') // Convert \" to actual quotes
+        .replace(/\\\\/g, '\\'); // Convert \\ to actual backslashes
+
+      store.addContractFile({
+        id,
+        name: `contract_${address.slice(0, 8)}.gpy`,
+        content,
+      });
+      store.openFile(id);
+      toggleInputModal(); // Close the modal after successful import
+    }
+  } catch (error) {
+    console.error('RPC Call Failed:', error);
+  }
+}
+
+function importContract() {
+  if (!contractAddress.value.trim()) {
+    console.error('Please enter a valid contract address');
+    return;
+  }
+  getContractByAddress(contractAddress.value);
+}
 
 const store = useContractsStore();
 const showNewFileInput = ref(false);
@@ -80,6 +123,13 @@ const handleSaveNewFile = (name: string) => {
             <Upload :size="16" />
           </label>
         </GhostBtn>
+
+        <GhostBtn
+          v-tooltip="'Import Contract from Address'"
+          @click="toggleInputModal"
+        >
+          <ArrowDownToLine class="h-4 w-4" />
+        </GhostBtn>
       </template>
     </MainTitle>
 
@@ -99,6 +149,41 @@ const handleSaveNewFile = (name: string) => {
       @save="handleSaveNewFile"
       @cancel="showNewFileInput = false"
     />
+  </div>
+
+  <!-- Modal -->
+  <div
+    v-if="showInputModal"
+    class="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-50"
+  >
+    <div
+      class="relative z-[10000] w-96 rounded-lg bg-white p-6 shadow-lg dark:bg-zinc-800"
+    >
+      <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
+        Import Contract
+      </h2>
+      <input
+        type="text"
+        v-model="contractAddress"
+        class="w-full rounded-md border border-gray-300 bg-white p-2 text-gray-900 dark:border-gray-600 dark:bg-zinc-700 dark:text-gray-200"
+        placeholder="Enter contract address"
+      />
+      <div class="mt-4 flex justify-end">
+        <Btn
+          @click="toggleInputModal"
+          class="mr-4 !h-[36px] !px-[12px] !py-[8px] !text-[14px] !font-medium dark:bg-gray-400"
+        >
+          Cancel
+        </Btn>
+
+        <Btn
+          @click="importContract"
+          class="!h-[36px] !px-[12px] !py-[8px] !text-[14px] !font-medium dark:bg-gray-400"
+        >
+          Import
+        </Btn>
+      </div>
+    </div>
   </div>
 </template>
 
