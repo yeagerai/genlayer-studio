@@ -22,7 +22,6 @@ def test_contract_snapshot_with_contract(session: Session):
     assert contract_snapshot.contract_address == contract_address
     assert contract_snapshot.contract_code == contract_code
     assert contract_snapshot.states == contract_state
-    assert contract_snapshot.encoded_state == contract_state["finalized"]
     assert contract_snapshot.ghost_contract_address is None
 
     new_state = {"accepted": {}, "finalized": "fin_state"}
@@ -57,7 +56,6 @@ def test_contract_snapshot_without_contract(session: Session):
     assert "contract_data" not in contract_snapshot.__dict__
     assert "contract_code" not in contract_snapshot.__dict__
     assert "states" not in contract_snapshot.__dict__
-    assert "encoded_state" not in contract_snapshot.__dict__
     assert "ghost_contract_address" not in contract_snapshot.__dict__
 
     updated_data = {
