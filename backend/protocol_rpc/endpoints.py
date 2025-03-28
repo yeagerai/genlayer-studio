@@ -3,17 +3,17 @@ import random
 import json
 import eth_utils
 from functools import partial, wraps
-from typing import Any
+from typing import Any, List
 from flask_jsonrpc import JSONRPC
 from flask_jsonrpc.exceptions import JSONRPCError
 from sqlalchemy import Table
 from sqlalchemy.orm import Session
 import backend.node.genvm.origin.calldata as genvm_calldata
-
+import re
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
 from backend.rollup.consensus_service import ConsensusService
-from backend.database_handler.models import Base
+from backend.database_handler.models import Base, Transactions
 from backend.domain.types import LLMProvider, Validator, TransactionType
 from backend.node.create_nodes.providers import (
     get_default_provider_for,
@@ -726,6 +726,101 @@ def get_contract(consensus_service: ConsensusService, contract_name: str) -> dic
     }
 
 
+def get_transactions_by_related_contract(
+    request_session: Session, accounts_manager: AccountsManager, address: str
+) -> dict[str:Transactions] | None:
+    if accounts_manager.is_valid_address(address):
+        # First, find addresses where contracts were deployed
+        contract_addresses = (
+            request_session.query(Transactions.to_address)
+            .filter(Transactions.type == TransactionType.DEPLOY_CONTRACT)
+            .subquery()
+        )
+
+        # Then find transactions from these contract addresses
+        current_contract: List[Transactions] = (
+            request_session.query(Transactions)
+            .filter(
+                Transactions.type == TransactionType.RUN_CONTRACT,
+                Transactions.to_address == address,
+                Transactions.from_address.in_(contract_addresses),
+            )
+            .all()
+        )
+
+        if current_contract:
+            tx_processor = TransactionsProcessor(request_session)
+            multi_contract_trigger = []
+            for tx in current_contract:
+                tx_data = tx_processor.get_transaction_by_hash(tx.hash)
+
+                # Extract calldata
+                calldata = tx_processor._decode_base64_data(tx.data)
+
+                # Initialize default values
+                function_name = ""
+                args = []
+                kwargs = {}
+
+                # Handle different calldata formats
+                if isinstance(calldata, dict):
+                    if "calldata" in calldata:
+                        calldata_str = calldata["calldata"]
+                        if isinstance(calldata_str, str):
+                            try:
+                                # Try to parse as JSON first
+                                decoded = json.loads(calldata_str)
+                                if isinstance(decoded, dict):
+                                    function_name = decoded.get("method", "")
+                                    args = decoded.get("args", [])
+                                    kwargs = decoded.get("kwargs", {})
+                            except json.JSONDecodeError:
+                                # If not JSON, try the custom format
+                                # Split by either \r\x1c or \r
+                                parts = calldata_str.replace("\r\x1c", "\r").split("\r")
+
+                                if len(parts) >= 2:
+                                    # Extract args
+                                    if parts[0] == "args":
+                                        arg_str = parts[1]
+                                        # Handle different argument prefixes
+                                        if arg_str.startswith(
+                                            "L"
+                                        ):  # Length-prefixed string
+                                            # Skip the L prefix and get the actual string
+                                            args = arg_str[1:]
+                                        elif arg_str.startswith("D"):  # Direct string
+                                            args = arg_str[1:]
+                                        else:  # No prefix, use as is
+                                            args = arg_str
+
+                # Extract method name if present
+                match = re.search(r"(.*?)\x06methodt(\w+)", args)
+                if match:
+                    function_name = match.group(2)
+                    args = [match.group(1)]
+
+                multi_contract_trigger.append(
+                    {
+                        "hash": tx.hash,
+                        "type": (
+                            "deploy"
+                            if TransactionType.DEPLOY_CONTRACT.value == tx.type
+                            else "method"
+                        ),
+                        "status": tx.status.value,
+                        "from_address": tx.from_address,
+                        "to_address": tx.to_address,
+                        "data": tx_data,
+                        "created_at": tx.created_at,
+                        "decodedData": {
+                            "functionName": function_name,
+                        },
+                    }
+                )
+            return multi_contract_trigger
+
+
 def register_all_rpc_endpoints(
     jsonrpc: JSONRPC,
     msg_handler: MessageHandler,
@@ -894,4 +989,10 @@ def register_all_rpc_endpoints(
     register_rpc_endpoint(
         partial(get_block_by_hash, transactions_processor),
         method_name="eth_getBlockByHash",
+    )
+    register_rpc_endpoint(
+        partial(
+            get_transactions_by_related_contract, request_session, accounts_manager
+        ),
+        method_name="gen_getTransactionsByRelatedContract",
     )
