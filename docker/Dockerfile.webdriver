@@ -66,7 +66,7 @@ RUN \
 RUN \
     python3 /src/test-install.py
 
-HEALTHCHECK --interval=5s --timeout=5s --retries=10 --start-period=3s CMD ["bash", "/src/healthcheck.sh"]
+HEALTHCHECK --interval=5s --timeout=5s --retries=10 --start-period=3s CMD ["python3", "/src/healthcheck.py"]
 
 WORKDIR /wd
 
