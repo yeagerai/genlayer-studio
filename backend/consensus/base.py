@@ -1156,6 +1156,15 @@ class ConsensusAlgorithm:
                     break
                 elif next_state == "validator_appeal_success":
                     self.rollback_transactions(context)
+
+                    # Restore the balances
+                    _value_transfer(
+                        context.transaction.to_address,
+                        context.transaction.from_address,
+                        context.transaction.value,
+                        context.accounts_manager,
+                    )
+
                     ConsensusAlgorithm.dispatch_transaction_status_update(
                         context.transactions_processor,
                         context.transaction.hash,
@@ -1215,6 +1224,14 @@ class ConsensusAlgorithm:
             # Reset the contract snapshot for the transaction
             context.transactions_processor.set_transaction_contract_snapshot(
                 future_transaction["hash"], None
+            )
+
+            # Restore the balances
+            _value_transfer(
+                future_transaction["to_address"],
+                future_transaction["from_address"],
+                future_transaction["value"],
+                context.accounts_manager,
             )
 
         # Start the queue loop again
@@ -1762,7 +1779,10 @@ class RevealingState(TransactionState):
             > context.num_validators // 2
         )
 
+        majority_agrees = True
+
         if context.transaction.appealed:
+            majority_agrees = False
 
             # Update the consensus results with all new votes and validators
             context.consensus_data.votes = (
@@ -2045,22 +2065,11 @@ class AcceptedState(TransactionState):
                     context, leader_receipt.pending_transactions, "accepted"
                 )
 
-                # Update the balance of the sender account
-                from_balance = context.accounts_manager.get_account_balance(
-                    context.transaction.from_address
-                )
-                context.accounts_manager.update_account_balance(
+                _value_transfer(
                     context.transaction.from_address,
-                    from_balance - context.transaction.value,
-                )
-
-                # Update the balance of the recipient account
-                to_balance = context.accounts_manager.get_account_balance(
-                    context.transaction.to_address
-                )
-                context.accounts_manager.update_account_balance(
                     context.transaction.to_address,
-                    to_balance + context.transaction.value,
+                    context.transaction.value,
+                    context.accounts_manager,
                 )
 
         else:
@@ -2287,3 +2296,24 @@ def _emit_transactions(
                     transaction_hash=context.transaction.hash,
                 )
             )
+
+
+def _value_transfer(
+    from_address: str,
+    to_address: str,
+    value: int,
+    accounts_manager: AccountsManager,
+):
+    # Update the balance of the sender account
+    from_balance = accounts_manager.get_account_balance(from_address)
+    accounts_manager.update_account_balance(
+        from_address,
+        from_balance - value,
+    )
+
+    # Update the balance of the recipient account
+    to_balance = accounts_manager.get_account_balance(to_address)
+    accounts_manager.update_account_balance(
+        to_address,
+        to_balance + value,
+    )
