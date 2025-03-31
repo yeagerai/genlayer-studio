@@ -2298,19 +2298,20 @@ def _emit_transactions(
 def _value_transfer(
     from_address: str,
     to_address: str,
-    value: int,
+    value: int | None,
     accounts_manager: AccountsManager,
 ):
-    # Update the balance of the sender account
-    from_balance = accounts_manager.get_account_balance(from_address)
-    accounts_manager.update_account_balance(
-        from_address,
-        from_balance - value,
-    )
+    if value:
+        # Update the balance of the sender account
+        from_balance = accounts_manager.get_account_balance(from_address)
+        accounts_manager.update_account_balance(
+            from_address,
+            from_balance - value,
+        )
 
-    # Update the balance of the recipient account
-    to_balance = accounts_manager.get_account_balance(to_address)
-    accounts_manager.update_account_balance(
-        to_address,
-        to_balance + value,
-    )
+        # Update the balance of the recipient account
+        to_balance = accounts_manager.get_account_balance(to_address)
+        accounts_manager.update_account_balance(
+            to_address,
+            to_balance + value,
+        )
