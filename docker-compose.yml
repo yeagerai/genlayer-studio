@@ -124,7 +124,7 @@ services:
         max-file: "3"
 
   ollama:
-    image: ollama/ollama:0.4.1
+    image: ollama/ollama:0.5.7
     ports:
       - 11434:11434
     volumes:
