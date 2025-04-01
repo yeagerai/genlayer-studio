@@ -15,6 +15,7 @@ from copy import deepcopy
 
 from sqlalchemy.orm import Session
 from backend.consensus.vrf import get_validators_for_transaction
+from backend.database_handler.models import Transactions
 from backend.database_handler.chain_snapshot import ChainSnapshot
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.transactions_processor import (
@@ -2194,6 +2195,47 @@ class FinalizingState(TransactionState):
                 context.transaction.consensus_data.leader_receipt.pending_transactions,
                 "finalized",
             )
+            fetch_trigger_data = context.transactions_processor.get_transaction_by_hash(
+                context.transaction.hash
+            )
+            if fetch_trigger_data["triggered_transactions"]:
+                data = [
+                    {
+                        "address": address,
+                        "calldata": fetch_trigger_data["data"].get("calldata"),
+                        "on": TransactionStatus.FINALIZED.value.lower(),
+                    }
+                    for address in fetch_trigger_data["triggered_transactions"]
+                ]
+                # Retrieve the existing CurrentState entry
+                current_state_entry = (
+                    context.transactions_processor.session.query(Transactions)
+                    .filter_by(hash=context.transaction.hash)
+                    .one_or_none()
+                )
+                if current_state_entry:
+                    # Update the data column with the new triggered transactions
+                    updated_data = current_state_entry.consensus_data
+                    updated_data.get("leader_receipt")["pending_transactions"].extend(
+                        data
+                    )
+                    current_state_entry.consensus_data = updated_data
+                    # Commit the changes to the session
+                    context.transactions_processor.session.commit()
+                # leader_receipt.pending_transactions.extend(data)
+                context.msg_handler.send_message(
+                    LogEvent(
+                        "added triggered transactions",
+                        EventType.INFO,
+                        EventScope.CONSENSUS,
+                        f"Triggered transactions: {data}",
+                        {
+                            "hash": str(context.transaction.hash),
+                            "new_status": str(context.transaction.status),
+                        },
+                        transaction_hash=context.transaction.hash,
+                    )
+                )
 
 
 def _emit_transactions(
