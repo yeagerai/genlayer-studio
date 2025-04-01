@@ -44,19 +44,17 @@ class ProposingState(TransactionState):
 
         # Copy contract snapshot if it exists, otherwise create one
         if context.transaction.contract_snapshot:
-            contract_snapshot = deepcopy(context.transaction.contract_snapshot)
+            context.contract_snapshot = deepcopy(context.transaction.contract_snapshot)
         else:
-            contract_snapshot_supplier = lambda: context.contract_snapshot_factory(
+            context.contract_snapshot = context.contract_snapshot_factory(
                 context.transaction.to_address
             )
-            context.contract_snapshot_supplier = contract_snapshot_supplier
-            contract_snapshot = contract_snapshot_supplier()
 
         # Create a leader node for executing the transaction
         leader_node = context.node_factory(
             leader,
             ExecutionMode.LEADER,
-            contract_snapshot,
+            context.contract_snapshot,
             None,
             context.msg_handler,
             context.contract_snapshot_factory,
