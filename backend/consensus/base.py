@@ -265,6 +265,9 @@ class ConsensusAlgorithm:
         self.msg_handler = msg_handler
         self.pending_queues: dict[str, asyncio.Queue] = {}
         self.finality_window_time = int(os.getenv("VITE_FINALITY_WINDOW"))
+        self.finality_window_appeal_failed_reduction = float(
+            os.getenv("VITE_FINALITY_WINDOW_APPEAL_FAILED_REDUCTION")
+        )
         self.consensus_sleep_time = DEFAULT_CONSENSUS_SLEEP_TIME
         self.pending_queue_stop_events: dict[str, asyncio.Event] = (
             {}
@@ -881,11 +884,15 @@ class ConsensusAlgorithm:
         """
         if (transaction.leader_only) or (
             (
-                int(time.time())
+                time.time()
                 - transaction.timestamp_awaiting_finalization
                 - transaction.appeal_processing_time
             )
             > self.finality_window_time
+            * (
+                (1 - self.finality_window_appeal_failed_reduction)
+                ** transaction.appeal_failed
+            )
         ):
             if index == 0:
                 return True
@@ -1793,11 +1800,6 @@ class RevealingState(TransactionState):
                 )
 
             if majority_agrees:
-                # Appeal failed, increment the appeal_failed counter
-                context.transactions_processor.set_transaction_appeal_failed(
-                    context.transaction.hash,
-                    context.transaction.appeal_failed + 1,
-                )
                 return AcceptedState()
 
             else:
@@ -1933,6 +1935,10 @@ class AcceptedState(TransactionState):
                 context.transaction.hash, None
             )
             context.transaction.timestamp_appeal = None
+            context.transactions_processor.set_transaction_appeal_failed(
+                context.transaction.hash,
+                0,
+            )
         elif not context.transaction.appealed:
             consensus_round = "Accepted"
             context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
@@ -1948,6 +1954,12 @@ class AcceptedState(TransactionState):
             # Increment the appeal processing time when the transaction was appealed
             context.transactions_processor.set_transaction_appeal_processing_time(
                 context.transaction.hash
+            )
+
+            # Appeal failed, increment the appeal_failed counter
+            context.transactions_processor.set_transaction_appeal_failed(
+                context.transaction.hash,
+                context.transaction.appeal_failed + 1,
             )
 
         # Set the transaction result
@@ -2102,6 +2114,10 @@ class UndeterminedState(TransactionState):
             )
             context.transaction.appeal_undetermined = False
             consensus_round = "Leader Appeal Failed"
+            context.transactions_processor.set_transaction_appeal_failed(
+                context.transaction.hash,
+                context.transaction.appeal_failed + 1,
+            )
         else:
             consensus_round = "Undetermined"
 
