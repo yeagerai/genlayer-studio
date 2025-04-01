@@ -37,6 +37,17 @@ COMPOSE_PROFILES=hardhat
 
 This will enable the Hardhat service when running `genlayer up`.
 
+### Disabling Hardhat Node
+If you need to disable the Hardhat node, make sure to remove the following from your `.env` file:
+
+```
+HARDHAT_URL=
+HARDHAT_PORT=
+COMPOSE_PROFILES=
+```
+
+This will disable the Hardhat service when running `genlayer up`.
+
 ## 🚀 Key Features
 * 🖥️ **Test Locally:** Developers can test Intelligent Contracts in a local environment, replicating the GenLayer network without the need for deployment. This speeds up the development cycle and reduces the risk of errors in the live environment.
 
