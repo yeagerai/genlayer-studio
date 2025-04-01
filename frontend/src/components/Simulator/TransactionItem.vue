@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import type { TransactionItem } from '@/types';
 import TransactionStatusBadge from '@/components/Simulator/TransactionStatusBadge.vue';
 import { useTimeAgo } from '@vueuse/core';
@@ -9,13 +9,14 @@ import { useUIStore, useNodeStore, useTransactionsStore } from '@/stores';
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/vue/16/solid';
 import CopyTextButton from '../global/CopyTextButton.vue';
 import { FilterIcon, GavelIcon, UserPen, UserSearch } from 'lucide-vue-next';
+import type { TransactionHash } from 'genlayer-js/types';
 import { abi } from 'genlayer-js';
 import {
   resultToUserFriendlyJson,
   b64ToArray,
   calldataToUserFriendlyJson,
 } from '@/calldata/jsonifier';
-import { useRpcClient } from '@/hooks';
+import { useRpcClient, useWebSocketClient } from '@/hooks';
 
 const uiStore = useUIStore();
 const nodeStore = useNodeStore();
@@ -138,6 +139,21 @@ async function FetchTransactionByHash(tx: string) {
     console.error('Failed to fetch transaction from hash: ', error);
   }
 }
+
+// Function to refresh transaction data
+const refreshTransactionData = async () => {
+  const updatedTransaction = await transactionsStore.getTransaction(
+    props.transaction.hash as TransactionHash,
+  );
+  if (updatedTransaction) {
+    transactionsStore.updateTransaction(updatedTransaction);
+  }
+};
+
+// Call refreshTransactionData when the component is mounted
+onMounted(() => {
+  refreshTransactionData();
+});
 </script>
 
 <template>
