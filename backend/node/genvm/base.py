@@ -99,6 +99,7 @@ class IGenVM(typing.Protocol):
         config: str,
         date: datetime.datetime | None,
         chain_id: int,
+        value: int | None,
     ) -> ExecutionResult: ...
 
     async def get_contract_schema(self, contract_code: bytes) -> ExecutionResult: ...
@@ -149,13 +150,14 @@ class GenVMHost(IGenVM):
         config: str,
         date: datetime.datetime | None,
         chain_id: int,
+        value: int | None,
     ) -> ExecutionResult:
         message = {
             "is_init": is_init,
             "contract_address": contract_address.as_b64,
             "sender_address": from_address.as_b64,
             "origin_address": from_address.as_b64,  # FIXME: no origin in simulator #751
-            "value": None,
+            "value": value,
             "chain_id": str(
                 chain_id
             ),  # NOTE: it can overflow u64 so better to wrap it into a string

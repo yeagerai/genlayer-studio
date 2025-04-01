@@ -46,8 +46,8 @@ describe('useAccountsStore', () => {
     (localStorage.removeItem as Mock).mockClear();
   });
 
-  it('should generate a new account', () => {
-    const newAccount = accountsStore.generateNewAccount();
+  it('should generate a new account', async () => {
+    const newAccount = await accountsStore.generateNewAccount();
 
     expect(newAccount).toEqual({
       type: 'local',
