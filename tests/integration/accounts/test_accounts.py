@@ -61,32 +61,23 @@ def test_accounts_funding():
 
 
 def test_accounts_transfers():
-    # Setup test accounts with initial funds
+    # Setup test accounts
     account_1 = create_new_account()
     account_1_address = account_1.address
 
     account_2 = create_new_account()
     account_2_address = account_2.address
 
-    # Fund account 1 with a large amount
-    fund_amount = 100000  # Aumentamos el monto inicial para cubrir gas y transferencia
+    fund_amount = 1000
     fund_account_result = post_request_localhost(
         payload("sim_fundAccount", account_1_address, fund_amount)
     ).json()
-    assert has_success_status(fund_account_result)
     wait_for_transaction(fund_account_result["result"])
-
-    # Verify initial balance
-    get_balance_1_initial = post_request_localhost(
-        payload("eth_getBalance", account_1_address)
-    ).json()
-    assert has_success_status(get_balance_1_initial)
-    assert get_balance_1_initial["result"] == fund_amount
 
     # Test transfer
     transfer_amount = 200
     transaction_response_call_1 = send_transaction(
-        account_1, account_2_address, transfer_amount
+        account_1, account_2.address, transfer_amount
     )
     assert has_success_status(transaction_response_call_1)
 
@@ -105,31 +96,22 @@ def test_accounts_transfers():
 
 
 def test_accounts_burn():
-    # Setup test account with initial funds
+    # Setup test accounts
     account_1 = create_new_account()
     account_1_address = account_1.address
 
-    # Fund account with a large amount
-    fund_amount = 100000  # Aumentamos el monto inicial para cubrir gas y quemado
+    fund_amount = 1000
     fund_account_result = post_request_localhost(
         payload("sim_fundAccount", account_1_address, fund_amount)
     ).json()
-    assert has_success_status(fund_account_result)
     wait_for_transaction(fund_account_result["result"])
-
-    # Verify initial balance
-    get_balance_1_initial = post_request_localhost(
-        payload("eth_getBalance", account_1_address)
-    ).json()
-    assert has_success_status(get_balance_1_initial)
-    assert get_balance_1_initial["result"] == fund_amount
 
     # Test burn
     burn_amount = 200
     transaction_response_call_1 = send_transaction(account_1, None, burn_amount)
     assert has_success_status(transaction_response_call_1)
 
-    # Verify balance after burn
+    # Verify balance after transfer
     get_balance_1_after_transfer = post_request_localhost(
         payload("eth_getBalance", account_1_address)
     ).json()

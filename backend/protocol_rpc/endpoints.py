@@ -88,19 +88,10 @@ def fund_account(
     if not accounts_manager.is_valid_address(account_address):
         raise InvalidAddressError(account_address)
 
-    # Ensure the account exists
-    if not accounts_manager.get_account(account_address):
-        accounts_manager.create_new_account_with_address(account_address)
-
     nonce = transactions_processor.get_transaction_count(None)
     transaction_hash = transactions_processor.insert_transaction(
         None, account_address, None, amount, 0, nonce, False
     )
-
-    # Update the account balance
-    current_balance = accounts_manager.get_account_balance(account_address)
-    accounts_manager.update_account_balance(account_address, current_balance + amount)
-
     return transaction_hash
 
 
