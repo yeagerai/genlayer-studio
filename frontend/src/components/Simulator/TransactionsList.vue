@@ -1,24 +1,69 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useContractsStore, useTransactionsStore } from '@/stores';
 import { TrashIcon } from '@heroicons/vue/24/solid';
 import TransactionItem from './TransactionItem.vue';
 import PageSection from './PageSection.vue';
 import EmptyListPlaceholder from '@/components/Simulator/EmptyListPlaceholder.vue';
+import { RpcClient } from '@/clients/rpc.ts';
+import type { TransactionItem as TransactionItemType } from '@/types';
 
 const contractsStore = useContractsStore();
 const transactionsStore = useTransactionsStore();
+const rpcClient = new RpcClient();
+const relatedTransactions = ref<TransactionItemType[]>([]);
 
 const props = defineProps({
   finalityWindow: Number,
 });
+
+// Function to fetch related transactions
+const fetchRelatedTransactions = async (contractAddress: string) => {
+  if (!contractAddress) return;
+
+  try {
+    const response = await rpcClient.call({
+      method: 'gen_getTransactionsByRelatedContract',
+      params: [contractAddress],
+    });
+
+    if (response.result) {
+      relatedTransactions.value = response.result as TransactionItemType[];
+    }
+  } catch (error) {
+    console.error('Error fetching related transactions:', error);
+  }
+};
+
+// Watch for changes to the contract address and fetch related transactions
+watch(
+  () => {
+    const transactions = transactionsStore.transactions.filter(
+      (t) => t.localContractId === contractsStore.currentContractId,
+    );
+    return transactions.length > 0 ? transactions[0].data?.to_address : null;
+  },
+  (newAddress) => {
+    if (newAddress) {
+      fetchRelatedTransactions(newAddress);
+    }
+  },
+  { immediate: true },
+);
 
 const transactions = computed(() => {
   const contractTransactions = transactionsStore.transactions.filter(
     (t) => t.localContractId === contractsStore.currentContractId,
   );
 
-  const transactionsOrderedByDate = contractTransactions
+  // Combine both transaction sets
+  const allTransactions = [
+    ...contractTransactions,
+    ...relatedTransactions.value,
+  ];
+
+  // Sort all transactions by date
+  const transactionsOrderedByDate = allTransactions
     .slice()
     .sort(
       (a, b) =>
