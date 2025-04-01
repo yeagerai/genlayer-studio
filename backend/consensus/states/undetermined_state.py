@@ -55,7 +55,7 @@ class UndeterminedState(TransactionState):
         # Save the contract snapshot for potential future appeals
         if not context.transaction.contract_snapshot:
             context.transactions_processor.set_transaction_contract_snapshot(
-                context.transaction.hash, context.contract_snapshot_supplier().to_dict()
+                context.transaction.hash, context.contract_snapshot.to_dict()
             )
 
         # Set the transaction result with the current consensus data

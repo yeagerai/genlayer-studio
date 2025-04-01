@@ -103,7 +103,7 @@ class AcceptedState(TransactionState):
         # from a validator appeal, a leader appeal will deploy/update the contract.
         if not context.transaction.appealed:
             # Get the contract snapshot for the transaction's target address
-            leaders_contract_snapshot = context.contract_snapshot_supplier()
+            leaders_contract_snapshot = context.contract_snapshot
 
             # Set the contract snapshot for the transaction for a future rollback
             if not context.transaction.contract_snapshot:

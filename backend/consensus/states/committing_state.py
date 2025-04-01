@@ -42,7 +42,7 @@ class CommittingState(TransactionState):
                 (
                     context.transaction.contract_snapshot
                     if context.transaction.contract_snapshot
-                    else context.contract_snapshot_supplier()
+                    else context.contract_snapshot
                 ),
                 context.consensus_data.leader_receipt,
                 context.msg_handler,
