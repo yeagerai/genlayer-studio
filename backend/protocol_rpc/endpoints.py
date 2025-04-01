@@ -88,10 +88,19 @@ def fund_account(
     if not accounts_manager.is_valid_address(account_address):
         raise InvalidAddressError(account_address)
 
+    # Ensure the account exists
+    if not accounts_manager.get_account(account_address):
+        accounts_manager.create_new_account_with_address(account_address)
+
     nonce = transactions_processor.get_transaction_count(None)
     transaction_hash = transactions_processor.insert_transaction(
         None, account_address, None, amount, 0, nonce, False
     )
+
+    # Update the account balance
+    current_balance = accounts_manager.get_account_balance(account_address)
+    accounts_manager.update_account_balance(account_address, current_balance + amount)
+
     return transaction_hash
 
 
@@ -491,11 +500,6 @@ def send_raw_transaction(
     rollup_transaction_details = consensus_service.forward_transaction(
         signed_rollup_transaction, from_address
     )
-
-    if rollup_transaction_details is None:
-        raise InvalidTransactionError(
-            "Failed to forward transaction to consensus service"
-        )
 
     to_address = decoded_rollup_transaction.to_address
     nonce = decoded_rollup_transaction.nonce

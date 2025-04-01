@@ -234,14 +234,8 @@ def send_raw_transaction(signed_transaction: str):
 def wait_for_transaction(transaction_hash: str, interval: int = 10, retries: int = 15):
     attempts = 0
     while attempts < retries:
-        print(
-            f"[WAIT_FOR_TRANSACTION]: Waiting for transaction {transaction_hash} to be finalized"
-        )
         transaction_response = get_transaction_by_hash(str(transaction_hash))
         status = transaction_response["status"]
-        print(
-            f"[WAIT_FOR_TRANSACTION]: Transaction {transaction_hash} status: {status}\n"
-        )
         if status == "FINALIZED":
             return transaction_response
         time.sleep(interval)
