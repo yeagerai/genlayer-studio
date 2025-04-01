@@ -108,7 +108,11 @@ async def process_transaction(
                 TransactionStatus.PENDING,
             )
 
-            previous_contact_state = context.transaction.contract_snapshot.encoded_state
+            previous_contact_state = (
+                context.transaction.contract_snapshot.encoded_state
+                if hasattr(context.transaction.contract_snapshot, "encoded_state")
+                else {}
+            )
             if previous_contact_state:
                 leaders_contract_snapshot = context.contract_snapshot_factory(
                     context.transaction.to_address
