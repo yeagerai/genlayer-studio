@@ -3,7 +3,8 @@ import zipfile
 import io
 import base64
 import pytest
-
+from regex import P
+from backend.database_handler.errors import AccountNotFoundError
 from tests.common.request import (
     deploy_intelligent_contract,
     write_intelligent_contract,
@@ -52,6 +53,14 @@ def test_deploy(setup_validators, from_account):
 @pytest.mark.asyncio
 async def test_get_contract_by_address_invalid():
     address = "test_address"
+    status_code, _ = await get_contract_by_address(address)
+
+    assert status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_get_contract_by_address_not_exist():
+    address = "0x9C778c9688dAA91FDa539399B817C8732c284F18"
     status = 200
     status_code, contract = await get_contract_by_address(address)
     result = contract.get("result")

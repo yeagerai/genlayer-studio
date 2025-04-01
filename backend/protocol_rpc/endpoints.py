@@ -14,6 +14,7 @@ from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
 from backend.rollup.consensus_service import ConsensusService
 from backend.database_handler.models import Base, CurrentState
+from backend.database_handler.errors import AccountNotFoundError
 from backend.domain.types import LLMProvider, Validator, TransactionType
 from backend.node.create_nodes.providers import (
     get_default_provider_for,
@@ -728,13 +729,15 @@ def get_contract(consensus_service: ConsensusService, contract_name: str) -> dic
 
 def get_contract_by_address(
     request_session: Session, accounts_manager: AccountsManager, address: str
-) -> dict[str:CurrentState] | None:
-    if accounts_manager.is_valid_address(address):
-        deployed_contract: CurrentState = accounts_manager.get_account(address)
-        if deployed_contract:
-            return {
-                "contract_code": base64.b64decode(deployed_contract.data.get("code"))
-            }
+) -> dict[str, Any] | None:
+    if not accounts_manager.is_valid_address(address):
+        raise AccountNotFoundError(address, f"Account {address} does not exist.")
+
+    deployed_contract: CurrentState = accounts_manager.get_account(address)
+    if deployed_contract:
+        return {"contract_code": base64.b64decode(deployed_contract.data.get("code"))}
+
+    return None
 
 
 def register_all_rpc_endpoints(
