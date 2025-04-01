@@ -18,8 +18,7 @@ class ConsensusService:
         hardhat_url = f"{url}:{port}"
         self.web3 = Web3(Web3.HTTPProvider(hardhat_url))
 
-        if not self.web3.is_connected():
-            raise ConnectionError(f"Failed to connect to Hardhat node at {hardhat_url}")
+        self.web3_connected = self.web3.is_connected()
 
     def load_contract(self, contract_name: str) -> Optional[dict]:
         """
@@ -113,6 +112,13 @@ class ConsensusService:
         """
         Forward a transaction to the consensus rollup and wait for NewTransaction event
         """
+
+        if not self.web3_connected:
+            print(
+                "[CONSENSUS_SERVICE]: Not connected to Hardhat node, skipping transaction forwarding"
+            )
+            return None
+
         try:
             tx_hash = self.web3.eth.send_raw_transaction(transaction)
             receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)

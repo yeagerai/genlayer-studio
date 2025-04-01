@@ -508,7 +508,10 @@ def send_raw_transaction(
         if value > 0:
             raise InvalidTransactionError("Deploy Transaction can't send value")
 
-        if not "recipient" in rollup_transaction_details:
+        if (
+            rollup_transaction_details is None
+            or not "recipient" in rollup_transaction_details
+        ):
             new_account = accounts_manager.create_new_account()
             new_contract_address = new_account.address
         else:
