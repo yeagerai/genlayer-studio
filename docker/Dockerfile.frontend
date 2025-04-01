@@ -8,19 +8,23 @@ COPY ./examples src/assets/examples
 COPY ./.env ./.env
 COPY ../backend/node/create_nodes/providers_schema.json /app/src/assets/schemas/providers_schema.json
 
+RUN apk add --no-cache jq \
+    && mkdir -p /app/shared /app/tmp \
+    && chmod -R 777 /app/shared /app/tmp \
+    && jq -r '.version' package.json > /app/tmp/studio_version.txt
 
 FROM base AS dev
-ENTRYPOINT ["npm", "run", "dev"]
+ENTRYPOINT sh -c "cp -r /app/tmp/studio_version.txt /app/shared/studio_version.txt && rm -rf /app/tmp && npm run dev"
 
 FROM base AS builder
 RUN npm run build
 
 FROM alpine:latest AS final
 RUN apk add --no-cache nodejs npm && \
-    addgroup --system frontend-user && adduser --system --ingroup frontend-user frontend-user && \
+    addgroup --system frontend-user && adduser --system --ingroup  frontend-user --shell /bin/sh frontend-user && \
     mkdir /app && chown -R frontend-user:frontend-user /app
 WORKDIR /app
 COPY --from=builder --chown=frontend-user:frontend-user /app /app
-USER frontend-user
+
 EXPOSE 8080
-CMD [ "npm", "run", "preview" ]
+CMD sh -c "cp -r /app/tmp/studio_version.txt /app/shared/studio_version.txt && rm -rf /app/tmp && su -s /bin/sh frontend-user -c 'npm run preview'"
