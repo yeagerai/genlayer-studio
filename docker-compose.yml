@@ -77,7 +77,7 @@ services:
       test: ["CMD", "python3", "backend/healthcheck.py", "--port", "${RPCPORT}"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 10
       start_period: 30s
     restart: always
     security_opt:
