@@ -730,11 +730,7 @@ def get_contract_by_address(
     request_session: Session, accounts_manager: AccountsManager, address: str
 ) -> dict[str:CurrentState] | None:
     if accounts_manager.is_valid_address(address):
-        deployed_contract: CurrentState = (
-            request_session.query(CurrentState)
-            .filter(CurrentState.id == address)
-            .first()
-        )
+        deployed_contract: CurrentState = accounts_manager.get_account(address)
         if deployed_contract:
             return {
                 "contract_code": base64.b64decode(deployed_contract.data.get("code"))
