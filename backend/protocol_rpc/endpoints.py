@@ -492,6 +492,11 @@ def send_raw_transaction(
         signed_rollup_transaction, from_address
     )
 
+    if rollup_transaction_details is None:
+        raise InvalidTransactionError(
+            "Failed to forward transaction to consensus service"
+        )
+
     to_address = decoded_rollup_transaction.to_address
     nonce = decoded_rollup_transaction.nonce
     value = decoded_rollup_transaction.value
@@ -508,8 +513,12 @@ def send_raw_transaction(
         if value > 0:
             raise InvalidTransactionError("Deploy Transaction can't send value")
 
-        new_contract_address = rollup_transaction_details["recipient"]
-        accounts_manager.create_new_account_with_address(new_contract_address)
+        if not "recipient" in rollup_transaction_details:
+            new_account = accounts_manager.create_new_account()
+            new_contract_address = new_account.address
+        else:
+            new_contract_address = rollup_transaction_details["recipient"]
+            accounts_manager.create_new_account_with_address(new_contract_address)
 
         transaction_data = {
             "contract_address": new_contract_address,

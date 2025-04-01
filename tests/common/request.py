@@ -58,6 +58,13 @@ def get_transaction_count(account_address: str):
     return parsed_raw_response["result"]
 
 
+def get_consensus_contract_address() -> str:
+    payload_data = payload("sim_getConsensusContract", "ConsensusMain")
+    raw_response = post_request_localhost(payload_data)
+    parsed_raw_response = raw_response.json()
+    return parsed_raw_response["result"]["address"]
+
+
 def call_contract_method(
     contract_address: str,
     from_account: Account,
@@ -90,11 +97,8 @@ def _prepare_transaction(
     value: int = 0,
 ) -> str:
     """Helper function to prepare a transaction for the consensus contract"""
-    # Get consensus contract address from environment
-    consensus_contract_address = os.environ.get("CONSENSUS_CONTRACT_ADDRESS")
-    if not consensus_contract_address:
-        raise ValueError("CONSENSUS_CONTRACT_ADDRESS not set in environment")
-
+    # Get consensus contract address from JSONRPC
+    consensus_contract_address = get_consensus_contract_address()
     # Default values from environment or constants
     num_initial_validators = int(os.environ.get("DEFAULT_NUM_INITIAL_VALIDATORS", 1))
     max_rotations = int(os.environ.get("DEFAULT_CONSENSUS_MAX_ROTATIONS", 100))
@@ -230,8 +234,14 @@ def send_raw_transaction(signed_transaction: str):
 def wait_for_transaction(transaction_hash: str, interval: int = 10, retries: int = 15):
     attempts = 0
     while attempts < retries:
+        print(
+            f"[WAIT_FOR_TRANSACTION]: Waiting for transaction {transaction_hash} to be finalized"
+        )
         transaction_response = get_transaction_by_hash(str(transaction_hash))
         status = transaction_response["status"]
+        print(
+            f"[WAIT_FOR_TRANSACTION]: Transaction {transaction_hash} status: {status}\n"
+        )
         if status == "FINALIZED":
             return transaction_response
         time.sleep(interval)
