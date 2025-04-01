@@ -17,6 +17,7 @@ from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
 from sqlalchemy.orm.attributes import flag_modified
 from backend.domain.types import MAX_ROTATIONS
+from backend.database_handler.accounts_manager import AccountsManager
 
 from backend.rollup.consensus_service import ConsensusService
 
@@ -181,7 +182,16 @@ class TransactionsProcessor:
         triggered_by_hash: (
             str | None
         ) = None,  # If filled, the transaction must be present in the database (committed)
+        accounts_manager: AccountsManager | None = None,
     ) -> str:
+        if accounts_manager:
+            sender_balance = accounts_manager.get_account_balance(from_address)
+
+            if sender_balance < value:
+                raise ValueError(
+                    f"Sender has insufficient balance. Is {sender_balance}, needs {value}"
+                )
+
         current_nonce = self.get_transaction_count(from_address)
 
         # Follow up: https://github.com/MetaMask/metamask-extension/issues/29787
