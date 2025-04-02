@@ -28,14 +28,6 @@ class ConsensusService:
             address=contract_data["address"], abi=contract_data["abi"]
         )
 
-        # Load the ConsensusMain ABI
-        contract_data = self.load_contract("ConsensusMain")
-        if not contract_data:
-            raise Exception("Failed to load ConsensusMain contract")
-        self.consensus_contract = self.web3.eth.contract(
-            address=contract_data["address"], abi=contract_data["abi"]
-        )
-
     def load_contract(self, contract_name: str) -> Optional[dict]:
         """
         Load contract deployment data and compiled contract data
@@ -131,20 +123,8 @@ class ConsensusService:
         return receipt
 
     def wait_new_transaction_event(self, receipt: dict) -> dict:
-        # Load ConsensusMain contract
-        consensus_contract_data = self.load_contract("ConsensusMain")
-        if not consensus_contract_data:
-            print("[CONSENSUS_SERVICE]: Failed to load ConsensusMain contract")
-            return None
-
-        # Create contract instance
-        consensus_contract = self.web3.eth.contract(
-            address=consensus_contract_data["address"],
-            abi=consensus_contract_data["abi"],
-        )
-
         # Get NewTransaction events from receipt
-        new_tx_events = consensus_contract.events.NewTransaction().process_receipt(
+        new_tx_events = self.consensus_contract.events.NewTransaction().process_receipt(
             receipt
         )
 
