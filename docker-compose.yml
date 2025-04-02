@@ -54,6 +54,7 @@ services:
       - RPCDEBUGPORT=${RPCDEBUGPORT}
       - WEBREQUESTPORT=${WEBREQUESTPORT}
       - WEBREQUESTHOST=${WEBREQUESTHOST}
+      - WEBDRIVERHOST=${WEBDRIVERHOST}
       - WEBREQUESTPROTOCOL=${WEBREQUESTPROTOCOL}
     ports:
       - "${RPCPORT}:${RPCPORT}"
@@ -64,19 +65,22 @@ services:
       - hardhat_artifacts:/app/hardhat/artifacts
       - hardhat_deployments:/app/hardhat/deployments
     depends_on:
-      hardhat:
-        condition: service_healthy
       database-migration:
         condition: service_completed_successfully
       webrequest:
         condition: service_healthy
+      webdriver:
+        condition: service_healthy
+      hardhat:
+        condition: service_healthy
+        required: false
     expose:
       - "${RPCPORT}"
     healthcheck:
       test: ["CMD", "python3", "backend/healthcheck.py", "--port", "${RPCPORT}"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 10
       start_period: 30s
     restart: always
     security_opt:
@@ -98,13 +102,12 @@ services:
     build:
       context: ./
       dockerfile: ./docker/Dockerfile.webrequest
-    shm_size: 2gb
     volumes:
       - ./.env:/app/webrequest/.env
       - ./webrequest:/app/webrequest
     environment:
       - FLASK_SERVER_PORT=${WEBREQUESTPORT}
-      - WEBREQUESTSELENIUMPORT=${WEBREQUESTSELENIUMPORT}
+      - WEBDRIVERPORT=${WEBDRIVERPORT}
       # TODO: remove this in production
       - PYTHONUNBUFFERED=1
     depends_on:
@@ -112,7 +115,26 @@ services:
         condition: service_started
     expose:
       - "${WEBREQUESTPORT}:${WEBREQUESTPORT}"
-      - "${WEBREQUESTSELENIUMPORT}:${WEBREQUESTSELENIUMPORT}"
+    restart: always
+    security_opt:
+      - "no-new-privileges=true"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  webdriver:
+    build:
+      context: ./
+      dockerfile: ./docker/Dockerfile.webdriver
+    shm_size: 2gb
+    volumes:
+      - ./.env:/wd/.env
+    environment:
+      - WEBDRIVERPORT=${WEBDRIVERPORT}
+    expose:
+      - "${WEBDRIVERPORT}:${WEBDRIVERPORT}"
     restart: always
     security_opt:
       - "no-new-privileges=true"
@@ -123,7 +145,7 @@ services:
         max-file: "3"
 
   ollama:
-    image: ollama/ollama:0.4.1
+    image: ollama/ollama:0.5.7
     ports:
       - 11434:11434
     volumes:
@@ -172,6 +194,7 @@ services:
       - DB_URL=postgresql://${DBUSER}:${DBUSER}@postgres/${DBNAME}
       - WEBREQUESTPORT=${WEBREQUESTPORT}
       - WEBREQUESTHOST=${WEBREQUESTHOST}
+      - WEBDRIVERHOST=${WEBDRIVERHOST}
       - WEBREQUESTPROTOCOL=${WEBREQUESTPROTOCOL}
     depends_on:
       postgres:
@@ -180,6 +203,7 @@ services:
         condition: service_healthy
 
   hardhat:
+    profiles: ["hardhat"]
     build:
       context: .
       dockerfile: docker/Dockerfile.hardhat
@@ -195,6 +219,7 @@ services:
       - hardhat_cache:/app/cache
       - hardhat_deployments:/app/deployments
       - ignition_deployments:/app/ignition/deployments
+      - hardhat_snapshots:/app/snapshots
     environment:
       - HARDHAT_NETWORK=hardhat
     restart: always
@@ -215,3 +240,4 @@ volumes:
   hardhat_cache:
   hardhat_deployments:
   ignition_deployments:
+  hardhat_snapshots:
