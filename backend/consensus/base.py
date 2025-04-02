@@ -2343,5 +2343,4 @@ def _emit_transactions(
             nonce=nonce,
             leader_only=context.transaction.leader_only,  # Cascade
             triggered_by_hash=context.transaction.hash,
-            consensus_service=context.consensus_service,
         )

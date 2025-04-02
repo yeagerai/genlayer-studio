@@ -550,8 +550,6 @@ def send_raw_transaction(
         genlayer_transaction.type.value,
         nonce,
         leader_only,
-        None,
-        consensus_service,
     )
 
     return transaction_hash

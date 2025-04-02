@@ -180,7 +180,6 @@ class TransactionsProcessor:
         triggered_by_hash: (
             str | None
         ) = None,  # If filled, the transaction must be present in the database (committed)
-        consensus_service: ConsensusService = None,
     ) -> str:
         current_nonce = self.get_transaction_count(from_address)
 
@@ -233,21 +232,6 @@ class TransactionsProcessor:
         self.session.add(new_transaction)
 
         self.session.flush()  # So that `created_at` gets set
-
-        # Send events in rollup to communicate the new transaction
-        if consensus_service:
-            consensus_service.emit_transaction_event(
-                "emitNewTransaction",
-                {
-                    "address": self.web3.eth.accounts[
-                        0
-                    ],  # for now okay but should be the from_address
-                    "private_key": os.environ.get("HARDHAT_PRIVATE_KEY"),
-                },
-                transaction_hash,
-                to_address,
-                self.web3.eth.accounts[0],  # for now okay but should be a validator
-            )
 
         return new_transaction.hash
 
