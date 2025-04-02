@@ -11,7 +11,6 @@ import time
 from abc import ABC, abstractmethod
 import threading
 import random
-from copy import deepcopy
 
 from sqlalchemy.orm import Session
 from backend.consensus.vrf import get_validators_for_transaction
@@ -630,7 +629,7 @@ class ConsensusAlgorithm:
                     msg_handler,
                 )
 
-                transactions_processor.create_rollup_transaction(transaction.hash)
+                # transactions_processor.create_rollup_transaction(transaction.hash)
                 return
 
             # Update the balance of the sender account
@@ -656,7 +655,7 @@ class ConsensusAlgorithm:
             msg_handler,
         )
 
-        transactions_processor.create_rollup_transaction(transaction.hash)
+        # transactions_processor.create_rollup_transaction(transaction.hash)
 
     def run_appeal_window_loop(
         self,
@@ -993,16 +992,9 @@ class ConsensusAlgorithm:
         transactions_processor.set_transaction_appeal(transaction.hash, False)
         transaction.appealed = False
 
-        used_leader_addresses = (
-            ConsensusAlgorithm.get_used_leader_addresses_from_consensus_history(
-                context.transactions_processor.get_transaction_by_hash(
-                    context.transaction.hash
-                )["consensus_history"]
-            )
-        )
-        if len(transaction.consensus_data.validators) + len(
-            used_leader_addresses
-        ) >= len(chain_snapshot.get_all_validators()):
+        if len(transaction.consensus_data.validators) + 1 == len(
+            chain_snapshot.get_all_validators()
+        ):
             self.msg_handler.send_message(
                 LogEvent(
                     "consensus_event",
@@ -1035,12 +1027,6 @@ class ConsensusAlgorithm:
                 transaction.hash, True
             )
             transaction.appeal_undetermined = True
-
-            context.contract_snapshot_supplier = (
-                lambda: context.contract_snapshot_factory(
-                    context.transaction.to_address
-                )
-            )
 
             # Begin state transitions starting from PendingState
             state = PendingState()
@@ -1180,6 +1166,11 @@ class ConsensusAlgorithm:
                         leaders_contract_snapshot.update_contract_state(
                             accepted_state=previous_contact_state
                         )
+
+                    # Reset the contract snapshot for the transaction
+                    context.transactions_processor.set_transaction_contract_snapshot(
+                        context.transaction.hash, None
+                    )
 
                     # Transaction will be picked up by _crawl_snapshot
                     break
@@ -1591,9 +1582,9 @@ class ProposingState(TransactionState):
             context.msg_handler,
         )
 
-        context.transactions_processor.create_rollup_transaction(
-            context.transaction.hash
-        )
+        # context.transactions_processor.create_rollup_transaction(
+        #     context.transaction.hash
+        # )
 
         # The leader is elected randomly
         random.shuffle(context.involved_validators)
@@ -1605,21 +1596,16 @@ class ProposingState(TransactionState):
         if context.transaction.leader_only:
             context.remaining_validators = []
 
-        # Create a contract snapshot for the transaction if not exists
-        if context.transaction.contract_snapshot:
-            contract_snapshot = deepcopy(context.transaction.contract_snapshot)
-        else:
-            contract_snapshot_supplier = lambda: context.contract_snapshot_factory(
-                context.transaction.to_address
-            )
-            context.contract_snapshot_supplier = contract_snapshot_supplier
-            contract_snapshot = contract_snapshot_supplier()
+        # Create a contract snapshot for the transaction
+        contract_snapshot_supplier = lambda: context.contract_snapshot_factory(
+            context.transaction.to_address
+        )
 
         # Create a leader node for executing the transaction
         leader_node = context.node_factory(
             leader,
             ExecutionMode.LEADER,
-            contract_snapshot,
+            contract_snapshot_supplier(),
             None,
             context.msg_handler,
             context.contract_snapshot_factory,
@@ -1639,6 +1625,7 @@ class ProposingState(TransactionState):
 
         # Set the validators and other context attributes
         context.num_validators = len(context.remaining_validators) + 1
+        context.contract_snapshot_supplier = contract_snapshot_supplier
         context.votes = votes
 
         # Transition to the CommittingState
@@ -1668,20 +1655,16 @@ class CommittingState(TransactionState):
             context.msg_handler,
         )
 
-        context.transactions_processor.create_rollup_transaction(
-            context.transaction.hash
-        )
+        # context.transactions_processor.create_rollup_transaction(
+        #     context.transaction.hash
+        # )
 
         # Create validator nodes for each validator
         context.validator_nodes = [
             context.node_factory(
                 validator,
                 ExecutionMode.VALIDATOR,
-                (
-                    context.transaction.contract_snapshot
-                    if context.transaction.contract_snapshot
-                    else context.contract_snapshot_supplier()
-                ),
+                context.contract_snapshot_supplier(),
                 context.consensus_data.leader_receipt,
                 context.msg_handler,
                 context.contract_snapshot_factory,
@@ -1728,9 +1711,9 @@ class RevealingState(TransactionState):
             context.msg_handler,
         )
 
-        context.transactions_processor.create_rollup_transaction(
-            context.transaction.hash
-        )
+        # context.transactions_processor.create_rollup_transaction(
+        #     context.transaction.hash
+        # )
 
         # Process each validation result and update the context
         for i, validation_result in enumerate(context.validation_results):
@@ -1975,9 +1958,9 @@ class AcceptedState(TransactionState):
             context.validation_results,
         )
 
-        context.transactions_processor.create_rollup_transaction(
-            context.transaction.hash
-        )
+        # context.transactions_processor.create_rollup_transaction(
+        #     context.transaction.hash
+        # )
 
         # Send a message indicating consensus was reached
         context.msg_handler.send_message(
@@ -2003,10 +1986,9 @@ class AcceptedState(TransactionState):
             leaders_contract_snapshot = context.contract_snapshot_supplier()
 
             # Set the contract snapshot for the transaction for a future rollback
-            if not context.transaction.contract_snapshot:
-                context.transactions_processor.set_transaction_contract_snapshot(
-                    context.transaction.hash, leaders_contract_snapshot.to_dict()
-                )
+            context.transactions_processor.set_transaction_contract_snapshot(
+                context.transaction.hash, leaders_contract_snapshot.to_dict()
+            )
 
             # Do not deploy or update the contract if the execution failed
             if leader_receipt.execution_result == ExecutionResultStatus.SUCCESS:
@@ -2106,12 +2088,6 @@ class UndeterminedState(TransactionState):
         else:
             consensus_round = "Undetermined"
 
-        # Save the contract snapshot for potential future appeals
-        if not context.transaction.contract_snapshot:
-            context.transactions_processor.set_transaction_contract_snapshot(
-                context.transaction.hash, context.contract_snapshot_supplier().to_dict()
-            )
-
         # Set the transaction result with the current consensus data
         context.transactions_processor.set_transaction_result(
             context.transaction.hash,
@@ -2139,9 +2115,9 @@ class UndeterminedState(TransactionState):
             context.consensus_data.validators,
         )
 
-        context.transactions_processor.create_rollup_transaction(
-            context.transaction.hash
-        )
+        # context.transactions_processor.create_rollup_transaction(
+        #     context.transaction.hash
+        # )
 
         return None
 
@@ -2184,9 +2160,9 @@ class FinalizingState(TransactionState):
             context.msg_handler,
         )
 
-        context.transactions_processor.create_rollup_transaction(
-            context.transaction.hash
-        )
+        # context.transactions_processor.create_rollup_transaction(
+        #     context.transaction.hash
+        # )
 
         if context.transaction.status != TransactionStatus.UNDETERMINED:
             # Insert pending transactions generated by contract-to-contract calls
