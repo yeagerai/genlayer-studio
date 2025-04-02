@@ -1166,6 +1166,11 @@ class ConsensusAlgorithm:
                             accepted_state=previous_contact_state
                         )
 
+                    # Reset the contract snapshot for the transaction
+                    context.transactions_processor.set_transaction_contract_snapshot(
+                        context.transaction.hash, None
+                    )
+
                     # Transaction will be picked up by _crawl_snapshot
                     break
                 state = next_state
