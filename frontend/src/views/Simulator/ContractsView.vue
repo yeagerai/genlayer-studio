@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { useContractsStore } from '@/stores';
+import { useContractsStore, useRpcDependencyStore } from '@/stores';
 import { FilePlus2, Upload, ArrowDownToLine } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import ContractItem from '@/components/Simulator/ContractItem.vue';
 import MainTitle from '@/components/Simulator/MainTitle.vue';
-import { useRpcClient, useEventTracking } from '@/hooks';
+import { useEventTracking } from '@/hooks';
 
-const rpcClient = useRpcClient();
+const { rpcClient } = useRpcDependencyStore();
 const showInputModal = ref(false);
 const contractAddress = ref(''); // Store the input field value
 
@@ -17,7 +17,7 @@ function toggleInputModal() {
 
 async function getContractByAddress(address: string) {
   try {
-    const response = await rpcClient.gen_getContractByAddress(address);
+    const response = await rpcClient.value.gen_getContractByAddress(address);
 
     if (response) {
       const id = uuidv4();
