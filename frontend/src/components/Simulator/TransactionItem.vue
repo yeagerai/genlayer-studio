@@ -25,6 +25,10 @@ const props = defineProps<{
   finalityWindow: number;
 }>();
 
+const finalityWindowAppealFailedReduction = ref(
+  Number(import.meta.env.VITE_FINALITY_WINDOW_APPEAL_FAILED_REDUCTION),
+);
+
 const isDetailsModalOpen = ref(false);
 
 const timeThreshold = 6; // Number of hours after which the date should be displayed instead of time ago
@@ -178,8 +182,11 @@ function prettifyTxData(x: any): any {
             (transaction.status == 'ACCEPTED' ||
               transaction.status == 'UNDETERMINED') &&
             Date.now() / 1000 -
-              transaction.data.timestamp_awaiting_finalization <=
-              finalityWindow
+              transaction.data.timestamp_awaiting_finalization -
+              transaction.data.appeal_processing_time <=
+              finalityWindow *
+                (1 - finalityWindowAppealFailedReduction) **
+                  transaction.data.appeal_failed
           "
           @click="handleSetTransactionAppeal"
           tiny
