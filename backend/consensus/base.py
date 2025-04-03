@@ -111,7 +111,8 @@ def contract_snapshot_factory(
     if (
         transaction.type == TransactionType.DEPLOY_CONTRACT
         and contract_address == transaction.to_address
-        and transaction.status != TransactionStatus.ACCEPTED
+        and transaction.status
+        not in [TransactionStatus.ACCEPTED, TransactionStatus.FINALIZED]
     ):
         # Create a new ContractSnapshot instance for the new contract
         ret = ContractSnapshot(None, session)
