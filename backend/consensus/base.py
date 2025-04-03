@@ -1730,7 +1730,7 @@ class CommittingState(TransactionState):
                 validator,
                 ExecutionMode.VALIDATOR,
                 (
-                    context.transaction.contract_snapshot
+                    deepcopy(context.transaction.contract_snapshot)
                     if context.transaction.contract_snapshot
                     else context.contract_snapshot_supplier()
                 ),
