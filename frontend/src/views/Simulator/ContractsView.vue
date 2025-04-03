@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useContractsStore, useRpcDependencyStore } from '@/stores';
+import { useContractsStore } from '@/stores';
 import { FilePlus2, Upload, ArrowDownToLine } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
@@ -7,7 +7,6 @@ import ContractItem from '@/components/Simulator/ContractItem.vue';
 import MainTitle from '@/components/Simulator/MainTitle.vue';
 import { useEventTracking } from '@/hooks';
 
-const { rpcClient } = useRpcDependencyStore();
 const showInputModal = ref(false);
 const contractAddress = ref(''); // Store the input field value
 
@@ -15,39 +14,15 @@ function toggleInputModal() {
   showInputModal.value = !showInputModal.value;
 }
 
-async function getContractByAddress(address: string) {
-  try {
-    const response = await rpcClient.value.gen_getContractByAddress(address);
-
-    if (response) {
-      const id = uuidv4();
-      const content = (response as { contract_code: string }).contract_code
-        .replace(/^b'/, '') // Remove b' prefix
-        .replace(/'$/, '') // Remove trailing '
-        .replace(/\\n/g, '\n') // Convert \n to actual newlines
-        .replace(/\\t/g, '\t') // Convert \t to actual tabs
-        .replace(/\\"/g, '"') // Convert \" to actual quotes
-        .replace(/\\\\/g, '\\'); // Convert \\ to actual backslashes
-
-      store.addContractFile({
-        id,
-        name: `contract_${address.slice(0, 8)}.gpy`,
-        content,
-      });
-      store.openFile(id);
-      toggleInputModal(); // Close the modal after successful import
-    }
-  } catch (error) {
-    console.error('RPC Call Failed:', error);
-  }
-}
-
-function importContract() {
+async function importContract() {
   if (!contractAddress.value.trim()) {
     console.error('Please enter a valid contract address');
     return;
   }
-  getContractByAddress(contractAddress.value);
+  const getContract = await store.getContractByAddress(contractAddress.value);
+  if (getContract) {
+    toggleInputModal(); // Close the modal after successful import
+  }
 }
 
 const store = useContractsStore();
@@ -99,7 +74,7 @@ const handleSaveNewFile = (name: string) => {
     });
   }
 
-  showNewFileInput.value = false;
+  showNewFileInput.value = true;
 };
 </script>
 

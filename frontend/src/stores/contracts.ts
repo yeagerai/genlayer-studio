@@ -2,13 +2,15 @@ import type { ContractFile, DeployedContract } from '@/types';
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { notify } from '@kyvg/vue3-notification';
-import { useDb, useFileName } from '@/hooks';
+import { useDb, useFileName, useRpcClient } from '@/hooks';
+import { v4 as uuidv4 } from 'uuid';
 
 export const useContractsStore = defineStore('contractsStore', () => {
   const contracts = ref<ContractFile[]>([]);
   const openedFiles = ref<string[]>([]);
   const db = useDb();
   const { cleanupFileName } = useFileName();
+  const rpcClient = useRpcClient();
 
   const currentContractId = ref<string | undefined>(
     localStorage.getItem('contractsStore.currentContractId') || '',
@@ -144,6 +146,39 @@ export const useContractsStore = defineStore('contractsStore', () => {
     await db.contractFiles.clear();
   }
 
+  async function getContractByAddress(address: string) {
+    try {
+      const response = await rpcClient.gen_getContractByAddress(address);
+
+      if (response) {
+        const id = uuidv4();
+        const content = (response as { contract_code: string }).contract_code
+          .replace(/^b'/, '') // Remove b' prefix
+          .replace(/'$/, '') // Remove trailing '
+          .replace(/\\n/g, '\n') // Convert \n to actual newlines
+          .replace(/\\t/g, '\t') // Convert \t to actual tabs
+          .replace(/\\"/g, '"') // Convert \" to actual quotes
+          .replace(/\\\\/g, '\\'); // Convert \\ to actual backslashes
+
+        const newContract = {
+          id,
+          name: `contract_${address.slice(0, 8)}.gpy`,
+          content,
+        };
+
+        addContractFile(newContract);
+        openFile(id);
+
+        // Save to persistent storage
+        await db.contractFiles.add(newContract); // Save to your database
+
+        return true;
+      }
+    } catch (error) {
+      console.error('RPC Call Failed:', error);
+    }
+  }
+
   const currentContract = computed(() => {
     return contracts.value.find((c) => c.id === currentContractId.value);
   });
@@ -189,5 +224,6 @@ export const useContractsStore = defineStore('contractsStore', () => {
     resetStorage,
     getInitialOpenedFiles,
     moveOpenedFile,
+    getContractByAddress,
   };
 });
