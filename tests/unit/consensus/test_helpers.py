@@ -15,6 +15,7 @@ from backend.node.base import Node
 from backend.node.types import ExecutionMode, ExecutionResultStatus, Receipt, Vote
 from backend.protocol_rpc.message_handler.base import MessageHandler
 from typing import Optional
+from backend.rollup.consensus_service import ConsensusService
 
 DEFAULT_FINALITY_WINDOW = 5
 DEFAULT_CONSENSUS_SLEEP_TIME = 2
@@ -116,9 +117,6 @@ class TransactionsProcessorMock:
             transactions_by_address[address].append(transaction)
         return transactions_by_address
 
-    def create_rollup_transaction(self, transaction_hash: str):
-        pass
-
     def set_transaction_appeal_failed(self, transaction_hash: str, appeal_failed: int):
         if appeal_failed < 0:
             raise ValueError("appeal_failed must be a non-negative integer")
@@ -216,16 +214,6 @@ class ContractSnapshotMock:
     def __init__(self, address: str):
         self.address = address
 
-    def register_contract(self, contract: dict):
-        pass
-
-    def update_contract_state(
-        self,
-        accepted_state: dict[str, str] | None = None,
-        finalized_state: dict[str, str] | None = None,
-    ):
-        pass
-
     def to_dict(self):
         return {
             "address": (self.address if self.address else None),
@@ -239,6 +227,22 @@ class ContractSnapshotMock:
             return instance
         else:
             return None
+
+
+class ContractProcessorMock:
+    def __init__(self):
+        pass
+
+    def register_contract(self, contract: dict):
+        pass
+
+    def update_contract_state(
+        self,
+        contract_snapshot: ContractSnapshotMock,
+        accepted_state: dict[str, str] | None = None,
+        finalized_state: dict[str, str] | None = None,
+    ):
+        pass
 
 
 def transaction_to_dict(transaction: Transaction) -> dict:
@@ -296,6 +300,7 @@ def get_nodes_specs(number_of_nodes: int):
             "provider": f"provider{i}",
             "model": f"model{i}",
             "config": f"config{i}",
+            "private_key": f"private_key{i}",
         }
         for i in range(number_of_nodes)
     ]
@@ -315,6 +320,7 @@ def node_factory(
     mock.validator_mode = mode
     mock.address = node["address"]
     mock.leader_receipt = receipt
+    mock.private_key = node["private_key"]
 
     mock.exec_transaction = AsyncMock(
         return_value=Receipt(
@@ -324,7 +330,10 @@ def node_factory(
             gas_used=0,
             contract_state={},
             result=DEFAULT_EXEC_RESULT,
-            node_config={"address": node["address"]},
+            node_config={
+                "address": node["address"],
+                "private_key": node["private_key"],
+            },
             eq_outputs={},
             execution_result=ExecutionResultStatus.SUCCESS,
         )
@@ -389,7 +398,9 @@ def consensus_algorithm() -> ConsensusAlgorithm:
     mock_msg_handler = MessageHandlerMock()
 
     consensus_algorithm = ConsensusAlgorithm(
-        get_session=lambda: mock_session, msg_handler=mock_msg_handler
+        get_session=lambda: mock_session,
+        msg_handler=mock_msg_handler,
+        consensus_service=MagicMock(),
     )
     consensus_algorithm.finality_window_time = DEFAULT_FINALITY_WINDOW
     consensus_algorithm.consensus_sleep_time = DEFAULT_CONSENSUS_SLEEP_TIME
@@ -412,6 +423,7 @@ def setup_test_environment(
     contract_snapshot_factory = (
         lambda address, session, transaction: ContractSnapshotMock(address)
     )
+    contract_processor_factory = lambda session: ContractProcessorMock()
     node_factory_supplier = (
         lambda node, mode, contract_snapshot, receipt, msg_handler, contract_snapshot_factory: created_nodes.append(
             node_factory(
@@ -442,6 +454,7 @@ def setup_test_environment(
             transactions_processor_factory,
             accounts_manager_factory,
             contract_snapshot_factory,
+            contract_processor_factory,
             node_factory_supplier,
             stop_event,
         ),
@@ -453,6 +466,7 @@ def setup_test_environment(
             transactions_processor_factory,
             accounts_manager_factory,
             contract_snapshot_factory,
+            contract_processor_factory,
             node_factory_supplier,
             stop_event,
         ),
