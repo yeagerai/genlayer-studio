@@ -35,6 +35,7 @@ jobs:
     env:
       PYTHONPATH: ${{ github.workspace }}
       DOCKER_COMPOSE_CMD: ${{ needs.triggers.outputs.is_pull_request_review_approved == 'true' && 'docker compose' || 'docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml' }}
+      COMPOSE_PROFILES: hardhat
 
     steps:
       - name: Checkout code
@@ -119,8 +120,7 @@ jobs:
 
       - name: Shutdown Docker Compose
         if: always()
-        run: |
-          eval "$DOCKER_COMPOSE_CMD down"
+        run: eval "$DOCKER_COMPOSE_CMD down"
 
   db-integration-test:
     needs: triggers
