@@ -63,10 +63,6 @@ RUN echo '#!/bin/sh' > /app/start.sh && \
     echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Creating initial snapshot..."' >> /app/start.sh && \
     echo '  npx hardhat run scripts/snapshot.js --network genlayer_network' >> /app/start.sh && \
     echo 'fi' >> /app/start.sh && \
-    echo 'echo "[$(date +"%Y-%m-%d %H:%M:%S")] Running tests..."' >> /app/start.sh && \
-    echo 'npx hardhat test --network genlayer_network' >> /app/start.sh && \
-    echo 'echo "[$(date +"%Y-%m-%d %H:%M:%S")] Tests completed"' >> /app/start.sh && \
-    echo 'echo "[$(date +"%Y-%m-%d %H:%M:%S")] Starting automatic snapshot service..."' >> /app/start.sh && \
     echo '/app/snapshot.sh &' >> /app/start.sh && \
     echo 'wait' >> /app/start.sh && \
     chmod +x /app/start.sh

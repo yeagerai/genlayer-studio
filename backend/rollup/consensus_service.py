@@ -98,7 +98,8 @@ class ConsensusService:
         """
         try:
             deployment_path = (
-                Path("/app/hardhat/deployments/localhost") / f"{contract_name}.json"
+                Path("/app/hardhat/deployments/genlayer_network")
+                / f"{contract_name}.json"
             )
 
             if not deployment_path.exists():
