@@ -2,40 +2,6 @@ const fs = require("fs-extra");
 const path = require("path");
 const { ethers } = require("hardhat");
 
-
-// async function saveDeploymentWithHardhat(name, folder = "deployments/localhost") {
-//   try {
-//     // Get deployment from hardhat-deploy
-//     const deployment = await deployments.get(name);
-
-//     // Get bytecode from chain
-//     let bytecodeOnChain;
-//     try {
-//       bytecodeOnChain = await ethers.provider.getCode(deployment.address);
-//     } catch (bytecodeError) {
-//       console.warn(`Could not get bytecode for ${name}: ${bytecodeError.message}`);
-//       bytecodeOnChain = "";
-//     }
-
-//     // Create deployment object with standard format
-//     const deploymentData = {
-//       address: deployment.address,
-//       abi: deployment.abi,
-//       bytecode: bytecodeOnChain,
-//     };
-
-//     // Ensure folder exists
-//     await fs.ensureDir(folder);
-//     const savePath = path.join(folder, `${name}.json`);
-
-//     // Save file
-//     await fs.writeJson(savePath, deploymentData, { spaces: 2 });
-//     console.log(`Saved deployment for ${name} at ${savePath}`);
-//   } catch (error) {
-//     console.error(`Error trying to save ${name}:`, error.message);
-//   }
-// }
-
 module.exports = async ({ getNamedAccounts, deployments, ethers }) => {
   const { deploy, execute, log } = deployments;
   const { deployer } = await getNamedAccounts();
@@ -399,37 +365,6 @@ module.exports = async ({ getNamedAccounts, deployments, ethers }) => {
   }
 
   log("All contracts deployed and configured!\n");
-
-  // Save deployments
-  const contractNames = [
-    'GhostContract',
-    "ArrayUtils",
-    "RandomnessUtils",
-    "Transactions",
-    "ConsensusManager",
-    "GhostFactory",
-    "GhostBlueprint",
-    "MockGenStaking",
-    "Queues",
-    "Messages",
-    "FeeManager",
-    "Utils",
-    "Rounds",
-    "Voting",
-    "Idleness",
-    "ConsensusMain",
-    "ConsensusData",
-  ];
-
-  // for (const name of contractNames) {
-  //   try {
-  //     await saveDeploymentWithHardhat(name, "deployments/localhost");
-  //   } catch (err) {
-  //     console.error(`Error saving contract ${name}:`, err.message);
-  //   }
-  // }
-
-  log("All contracts deployed, executed inits, and saved in deployments/localhost!\n");
 };
 
 module.exports.tags = ["All"];
