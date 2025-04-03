@@ -224,7 +224,11 @@ services:
       - HARDHAT_NETWORK=hardhat
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-X", "POST", "-H", "Content-Type: application/json", "--fail", "http://localhost:8545", "-d", '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}']
+      test: |
+        /bin/sh -c '
+        curl -X POST -H "Content-Type: application/json" --fail http://localhost:8545 -d "{\"jsonrpc\":\"2.0\",\"method\":\"net_version\",\"params\":[],\"id\":1}" &&
+        test -f /app/deployments/genlayer_network/ConsensusMain.json
+        '
       interval: 60s
       timeout: 30s
       retries: 5

@@ -15,6 +15,7 @@ from backend.node.base import Node
 from backend.node.types import ExecutionMode, ExecutionResultStatus, Receipt, Vote
 from backend.protocol_rpc.message_handler.base import MessageHandler
 from typing import Optional
+from backend.rollup.consensus_service import ConsensusService
 
 DEFAULT_FINALITY_WINDOW = 5
 DEFAULT_CONSENSUS_SLEEP_TIME = 2
@@ -115,9 +116,6 @@ class TransactionsProcessorMock:
             address = transaction["to_address"]
             transactions_by_address[address].append(transaction)
         return transactions_by_address
-
-    def create_rollup_transaction(self, transaction_hash: str):
-        pass
 
     def set_transaction_appeal_failed(self, transaction_hash: str, appeal_failed: int):
         if appeal_failed < 0:
@@ -302,6 +300,7 @@ def get_nodes_specs(number_of_nodes: int):
             "provider": f"provider{i}",
             "model": f"model{i}",
             "config": f"config{i}",
+            "private_key": f"private_key{i}",
         }
         for i in range(number_of_nodes)
     ]
@@ -321,6 +320,7 @@ def node_factory(
     mock.validator_mode = mode
     mock.address = node["address"]
     mock.leader_receipt = receipt
+    mock.private_key = node["private_key"]
 
     mock.exec_transaction = AsyncMock(
         return_value=Receipt(
@@ -330,7 +330,10 @@ def node_factory(
             gas_used=0,
             contract_state={},
             result=DEFAULT_EXEC_RESULT,
-            node_config={"address": node["address"]},
+            node_config={
+                "address": node["address"],
+                "private_key": node["private_key"],
+            },
             eq_outputs={},
             execution_result=ExecutionResultStatus.SUCCESS,
         )
@@ -395,7 +398,9 @@ def consensus_algorithm() -> ConsensusAlgorithm:
     mock_msg_handler = MessageHandlerMock()
 
     consensus_algorithm = ConsensusAlgorithm(
-        get_session=lambda: mock_session, msg_handler=mock_msg_handler
+        get_session=lambda: mock_session,
+        msg_handler=mock_msg_handler,
+        consensus_service=MagicMock(),
     )
     consensus_algorithm.finality_window_time = DEFAULT_FINALITY_WINDOW
     consensus_algorithm.consensus_sleep_time = DEFAULT_CONSENSUS_SLEEP_TIME
