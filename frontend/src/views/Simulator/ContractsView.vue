@@ -74,7 +74,7 @@ const handleSaveNewFile = (name: string) => {
     });
   }
 
-  showNewFileInput.value = true;
+  showNewFileInput.value = false;
 };
 </script>
 
