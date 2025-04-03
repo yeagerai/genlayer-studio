@@ -180,6 +180,7 @@ class TransactionsProcessor:
         triggered_by_hash: (
             str | None
         ) = None,  # If filled, the transaction must be present in the database (committed)
+        transaction_hash: str | None = None,
     ) -> str:
         current_nonce = self.get_transaction_count(from_address)
 
@@ -190,9 +191,11 @@ class TransactionsProcessor:
         #         f"Unexpected nonce. Provided: {nonce}, expected: {current_nonce}"
         #     )
 
-        transaction_hash = self._generate_transaction_hash(
-            from_address, to_address, data, value, type, current_nonce
-        )
+        if transaction_hash is None:
+            transaction_hash = self._generate_transaction_hash(
+                from_address, to_address, data, value, type, current_nonce
+            )
+
         ghost_contract_address = None
 
         new_transaction = Transactions(

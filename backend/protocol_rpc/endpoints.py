@@ -541,6 +541,12 @@ def send_raw_transaction(
         to_address = genlayer_transaction.to_address
         transaction_data = {"calldata": genlayer_transaction.data.calldata}
 
+    # Obtain transaction hash from new transaction event
+    if rollup_transaction_details and "tx_id_hex" in rollup_transaction_details:
+        transaction_hash = rollup_transaction_details["tx_id_hex"]
+    else:
+        transaction_hash = None
+
     # Insert transaction into the database
     transaction_hash = transactions_processor.insert_transaction(
         genlayer_transaction.from_address,
@@ -550,6 +556,8 @@ def send_raw_transaction(
         genlayer_transaction.type.value,
         nonce,
         leader_only,
+        None,
+        transaction_hash,
     )
 
     return transaction_hash
