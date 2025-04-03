@@ -214,16 +214,6 @@ class ContractSnapshotMock:
     def __init__(self, address: str):
         self.address = address
 
-    def register_contract(self, contract: dict):
-        pass
-
-    def update_contract_state(
-        self,
-        accepted_state: dict[str, str] | None = None,
-        finalized_state: dict[str, str] | None = None,
-    ):
-        pass
-
     def to_dict(self):
         return {
             "address": (self.address if self.address else None),
@@ -237,6 +227,22 @@ class ContractSnapshotMock:
             return instance
         else:
             return None
+
+
+class ContractProcessorMock:
+    def __init__(self):
+        pass
+
+    def register_contract(self, contract: dict):
+        pass
+
+    def update_contract_state(
+        self,
+        contract_snapshot: ContractSnapshotMock,
+        accepted_state: dict[str, str] | None = None,
+        finalized_state: dict[str, str] | None = None,
+    ):
+        pass
 
 
 def transaction_to_dict(transaction: Transaction) -> dict:
@@ -417,6 +423,7 @@ def setup_test_environment(
     contract_snapshot_factory = (
         lambda address, session, transaction: ContractSnapshotMock(address)
     )
+    contract_processor_factory = lambda session: ContractProcessorMock()
     node_factory_supplier = (
         lambda node, mode, contract_snapshot, receipt, msg_handler, contract_snapshot_factory: created_nodes.append(
             node_factory(
@@ -447,6 +454,7 @@ def setup_test_environment(
             transactions_processor_factory,
             accounts_manager_factory,
             contract_snapshot_factory,
+            contract_processor_factory,
             node_factory_supplier,
             stop_event,
         ),
@@ -458,6 +466,7 @@ def setup_test_environment(
             transactions_processor_factory,
             accounts_manager_factory,
             contract_snapshot_factory,
+            contract_processor_factory,
             node_factory_supplier,
             stop_event,
         ),
