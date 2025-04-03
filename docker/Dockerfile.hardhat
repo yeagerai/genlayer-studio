@@ -14,8 +14,7 @@ COPY ./hardhat .
 RUN npx hardhat compile || true
 
 # Create directories and set permissions
-RUN mkdir -p /app/deployments/localhost && \
-    mkdir -p /app/deployments/hardhat && \
+RUN mkdir -p /app/deployments/hardhat && \
     mkdir -p /app/artifacts/build-info && \
     mkdir -p /app/artifacts/contracts && \
     mkdir -p /app/cache && \

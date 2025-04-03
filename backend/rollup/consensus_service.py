@@ -18,72 +18,61 @@ class ConsensusService:
         hardhat_url = f"{url}:{port}"
         self.web3 = Web3(Web3.HTTPProvider(hardhat_url))
 
-        self.web3_connected = self.web3.is_connected()
+        if not self.web3.is_connected():
+            raise ConnectionError(f"Failed to connect to Hardhat node at {hardhat_url}")
 
-        # Load the ConsensusMain ABI
-        contract_data = self.load_contract("ConsensusMain")
-        if not contract_data:
-            raise Exception("Failed to load ConsensusMain contract")
-        self.consensus_contract = self.web3.eth.contract(
-            address=contract_data["address"], abi=contract_data["abi"]
-        )
-
-    def load_contract(self, contract_name: str) -> Optional[dict]:
+    def _get_contract(self, contract_name: str):
         """
-        Load contract deployment data and compiled contract data
-
-        Args:
-            contract_name (str): The name of the contract to load
+        Get a contract instance
 
         Returns:
-            Optional[dict]: The contract deployment data or None if loading fails
+            Contract: The contract instance
+
+        Raises:
+            Exception: If the contract deployment data cannot be loaded or the contract does not exist
+        """
+        # Load deployment data
+        deployment_data = self._load_deployment_data(contract_name)
+        if not deployment_data:
+            raise Exception(f"Failed to load {contract_name} deployment data")
+
+        # Verify contract exists on chain
+        code = self.web3.eth.get_code(deployment_data["address"])
+        if code == b"" or code == "0x":
+            raise Exception(
+                f"No contract code found at address {deployment_data['address']}"
+            )
+
+        return self.web3.eth.contract(
+            address=deployment_data["address"], abi=deployment_data["abi"]
+        )
+
+    def load_contract(self, contract_name: str):
+        """
+        Load a contract from deployment data
+
+        Args:
+            contract_name (str): Name of the contract to load
+
+        Returns:
+            dict: Contract data including address, abi and functions
+            None: If there was an error loading the contract
         """
         try:
-            # compiled_data = self._load_compiled_contract(contract_name)
+            contract = self._get_contract(contract_name)
             deployment_data = self._load_deployment_data(contract_name)
 
-            # if not compiled_data or not deployment_data:
-            #     return None
-
             return {
-                "address": deployment_data["address"],
-                "abi": deployment_data["abi"],
-                "bytecode": deployment_data["bytecode"],
+                "address": contract.address,
+                "abi": contract.abi,
+                "functions": contract.functions,
+                "bytecode": (
+                    deployment_data.get("bytecode") if deployment_data else None
+                ),
             }
 
         except Exception as e:
             print(f"[CONSENSUS_SERVICE]: Error loading contract: {str(e)}")
-            return None
-
-    def _load_compiled_contract(self, contract_name: str) -> Optional[Dict[str, Any]]:
-        """
-        Load compiled contract data from artifacts
-
-        Args:
-            contract_name (str): The name of the contract to load
-
-        Returns:
-            Optional[Dict[str, Any]]: The compiled contract data or None if loading fails
-        """
-        try:
-            compiled_contract_path = (
-                Path(
-                    f"/app/hardhat/artifacts/contracts/v2_contracts/{contract_name}.sol"
-                )
-                / f"{contract_name}.json"
-            )
-
-            if not compiled_contract_path.exists():
-                print(
-                    f"[CONSENSUS_SERVICE]: Compiled contract not found at {compiled_contract_path}"
-                )
-                return None
-
-            with open(compiled_contract_path, "r") as f:
-                return json.load(f)
-
-        except Exception as e:
-            print(f"[CONSENSUS_SERVICE]: Error loading compiled contract: {str(e)}")
             return None
 
     def _load_deployment_data(self, contract_name: str) -> Optional[Dict[str, Any]]:
@@ -124,8 +113,13 @@ class ConsensusService:
         return receipt
 
     def wait_new_transaction_event(self, receipt: dict) -> dict:
+        """
+        Wait for NewTransaction event from receipt
+        """
+        consensus_main_contract = self._get_contract("ConsensusMain")
+
         # Get NewTransaction events from receipt
-        new_tx_events = self.consensus_contract.events.NewTransaction().process_receipt(
+        new_tx_events = consensus_main_contract.events.NewTransaction().process_receipt(
             receipt
         )
 
@@ -155,7 +149,7 @@ class ConsensusService:
         """
         Forward a transaction to the consensus rollup and wait for NewTransaction event
         """
-        if not self.web3_connected:
+        if not self.web3.is_connected():
             print(
                 "[CONSENSUS_SERVICE]: Not connected to Hardhat node, skipping transaction forwarding"
             )
@@ -209,7 +203,7 @@ class ConsensusService:
             account (dict): Account object containing address and private key
             *args: Arguments to pass to the event function
         """
-        if not self.web3_connected:
+        if not self.web3.is_connected():
             print(
                 "[CONSENSUS_SERVICE]: Not connected to Hardhat node, skipping transaction forwarding"
             )
@@ -224,9 +218,11 @@ class ConsensusService:
             )
             return None
 
+        consensus_main_contract = self._get_contract("ConsensusMain")
+
         try:
             # Get the function from the contract
-            event_function = getattr(self.consensus_contract.functions, event_name)
+            event_function = getattr(consensus_main_contract.functions, event_name)
 
             # Build and send transaction
             tx = event_function(*args).build_transaction(
