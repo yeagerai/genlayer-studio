@@ -1,0 +1,71 @@
+services:
+  mock-server:
+    build:
+      context: .
+      dockerfile: tests/integration/docker/Dockerfile.mock
+    environment:
+      - TEST_CI=true
+    networks:
+      - test-network
+    container_name: mock-server
+
+  nginx-proxy:
+    build:
+      context: .
+      dockerfile: tests/integration/docker/Dockerfile.nginx.test
+    ports:
+      - "80:80"
+    networks:
+      - test-network
+    depends_on:
+      - mock-server
+    container_name: nginx-proxy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  hardhat:
+    networks:
+      - test-network
+    container_name: genlayer-studio-hardhat-1
+
+  jsonrpc:
+    networks:
+      - test-network
+    container_name: jsonrpc
+
+  webrequest:
+    networks:
+      - test-network
+    container_name: webrequest
+
+  webdriver:
+    networks:
+      - test-network
+    container_name: webdriver
+
+  postgres:
+    networks:
+      - test-network
+    container_name: genlayer-studio-postgres-1
+
+  database-migration:
+    networks:
+      - test-network
+    container_name: genlayer-studio-database-migration-1
+
+  ollama:
+    networks:
+      - test-network
+    container_name: ollama
+
+  frontend:
+    networks:
+      - test-network
+    container_name: genlayer-studio-frontend-1
+
+networks:
+  test-network:
+    name: test-network

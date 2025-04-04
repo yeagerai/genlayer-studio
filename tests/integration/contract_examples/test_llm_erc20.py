@@ -1,7 +1,6 @@
 # tests/e2e/test_storage.py
 import eth_utils
 
-from backend.node.types import Address
 from tests.common.request import (
     deploy_intelligent_contract,
     write_intelligent_contract,
@@ -24,6 +23,10 @@ from tests.common.response import (
 from tests.common.accounts import create_new_account
 from tests.common.request import call_contract_method
 
+from tests.integration.conftest import (
+    get_prompts_from_contract_code,
+)
+
 TOKEN_TOTAL_SUPPLY = 1000
 TRANSFER_AMOUNT = 100
 
@@ -35,6 +38,24 @@ def test_llm_erc20(setup_validators):
 
     # Get contract schema
     contract_code = open("examples/contracts/llm_erc20.py", "r").read()
+
+    # Parse prompts from contract code
+    prompts = get_prompts_from_contract_code(contract_code)
+
+    # Mock the validator responses
+    responses = {
+        prompts[1]: {
+            "transaction_success": True,
+            "transaction_error": "",
+            "updated_balances": {
+                from_account_a.address: 900,
+                from_account_b.address: 100,
+            },
+        },
+    }
+
+    setup_validators(responses)
+
     result_schema = post_request_localhost(
         payload(
             "gen_getContractSchemaForCode",
