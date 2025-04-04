@@ -101,7 +101,6 @@ jobs:
           fi
 
       - name: Check mock server connectivity
-        if: ${{ !needs.triggers.outputs.is_pull_request_review_approved }}
         run: |
           echo "Checking direct connection to mock server..."
           curl -v http://mock-server:8000 || true

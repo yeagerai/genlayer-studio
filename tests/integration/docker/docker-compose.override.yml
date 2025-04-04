@@ -54,6 +54,14 @@ services:
       - test-network
     container_name: webrequest
 
+  webdriver:
+    networks:
+      - test-network
+    container_name: webdriver
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "localhost:127.0.0.1"
+
   postgres:
     networks:
       - test-network
