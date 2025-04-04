@@ -8,7 +8,6 @@ from flask_jsonrpc import JSONRPC
 from flask_jsonrpc.exceptions import JSONRPCError
 from sqlalchemy import Table
 from sqlalchemy.orm import Session
-import backend.node.genvm.origin.calldata as genvm_calldata
 
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
@@ -44,7 +43,6 @@ from backend.node.base import Node, SIMULATOR_CHAIN_ID
 from backend.node.types import ExecutionMode, ExecutionResultStatus
 from backend.consensus.base import ConsensusAlgorithm
 
-from flask import request
 from flask_jsonrpc.exceptions import JSONRPCError
 import base64
 import os
@@ -169,10 +167,12 @@ def create_validator(
         )
         validate_provider(llm_provider)
 
-    new_address = accounts_manager.create_new_account().address
+    account = accounts_manager.create_new_account()
+
     return validators_registry.create_validator(
         Validator(
-            address=new_address,
+            address=account.address,
+            private_key=account.key,
             stake=stake,
             llmprovider=llm_provider,
         )
@@ -223,10 +223,15 @@ async def create_random_validators(
     response = []
     for detail in details:
         stake = random.randint(min_stake, max_stake)
-        validator_address = accounts_manager.create_new_account().address
+        validator_account = accounts_manager.create_new_account()
 
         validator = validators_registry.create_validator(
-            Validator(address=validator_address, stake=stake, llmprovider=detail)
+            Validator(
+                address=validator_account.address,
+                private_key=validator_account.key,
+                stake=stake,
+                llmprovider=detail,
+            )
         )
         response.append(validator)
 
@@ -614,6 +619,10 @@ def send_raw_transaction(
     if not transaction_signature_valid:
         raise InvalidTransactionError("Transaction signature verification failed")
 
+    rollup_transaction_details = consensus_service.add_transaction(
+        signed_rollup_transaction, from_address
+    )
+
     to_address = decoded_rollup_transaction.to_address
     nonce = decoded_rollup_transaction.nonce
     value = decoded_rollup_transaction.value
@@ -630,7 +639,15 @@ def send_raw_transaction(
         if value > 0:
             raise InvalidTransactionError("Deploy Transaction can't send value")
 
-        new_contract_address = accounts_manager.create_new_account().address
+        if (
+            rollup_transaction_details is None
+            or not "recipient" in rollup_transaction_details
+        ):
+            new_account = accounts_manager.create_new_account()
+            new_contract_address = new_account.address
+        else:
+            new_contract_address = rollup_transaction_details["recipient"]
+            accounts_manager.create_new_account_with_address(new_contract_address)
 
         transaction_data = {
             "contract_address": new_contract_address,
@@ -648,6 +665,12 @@ def send_raw_transaction(
         to_address = genlayer_transaction.to_address
         transaction_data = {"calldata": genlayer_transaction.data.calldata}
 
+    # Obtain transaction hash from new transaction event
+    if rollup_transaction_details and "tx_id_hex" in rollup_transaction_details:
+        transaction_hash = rollup_transaction_details["tx_id_hex"]
+    else:
+        transaction_hash = None
+
     # Insert transaction into the database
     transaction_hash = transactions_processor.insert_transaction(
         genlayer_transaction.from_address,
@@ -657,8 +680,9 @@ def send_raw_transaction(
         genlayer_transaction.type.value,
         nonce,
         leader_only,
+        None,
+        transaction_hash,
     )
-    consensus_service.forward_transaction(signed_rollup_transaction)
 
     return transaction_hash
 

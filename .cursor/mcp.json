@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--network=host",
+        "mcp/postgres",
+        "postgresql://postgres:postgres@host.docker.internal:5432/genlayer_state"
+      ]
+    }
+  }
+}
