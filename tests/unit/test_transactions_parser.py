@@ -155,7 +155,7 @@ def test_decode_deployment_data(transaction_parser, data, expected_result):
             {
                 "hash": "test_hash",
                 "status": TransactionStatus.FINALIZED,
-                "consensus_data": [{"leader_receipt": {"result": "AAA="}}],
+                "consensus_data": {"leader_receipt": [{"result": "AAA="}]},
             },
             "",
         ),
@@ -163,7 +163,7 @@ def test_decode_deployment_data(transaction_parser, data, expected_result):
             {
                 "hash": "test_hash",
                 "status": TransactionStatus.FINALIZED,
-                "consensus_data": [{"leader_receipt": {"result": {}}}],
+                "consensus_data": {"leader_receipt": [{"result": {}}]},
             },
             {},
         ),
