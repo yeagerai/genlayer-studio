@@ -170,7 +170,8 @@ def write_intelligent_contract(
     result = send_raw_transaction(signed_transaction)
     if assert_success and result["consensus_data"]:
         assert (
-            result["consensus_data"]["leader_receipt"]["execution_result"] == "SUCCESS"
+            result["consensus_data"]["leader_receipt"][0]["execution_result"]
+            == "SUCCESS"
         ), print(
             "Send transaction: ",
             json.dumps(decode_nested_data(result), indent=3),
@@ -202,7 +203,8 @@ def deploy_intelligent_contract(
     result = send_raw_transaction(signed_transaction)
     if assert_success:
         assert (
-            result["consensus_data"]["leader_receipt"]["execution_result"] == "SUCCESS"
+            result["consensus_data"]["leader_receipt"][0]["execution_result"]
+            == "SUCCESS"
         ), print(
             "Deployed intelligent contract: ",
             json.dumps(decode_nested_data(result), indent=3),
