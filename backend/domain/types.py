@@ -39,6 +39,7 @@ class Validator:
     stake: int
     llmprovider: LLMProvider
     id: int | None = None
+    private_key: str | None = None
 
     def to_dict(self):
         result = {
@@ -53,6 +54,9 @@ class Validator:
 
         if self.id:
             result["id"] = self.id
+
+        if self.private_key:
+            result["private_key"] = self.private_key
 
         return result
 
