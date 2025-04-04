@@ -82,7 +82,7 @@ async def test_get_contract_by_address_valid():
     mock_response = {"result": {"contract_code": "mocked_code"}}
 
     with patch(
-        "path.to.your.module.get_contract_by_address", new_callable=AsyncMock
+        "tests.common.request.get_contract_by_address", new_callable=AsyncMock
     ) as mock_get_contract:
         mock_get_contract.return_value = (status, mock_response)
         status_code, contract = await get_contract_by_address(address)
