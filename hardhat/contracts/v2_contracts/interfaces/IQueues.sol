@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./ITransactions.sol";
+import { ITransactions } from "../transactions/interfaces/ITransactions.sol";
 
 interface IQueues {
 	enum QueueType {
@@ -24,42 +24,6 @@ interface IQueues {
 		bytes32 txId
 	) external view returns (uint);
 
-	function getTransactionActivator(
-		bytes32 txId
-	) external view returns (address);
-
-	function voteCommittedForTx(
-		bytes32 txId,
-		address validator
-	) external returns (bool);
-
-	function revealVoteForTx(
-		bytes32 txId,
-		ITransactions.VoteType voteType,
-		address validator
-	) external returns (bool, ITransactions.ResultType);
-
-	function isVoteRevealed(
-		bytes32 txId,
-		address validator
-	) external view returns (bool);
-
-	function getLeader(bytes32 txId) external view returns (address);
-
-	function isValidator(
-		bytes32 txId,
-		address validator
-	) external view returns (bool);
-
-	function isVoteCommitted(
-		bytes32 txId,
-		address validator
-	) external view returns (bool);
-
-	function isAcceptanceTimeoutExpired(
-		bytes32 txId
-	) external view returns (bool);
-
 	function getLastQueueModification(
 		bytes32 txId
 	) external view returns (LastQueueModification memory);
@@ -68,16 +32,6 @@ interface IQueues {
 		address recipient,
 		bytes32 txId
 	) external returns (uint256, bytes32[] memory);
-
-	function activateTransaction(bytes32 txId) external;
-	// function setRecipientRandomSeed(
-	// 	address recipient,
-	// 	bytes32 randomSeed
-	// ) public;
-
-	// function getRecipientRandomSeed(
-	// 	address recipient
-	// ) public view returns (bytes32);
 
 	function addTransactionToFinalizedQueue(
 		address recipient,
@@ -108,4 +62,20 @@ interface IQueues {
 		address recipient,
 		bytes32 txId
 	) external;
+
+	function getAcceptedCount(
+		address recipient
+	) external view returns (uint256);
+	function getAcceptedTxId(
+		address recipient,
+		uint256 slot
+	) external view returns (bytes32);
+
+	function getFinalizedCount(
+		address recipient
+	) external view returns (uint256);
+	function getFinalizedTxId(
+		address recipient,
+		uint256 slot
+	) external view returns (bytes32);
 }
