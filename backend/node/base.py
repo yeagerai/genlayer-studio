@@ -288,7 +288,7 @@ class Node:
                     "path": "${genvmRoot}/lib/genvm-modules/",
                     "id": "web",
                     "config": {
-                        "host": f"{os.environ['WEBREQUESTPROTOCOL']}://{os.environ['WEBREQUESTHOST']}:{os.environ['WEBREQUESTSELENIUMPORT']}"
+                        "host": f"{os.environ['WEBREQUESTPROTOCOL']}://{os.environ['WEBDRIVERHOST']}:{os.environ['WEBDRIVERPORT']}"
                     },
                 },
             ]
@@ -332,6 +332,10 @@ class Node:
             calldata=calldata,
             mode=self.validator_mode,
             node_config=self.validator.to_dict(),
+            genvm_result={
+                "stdout": res.stdout,
+                "stderr": res.stderr,
+            },
         )
 
         if self.validator_mode == ExecutionMode.LEADER:

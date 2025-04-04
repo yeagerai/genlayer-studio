@@ -1,7 +1,7 @@
 # consensus/services/transactions_db_service.py
 from enum import Enum
 import rlp
-
+import re
 from .models import Transactions
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, desc
@@ -40,6 +40,13 @@ class TransactionsProcessor:
 
     @staticmethod
     def _parse_transaction_data(transaction_data: Transactions) -> dict:
+        result = (
+            transaction_data.consensus_data.get("leader_receipt", {}).get("result", {})
+            if transaction_data.consensus_data
+            else transaction_data.consensus_data
+        )
+        if isinstance(result, dict):
+            result = result.get("raw", {})
         return {
             "hash": transaction_data.hash,
             "from_address": transaction_data.from_address,
@@ -48,6 +55,7 @@ class TransactionsProcessor:
             "value": transaction_data.value,
             "type": transaction_data.type,
             "status": transaction_data.status.value,
+            "result": TransactionsProcessor._decode_base64_data(result),
             "consensus_data": transaction_data.consensus_data,
             "gaslimit": transaction_data.nonce,
             "nonce": transaction_data.nonce,
@@ -90,6 +98,39 @@ class TransactionsProcessor:
             raise TypeError("Can't encode #{d}")
 
         return json.dumps(data, default=data_encode)
+
+    @staticmethod
+    def _decode_base64_data(data: dict | str) -> dict | str:
+        def decode_value(value):
+            """Helper function to decode Base64-encoded values if they are strings."""
+            if (
+                isinstance(value, str)
+                and value
+                and bool(re.compile(r"^[A-Za-z0-9+/]*={0,2}$").fullmatch(value)) is True
+            ):
+                try:
+                    decoded_str = base64.b64decode(
+                        bytes(value, encoding="utf-8")
+                    ).decode("utf-8", errors="ignore")
+                    byte_content = re.sub(r"^[\x00-\x1f]+", "", decoded_str)
+                    if byte_content or len(byte_content) >= 0:
+                        return byte_content
+                    return decoded_str
+                except (ValueError, UnicodeDecodeError):
+                    return value  # Return original if decoding fails
+
+            return value  # Return unchanged for non-strings
+
+        if isinstance(data, dict):
+            data = {k: decode_value(v) for k, v in data.items()}
+            return data
+        elif isinstance(data, str):
+            data = decode_value(data)
+            return data
+        elif data is None:
+            return None
+        else:
+            raise TypeError(f"Can't decode unsupported type: {type(data).__name__}")
 
     @staticmethod
     def _generate_transaction_hash(
@@ -138,6 +179,7 @@ class TransactionsProcessor:
         triggered_by_hash: (
             str | None
         ) = None,  # If filled, the transaction must be present in the database (committed)
+        transaction_hash: str | None = None,
     ) -> str:
         current_nonce = self.get_transaction_count(from_address)
 
@@ -148,9 +190,11 @@ class TransactionsProcessor:
         #         f"Unexpected nonce. Provided: {nonce}, expected: {current_nonce}"
         #     )
 
-        transaction_hash = self._generate_transaction_hash(
-            from_address, to_address, data, value, type, current_nonce
-        )
+        if transaction_hash is None:
+            transaction_hash = self._generate_transaction_hash(
+                from_address, to_address, data, value, type, current_nonce
+            )
+
         ghost_contract_address = None
 
         new_transaction = Transactions(
@@ -226,59 +270,14 @@ class TransactionsProcessor:
 
         self.session.commit()
 
-    def set_transaction_result(self, transaction_hash: str, consensus_data: dict):
+    def set_transaction_result(
+        self, transaction_hash: str, consensus_data: dict | None
+    ):
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.consensus_data = consensus_data
         self.session.commit()
-
-    def create_rollup_transaction(self, transaction_hash: str):
-        transaction = (
-            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
-        )
-        rollup_input_data = json.dumps(
-            self._parse_transaction_data(transaction)
-        ).encode("utf-8")
-
-        # Hardhat transaction
-        account = self.web3.eth.accounts[0]
-        private_key = os.environ.get("HARDHAT_PRIVATE_KEY")
-
-        try:
-            gas_estimate = self.web3.eth.estimate_gas(
-                {
-                    "from": account,
-                    "to": transaction.ghost_contract_address,
-                    "value": transaction.value,
-                    "data": rollup_input_data,
-                }
-            )
-
-            transaction = {
-                "from": account,
-                "to": transaction.ghost_contract_address,
-                "value": transaction.value,
-                "data": rollup_input_data,
-                "nonce": self.web3.eth.get_transaction_count(account),
-                "gas": gas_estimate,
-                "gasPrice": 0,
-            }
-
-            # Sign and send the transaction
-            signed_tx = self.web3.eth.account.sign_transaction(
-                transaction, private_key=private_key
-            )
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-
-            # Wait for transaction to be actually mined and get the receipt
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-
-            # Get full transaction details including input data
-            transaction = self.web3.eth.get_transaction(tx_hash)
-
-        except Exception as e:
-            print(f"Error creating rollup transaction: {e}")
 
     def get_transaction_count(self, address: str) -> int:
         count = (
@@ -465,8 +464,15 @@ class TransactionsProcessor:
         flag_modified(transaction, "consensus_history")
         self.session.commit()
 
+    def reset_consensus_history(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.consensus_history = {}
+        self.session.commit()
+
     def set_transaction_timestamp_appeal(
-        self, transaction: Transactions | str, timestamp_appeal: int
+        self, transaction: Transactions | str, timestamp_appeal: int | None
     ):
         if isinstance(transaction, str):  # hash
             transaction = (
@@ -499,3 +505,49 @@ class TransactionsProcessor:
         )
         transaction.contract_snapshot = contract_snapshot
         self.session.commit()
+
+    def transactions_in_process_by_contract(self) -> list[dict]:
+        transactions = (
+            self.session.query(Transactions)
+            .filter(
+                Transactions.to_address.isnot(None),
+                Transactions.status.in_(
+                    [
+                        TransactionStatus.ACTIVATED,
+                        TransactionStatus.PROPOSING,
+                        TransactionStatus.COMMITTING,
+                        TransactionStatus.REVEALING,
+                    ]
+                ),
+            )
+            .distinct(Transactions.to_address)
+            .order_by(Transactions.to_address, Transactions.created_at.asc())
+            .all()
+        )
+
+        return [
+            self._parse_transaction_data(transaction) for transaction in transactions
+        ]
+
+    def previous_transaction_with_status(
+        self, transaction_hash: str, status: TransactionStatus
+    ) -> dict | None:
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        closest_transaction = (
+            self.session.query(Transactions)
+            .filter(
+                Transactions.created_at < transaction.created_at,
+                Transactions.to_address == transaction.to_address,
+                Transactions.status == status,
+            )
+            .order_by(desc(Transactions.created_at))
+            .first()
+        )
+
+        return (
+            self._parse_transaction_data(closest_transaction)
+            if closest_transaction
+            else None
+        )
