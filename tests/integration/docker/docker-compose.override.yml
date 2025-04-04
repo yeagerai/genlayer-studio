@@ -13,11 +13,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
 
   nginx-proxy:
     build:
@@ -28,8 +23,7 @@ services:
     networks:
       - test-network
     depends_on:
-      mock-server:
-        condition: service_healthy
+      - mock-server
     container_name: nginx-proxy
     logging:
       driver: "json-file"
