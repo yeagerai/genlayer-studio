@@ -1808,13 +1808,14 @@ class CommittingState(TransactionState):
         context.validation_results = await asyncio.gather(*validation_tasks)
 
         # Send events in rollup to communicate the votes are committed
-        context.consensus_service.emit_transaction_event(
-            "emitVoteCommitted",
-            context.consensus_data.leader_receipt.node_config,
-            context.transaction.hash,
-            context.consensus_data.leader_receipt.node_config["address"],
-            False,
-        )
+        if len(context.consensus_data.leader_receipt) == 1:
+            context.consensus_service.emit_transaction_event(
+                "emitVoteCommitted",
+                context.consensus_data.leader_receipt[0].node_config,
+                context.transaction.hash,
+                context.consensus_data.leader_receipt[0].node_config["address"],
+                False,
+            )
         for i, validator in enumerate(context.remaining_validators):
             context.consensus_service.emit_transaction_event(
                 "emitVoteCommitted",
@@ -1865,15 +1866,16 @@ class RevealingState(TransactionState):
         )
 
         # Send event in rollup to communicate the votes are revealed
-        context.consensus_service.emit_transaction_event(
-            "emitVoteRevealed",
-            context.consensus_data.leader_receipt.node_config,
-            context.transaction.hash,
-            context.consensus_data.leader_receipt.node_config["address"],
-            1,
-            False,
-            0,
-        )
+        if len(context.consensus_data.leader_receipt) == 1:
+            context.consensus_service.emit_transaction_event(
+                "emitVoteRevealed",
+                context.consensus_data.leader_receipt[0].node_config,
+                context.transaction.hash,
+                context.consensus_data.leader_receipt[0].node_config["address"],
+                1,
+                False,
+                0,
+            )
         for i, validation_result in enumerate(context.validation_results):
             if validation_result.vote == Vote.AGREE:
                 type_vote = 1
@@ -2025,7 +2027,7 @@ class RevealingState(TransactionState):
                 # Send events in rollup to communicate the leader rotation
                 context.consensus_service.emit_transaction_event(
                     "emitTransactionLeaderRotated",
-                    context.consensus_data.leader_receipt.node_config,
+                    context.consensus_data.leader_receipt[0].node_config,
                     context.transaction.hash,
                     context.involved_validators[0]["address"],
                 )
@@ -2126,7 +2128,7 @@ class AcceptedState(TransactionState):
         # Send events in rollup to communicate the transaction is accepted
         context.consensus_service.emit_transaction_event(
             "emitTransactionAccepted",
-            context.consensus_data.leader_receipt.node_config,
+            context.consensus_data.leader_receipt[0].node_config,
             context.transaction.hash,
         )
 
