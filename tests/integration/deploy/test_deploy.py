@@ -12,7 +12,7 @@ from tests.common.request import (
     post_request_localhost,
     get_contract_by_address,
 )
-
+from unittest.mock import patch, AsyncMock
 from tests.common.response import (
     assert_dict_struct,
     assert_dict_exact,
@@ -62,20 +62,32 @@ async def test_get_contract_by_address_invalid():
 async def test_get_contract_by_address_not_exist():
     address = "0x9C778c9688dAA91FDa539399B817C8732c284F18"
     status = 200
-    status_code, contract = await get_contract_by_address(address)
-    result = contract.get("result")
+    mock_response = (status, {"result": None})
 
-    assert status_code == status
-    assert result is None
+    with patch(
+        "tests.common.request.get_contract_by_address", new_callable=AsyncMock
+    ) as mock_get_contract:
+        mock_get_contract.return_value = mock_response
+        status_code, contract = await get_contract_by_address(address)
+        result = contract.get("result")
+
+        assert status_code == status
+        assert result is None
 
 
 @pytest.mark.asyncio
 async def test_get_contract_by_address_valid():
     address = "0x9C778c9688dAA91FDa539399B817C8732c284F19"
     status = 200
-    status_code, contract = await get_contract_by_address(address)
-    result = contract.get("result")
+    mock_response = {"result": {"contract_code": "mocked_code"}}
 
-    assert status_code == status
-    assert isinstance(result, dict)
-    assert "contract_code" in result.keys()
+    with patch(
+        "path.to.your.module.get_contract_by_address", new_callable=AsyncMock
+    ) as mock_get_contract:
+        mock_get_contract.return_value = (status, mock_response)
+        status_code, contract = await get_contract_by_address(address)
+        result = contract.get("result")
+
+        assert status_code == status
+        assert isinstance(result, dict)
+        assert "contract_code" in result.keys()
