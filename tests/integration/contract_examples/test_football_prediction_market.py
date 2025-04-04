@@ -46,7 +46,7 @@ def test_football_prediction_market(from_account, setup_validators):
         ).read()
         if parse_bool_env_var("TEST_WITH_MOCK_WEBREQUEST", "true"):
             if parse_bool_env_var("TEST_CI", "false"):
-                url_replacement_str = '"http://nginx-proxy/"'
+                url_replacement_str = '"http://localhost:80/"'  # Use localhost in CI
             else:
                 url_replacement_str = f'"http://host.docker.internal/"'
             modified_contract_code = contract_code.replace(

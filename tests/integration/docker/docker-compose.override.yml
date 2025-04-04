@@ -8,6 +8,16 @@ services:
     networks:
       - test-network
     container_name: mock-server
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
 
   nginx-proxy:
     build:
@@ -18,8 +28,14 @@ services:
     networks:
       - test-network
     depends_on:
-      - mock-server
+      mock-server:
+        condition: service_healthy
     container_name: nginx-proxy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 5s
@@ -35,6 +51,9 @@ services:
     networks:
       - test-network
     container_name: jsonrpc
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "localhost:127.0.0.1"
 
   webrequest:
     networks:
