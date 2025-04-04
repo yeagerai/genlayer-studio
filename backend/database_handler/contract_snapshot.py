@@ -4,8 +4,6 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 
-# TODO: should ContractSnapshot be a dataclass with just the contract data? Snapshots shouldn't be allowed to be modified, so it doesn't make sense to modify the database
-# TODO: once we have it in the state, we should only allow states in ACCEPTED or FINALIZED status.
 class ContractSnapshot:
     """
     Warning: if you initialize this class with a contract_address:
@@ -80,41 +78,3 @@ class ContractSnapshot:
             raise Exception(f"Contract {self.contract_address} not found")
 
         return result
-
-    def register_contract(self, contract: dict):
-        """Register a new contract in the database."""
-        current_contract = (
-            self.session.query(CurrentState).filter_by(id=contract["id"]).one()
-        )
-
-        current_contract.data = contract["data"]
-        self.session.commit()
-
-    def update_contract_state(
-        self,
-        accepted_state: dict[str, str] | None = None,
-        finalized_state: dict[str, str] | None = None,
-    ):
-        """Update the state of the contract in the database."""
-        new_state = {
-            "accepted": (
-                accepted_state
-                if accepted_state is not None
-                else self.states["accepted"]
-            ),
-            "finalized": (
-                finalized_state
-                if finalized_state is not None
-                else self.states["finalized"]
-            ),
-        }
-        new_contract_data = {
-            "code": self.contract_code,
-            "state": new_state,
-        }
-
-        contract = (
-            self.session.query(CurrentState).filter_by(id=self.contract_address).one()
-        )
-        contract.data = new_contract_data
-        self.session.commit()
