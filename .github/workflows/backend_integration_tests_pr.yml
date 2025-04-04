@@ -57,7 +57,7 @@ jobs:
             echo "TEST_WITH_MOCK_LLMS=false" >> .env
             echo "TEST_WITH_MOCK_WEBREQUEST=false" >> .env
           else
-            echo "TEST_WITH_MOCK_LLMS=true" >> .env
+            echo "TEST_WITH_MOCK_LLMS=false" >> .env
             echo "TEST_WITH_MOCK_WEBREQUEST=true" >> .env
           fi
           echo "TEST_CI=true" >> .env
@@ -99,19 +99,6 @@ jobs:
             echo "Error: Timeout while waiting for RPC server"
             exit 1
           fi
-
-      - name: Check mock server connectivity
-        run: |
-          echo "Checking direct connection to mock server..."
-          curl -v http://mock-server:8000 || true
-          echo -e "\n\nChecking connection through nginx proxy..."
-          curl -v http://nginx-proxy:80 || true
-          echo -e "\n\nDocker container status:"
-          docker ps
-          echo -e "\n\nNginx logs:"
-          docker logs nginx-proxy
-          echo -e "\n\nMock server logs:"
-          docker logs mock-server
 
       - name: Set up Python
         uses: actions/setup-python@v5
