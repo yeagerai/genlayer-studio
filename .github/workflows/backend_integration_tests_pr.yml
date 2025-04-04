@@ -57,7 +57,7 @@ jobs:
             echo "TEST_WITH_MOCK_LLMS=false" >> .env
             echo "TEST_WITH_MOCK_WEBREQUEST=false" >> .env
           else
-            echo "TEST_WITH_MOCK_LLMS=false" >> .env
+            echo "TEST_WITH_MOCK_LLMS=true" >> .env
             echo "TEST_WITH_MOCK_WEBREQUEST=true" >> .env
           fi
           echo "TEST_CI=true" >> .env

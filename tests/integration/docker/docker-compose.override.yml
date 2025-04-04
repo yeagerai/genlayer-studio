@@ -8,11 +8,6 @@ services:
     networks:
       - test-network
     container_name: mock-server
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   nginx-proxy:
     build:
@@ -25,11 +20,6 @@ services:
     depends_on:
       - mock-server
     container_name: nginx-proxy
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 5s
@@ -45,9 +35,6 @@ services:
     networks:
       - test-network
     container_name: jsonrpc
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-      - "localhost:127.0.0.1"
 
   webrequest:
     networks:
@@ -58,9 +45,6 @@ services:
     networks:
       - test-network
     container_name: webdriver
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-      - "localhost:127.0.0.1"
 
   postgres:
     networks:
