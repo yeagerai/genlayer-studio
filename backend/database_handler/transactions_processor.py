@@ -40,11 +40,14 @@ class TransactionsProcessor:
 
     @staticmethod
     def _parse_transaction_data(transaction_data: Transactions) -> dict:
-        result = (
-            transaction_data.consensus_data.get("leader_receipt", {}).get("result", {})
-            if transaction_data.consensus_data
-            else transaction_data.consensus_data
-        )
+        if transaction_data.consensus_data:
+            leader_receipts = transaction_data.consensus_data.get("leader_receipt", [])
+            if len(leader_receipts) > 0:
+                result = leader_receipts[0].get("result", {})
+            else:
+                result = {}
+        else:
+            result = transaction_data.consensus_data
         if isinstance(result, dict):
             result = result.get("raw", {})
         return {
