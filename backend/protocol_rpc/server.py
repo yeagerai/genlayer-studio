@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from backend.database_handler.transactions_processor import TransactionsProcessor
 from backend.database_handler.validators_registry import ValidatorsRegistry
 from backend.database_handler.accounts_manager import AccountsManager
-from backend.consensus.base import ConsensusAlgorithm, contract_snapshot_factory
+from backend.consensus.base import ConsensusAlgorithm, contract_processor_factory
 from backend.database_handler.models import Base, TransactionStatus
 from backend.rollup.consensus_service import ConsensusService
 from backend.domain.types import Transaction
@@ -199,9 +199,7 @@ def restore_stuck_transactions():
             )
 
         # Restore the contract state
-        contract_snapshot = contract_snapshot_factory(
-            tx2["to_address"], request_session, Transaction.from_dict(tx2)
-        )
+        contract_processor = contract_processor_factory(request_session)
         tx1_finalized = transactions_processor.previous_transaction_with_status(
             tx2["hash"], TransactionStatus.FINALIZED
         )
@@ -209,7 +207,8 @@ def restore_stuck_transactions():
             previous_contact_state = tx1_finalized["consensus_data"]["leader_receipt"][
                 "contract_state"
             ]
-            contract_snapshot.update_contract_state(
+            contract_processor.update_contract_state(
+                contract_address=tx1_finalized["to_address"],
                 accepted_state=previous_contact_state,
                 finalized_state=previous_contact_state,
             )
@@ -221,12 +220,16 @@ def restore_stuck_transactions():
                 previous_contact_state = tx1_accepted["consensus_data"][
                     "leader_receipt"
                 ]["contract_state"]
-                contract_snapshot.update_contract_state(
-                    accepted_state=previous_contact_state, finalized_state={}
+                contract_processor.update_contract_state(
+                    contract_address=tx1_accepted["to_address"],
+                    accepted_state=previous_contact_state,
+                    finalized_state={},
                 )
             else:
-                contract_snapshot.update_contract_state(
-                    accepted_state={}, finalized_state={}
+                contract_processor.update_contract_state(
+                    contract_address=tx1_accepted["to_address"],
+                    accepted_state={},
+                    finalized_state={},
                 )
 
 
