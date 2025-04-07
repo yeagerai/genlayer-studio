@@ -2391,4 +2391,5 @@ def _emit_transactions(
             nonce=nonce,
             leader_only=context.transaction.leader_only,  # Cascade
             triggered_by_hash=context.transaction.hash,
+            config_rotation_rounds=context.transaction.config_rotation_rounds,
         )
