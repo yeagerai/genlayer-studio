@@ -203,6 +203,7 @@ export function useContractQueries() {
     method,
     args,
     leaderOnly,
+    value,
   }: {
     method: string;
     args: {
@@ -210,6 +211,7 @@ export function useContractQueries() {
       kwargs: { [key: string]: CalldataEncodable };
     };
     leaderOnly: boolean;
+    value: bigint;
   }) {
     try {
       if (!accountsStore.selectedAccount) {
@@ -220,7 +222,7 @@ export function useContractQueries() {
         address: address.value as Address,
         functionName: method,
         args: args.args,
-        value: BigInt(0),
+        value: BigInt(value),
         leaderOnly,
       });
 
