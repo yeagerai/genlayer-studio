@@ -42,7 +42,7 @@
     "lucide-vue-next": "^0.487.0",
     "monaco-editor": "^0.52.0",
     "path": "^0.12.7",
-    "pinia": "^2.1.7",
+    "pinia": "^3.0.0",
     "socket.io-client": "^4.7.5",
     "sortablejs": "^1.15.3",
     "splitpanes": "^3.1.5",
