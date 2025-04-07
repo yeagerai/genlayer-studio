@@ -34,6 +34,7 @@ jobs:
 
     env:
       PYTHONPATH: ${{ github.workspace }}
+      DOCKER_COMPOSE_CMD: ${{ needs.triggers.outputs.is_pull_request_review_approved == 'true' && 'docker compose' || 'docker compose -f docker-compose.yml -f tests/integration/docker/docker-compose.override.yml' }}
       COMPOSE_PROFILES: hardhat
 
     steps:
@@ -45,12 +46,21 @@ jobs:
 
       # TODO: we should also add also heuristai and anthropic keys to the e2e tests and test all providers
 
-      - name: Set OPENAIKEY in the .env file so it can be loaded from the environment
+      - name: Set OPENAIKEY, FINALITY_WINDOW and TEST_WITH_MOCK_LLMSin the .env file so they can be loaded from the environment
         env:
           OPENAIKEY: ${{ secrets.OPENAIKEY }}
         run: |
           sed -i "s/<add_your_openai_api_key_here>/${OPENAIKEY}/g" .env
           sed -i "s/FINALITY_WINDOW =.*/FINALITY_WINDOW = 10/" .env
+          echo >> .env
+          if [[ "${{ needs.triggers.outputs.is_pull_request_review_approved }}" == "true" ]]; then
+            echo "TEST_WITH_MOCK_LLMS=false" >> .env
+            echo "TEST_WITH_MOCK_WEBREQUEST=false" >> .env
+          else
+            echo "TEST_WITH_MOCK_LLMS=true" >> .env
+            echo "TEST_WITH_MOCK_WEBREQUEST=true" >> .env
+          fi
+          echo "TEST_CI=true" >> .env
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -64,10 +74,10 @@ jobs:
             ${{ runner.os }}-buildx-
 
       - name: Build Docker images
-        run: docker compose build
+        run: eval "$DOCKER_COMPOSE_CMD build"
 
       - name: Run Docker Compose
-        run: docker compose up -d
+        run: eval "$DOCKER_COMPOSE_CMD up -d"
 
       - name: Wait for services to be up
         timeout-minutes: 5
@@ -105,12 +115,12 @@ jobs:
         run: pytest tests/integration/ -svv
 
       - name: Dump Docker Compose logs
-        run: docker compose logs
         if: failure()
+        run: eval "$DOCKER_COMPOSE_CMD logs"
 
       - name: Shutdown Docker Compose
         if: always()
-        run: docker compose down
+        run: eval "$DOCKER_COMPOSE_CMD down"
 
   db-integration-test:
     needs: triggers
