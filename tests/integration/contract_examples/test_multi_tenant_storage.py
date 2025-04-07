@@ -1,6 +1,4 @@
-import json
 import os
-import time
 
 from tests.common.accounts import create_new_account
 from tests.common.request import (
@@ -10,8 +8,6 @@ from tests.common.request import (
     wait_for_transaction,
 )
 from tests.common.response import has_success_status
-
-from backend.node.types import Address
 
 
 def test_multi_tenant_storage(setup_validators):
@@ -27,6 +23,7 @@ def test_multi_tenant_storage(setup_validators):
 
     This test demonstrates contract-to-contract interactions and multi-tenant data management.
     """
+    setup_validators()
     main_account = create_new_account()
     user_account_a = create_new_account()
     user_account_b = create_new_account()
