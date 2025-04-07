@@ -95,15 +95,15 @@ def fund_account(
     return transaction_hash
 
 
-@check_forbidden_method_in_hosted_studio
-def reset_defaults_llm_providers(llm_provider_registry: LLMProviderRegistry) -> None:
-    llm_provider_registry.reset_defaults()
-
-
 async def get_providers_and_models(
     llm_provider_registry: LLMProviderRegistry,
 ) -> list[dict]:
     return await llm_provider_registry.get_all_dict()
+
+
+@check_forbidden_method_in_hosted_studio
+def reset_defaults_llm_providers(llm_provider_registry: LLMProviderRegistry) -> None:
+    llm_provider_registry.reset_defaults()
 
 
 @check_forbidden_method_in_hosted_studio
@@ -315,6 +315,75 @@ def count_validators(validators_registry: ValidatorsRegistry) -> int:
     return validators_registry.count_validators()
 
 
+def get_transactions_for_address(
+    transactions_processor: TransactionsProcessor,
+    accounts_manager: AccountsManager,
+    address: str,
+    filter: str = TransactionAddressFilter.ALL.value,
+) -> list[dict]:
+    if not accounts_manager.is_valid_address(address):
+        raise InvalidAddressError(address)
+
+    return transactions_processor.get_transactions_for_address(
+        address, TransactionAddressFilter(filter)
+    )
+
+
+def set_transaction_appeal(
+    transactions_processor: TransactionsProcessor,
+    msg_handler: MessageHandler,
+    transaction_hash: str,
+) -> None:
+    transactions_processor.set_transaction_appeal(transaction_hash, True)
+    msg_handler.send_message(
+        log_event=LogEvent(
+            "transaction_appeal_updated",
+            EventType.INFO,
+            EventScope.CONSENSUS,
+            "Set transaction appealed",
+            {
+                "hash": transaction_hash,
+            },
+        ),
+        log_to_terminal=False,
+    )
+
+
+@check_forbidden_method_in_hosted_studio
+def set_finality_window_time(consensus: ConsensusAlgorithm, time: int) -> None:
+    consensus.set_finality_window_time(time)
+
+
+def get_finality_window_time(consensus: ConsensusAlgorithm) -> int:
+    return consensus.finality_window_time
+
+
+def get_contract(consensus_service: ConsensusService, contract_name: str) -> dict:
+    """
+    Get contract instance by name
+
+    Args:
+        consensus_service: The consensus service instance
+        contract_name: Name of the contract to retrieve
+
+    Returns:
+        dict: Contract information including address and ABI
+    """
+    contract = consensus_service.load_contract(contract_name)
+
+    if contract is None:
+        raise JSONRPCError(
+            message=f"Contract {contract_name} not found",
+            data={"contract_name": contract_name},
+        )
+
+    return {
+        "address": contract["address"],
+        "abi": contract["abi"],
+        "bytecode": contract["bytecode"],
+    }
+
+
 ####### GEN ENDPOINTS #######
 async def get_contract_schema(
     accounts_manager: AccountsManager,
@@ -385,6 +454,94 @@ async def get_contract_schema_for_code(
     return json.loads(schema)
 
 
+async def gen_call(
+    session: Session,
+    accounts_manager: AccountsManager,
+    msg_handler: MessageHandler,
+    transactions_parser: TransactionParser,
+    validators_registry: ValidatorsRegistry,
+    params: dict,
+) -> str:
+    to_address = params["to"]
+    from_address = params["from"] if "from" in params else None
+    data = params["data"]
+    block_id = params["block_id"] if "block_id" in params else None
+    leader_results = params["leader_results"] if "leader_results" in params else None
+
+    if from_address is None:
+        return base64.b64encode(b"\x00' * 31 + b'\x01").decode(
+            "ascii"
+        )  # Return '1' as a uint256
+
+    if from_address and not accounts_manager.is_valid_address(from_address):
+        raise InvalidAddressError(from_address)
+
+    if not accounts_manager.is_valid_address(to_address):
+        raise InvalidAddressError(to_address)
+
+    if block_id == "latest-nonfinal":
+        state_status = "accepted"
+    else:
+        state_status = "finalized"  # waiting for Node to know the default
+
+    decoded_data = transactions_parser.decode_method_call_data(data)
+
+    # Get a validator
+    validators = get_all_validators(validators_registry)
+    if validators:
+        validator = validators[0]
+    else:
+        raise JSONRPCError(f"No validators exist to execute the gen_call")
+
+    # Create validator node
+    node = Node(
+        contract_snapshot=ContractSnapshot(to_address, session),
+        contract_snapshot_factory=partial(ContractSnapshot, session=session),
+        validator_mode=ExecutionMode.LEADER,  # based on input leader_results
+        validator=Validator(
+            id=validator["id"],
+            address=validator["address"],
+            stake=validator["stake"],
+            llmprovider=LLMProvider(
+                provider=validator["provider"],
+                model=validator["model"],
+                config=validator["config"],
+                plugin=validator["plugin"],
+                plugin_config=validator["plugin_config"],
+            ),
+        ),
+        leader_receipt=None,  # based on input leader_results
+        msg_handler=msg_handler.with_client_session(get_client_session_id()),
+    )
+
+    # Check if the method is a read or a write
+    contract_code = await get_contract_schema(accounts_manager, msg_handler, to_address)
+    for method, value in contract_code["methods"].items():
+        if method.encode() in decoded_data.calldata:
+            if value["readonly"]:
+                # Read the contract state
+                receipt = await node.get_contract_data(
+                    from_address="0x" + "00" * 20,
+                    calldata=decoded_data.calldata,
+                    state_status=state_status,
+                )
+            else:
+                # Simulate the write method
+                receipt = await node.run_contract(
+                    from_address=from_address,
+                    calldata=decoded_data.calldata,
+                )
+            break
+
+    # Return the result of the write method
+    if receipt.execution_result != ExecutionResultStatus.SUCCESS:
+        raise JSONRPCError(
+            message="running contract failed", data={"receipt": receipt.to_dict()}
+        )
+
+    return eth_utils.hexadecimal.encode_hex(receipt.result[1:])
+
+
 ####### ETH ENDPOINTS #######
 def get_balance(
     accounts_manager: AccountsManager, account_address: str, block_tag: str = "latest"
@@ -397,19 +554,13 @@ def get_balance(
     return account_balance
 
 
-def get_transaction_count(
-    transactions_processor: TransactionsProcessor, address: str, block: str = "latest"
-) -> int:
-    return transactions_processor.get_transaction_count(address)
-
-
 def get_transaction_by_hash(
     transactions_processor: TransactionsProcessor, transaction_hash: str
 ) -> dict | None:
     return transactions_processor.get_transaction_by_hash(transaction_hash)
 
 
-async def call(
+async def eth_call(
     session: Session,
     accounts_manager: AccountsManager,
     msg_handler: MessageHandler,
@@ -454,8 +605,7 @@ async def call(
     )
 
     receipt = await node.get_contract_data(
-        from_address="0x" + "00" * 20,
-        calldata=decoded_data.calldata,
+        from_address="0x" + "00" * 20, calldata=decoded_data.calldata
     )
     if receipt.execution_result != ExecutionResultStatus.SUCCESS:
         raise JSONRPCError(
@@ -563,55 +713,14 @@ def send_raw_transaction(
     return transaction_hash
 
 
-def get_transactions_for_address(
-    transactions_processor: TransactionsProcessor,
-    accounts_manager: AccountsManager,
-    address: str,
-    filter: str = TransactionAddressFilter.ALL.value,
-) -> list[dict]:
-    if not accounts_manager.is_valid_address(address):
-        raise InvalidAddressError(address)
-
-    return transactions_processor.get_transactions_for_address(
-        address, TransactionAddressFilter(filter)
-    )
-
-
-def set_transaction_appeal(
-    transactions_processor: TransactionsProcessor,
-    msg_handler: MessageHandler,
-    transaction_hash: str,
-) -> None:
-    transactions_processor.set_transaction_appeal(transaction_hash, True)
-    msg_handler.send_message(
-        log_event=LogEvent(
-            "transaction_appeal_updated",
-            EventType.INFO,
-            EventScope.CONSENSUS,
-            "Set transaction appealed",
-            {
-                "hash": transaction_hash,
-            },
-        ),
-        log_to_terminal=False,
-    )
-
-
-@check_forbidden_method_in_hosted_studio
-def set_finality_window_time(consensus: ConsensusAlgorithm, time: int) -> None:
-    consensus.set_finality_window_time(time)
-
-
-def get_finality_window_time(consensus: ConsensusAlgorithm) -> int:
-    return consensus.finality_window_time
+def get_transaction_count(
+    transactions_processor: TransactionsProcessor, address: str, block: str = "latest"
+) -> int:
+    return transactions_processor.get_transaction_count(address)
 
 
 def get_chain_id() -> str:
     return hex(SIMULATOR_CHAIN_ID)
-
-
-def get_net_version() -> str:
-    return str(SIMULATOR_CHAIN_ID)
 
 
 def get_block_number(transactions_processor: TransactionsProcessor) -> str:
@@ -724,32 +833,12 @@ def get_block_by_hash(
     return block_details
 
 
-def get_contract(consensus_service: ConsensusService, contract_name: str) -> dict:
-    """
-    Get contract instance by name
-
-    Args:
-        consensus_service: The consensus service instance
-        contract_name: Name of the contract to retrieve
-
-    Returns:
-        dict: Contract information including address and ABI
-    """
-    contract = consensus_service.load_contract(contract_name)
-
-    if contract is None:
-        raise JSONRPCError(
-            message=f"Contract {contract_name} not found",
-            data={"contract_name": contract_name},
-        )
-
-    return {
-        "address": contract["address"],
-        "abi": contract["abi"],
-        "bytecode": contract["bytecode"],
-    }
+####### NET ENDPOINTS #######
+def get_net_version() -> str:
+    return str(SIMULATOR_CHAIN_ID)
 
 
+####### REGISTER ALL ENDPOINTS #######
 def register_all_rpc_endpoints(
     jsonrpc: JSONRPC,
     msg_handler: MessageHandler,
@@ -764,7 +853,10 @@ def register_all_rpc_endpoints(
 ):
     register_rpc_endpoint = partial(generate_rpc_endpoint, jsonrpc, msg_handler)
 
+    # Helper methods
     register_rpc_endpoint(ping)
+
+    # Sim methods
     register_rpc_endpoint(
         partial(clear_db_tables, request_session),
         method_name="sim_clearDbTables",
@@ -844,42 +936,6 @@ def register_all_rpc_endpoints(
         method_name="sim_countValidators",
     )
     register_rpc_endpoint(
-        partial(get_contract_schema, accounts_manager, msg_handler),
-        method_name="gen_getContractSchema",
-    )
-    register_rpc_endpoint(
-        partial(get_contract_schema_for_code, msg_handler),
-        method_name="gen_getContractSchemaForCode",
-    )
-    register_rpc_endpoint(
-        partial(get_balance, accounts_manager),
-        method_name="eth_getBalance",
-    )
-    register_rpc_endpoint(
-        partial(get_transaction_by_hash, transactions_processor),
-        method_name="eth_getTransactionByHash",
-    )
-    register_rpc_endpoint(
-        partial(
-            call, request_session, accounts_manager, msg_handler, transactions_parser
-        ),
-        method_name="eth_call",
-    )
-    register_rpc_endpoint(
-        partial(
-            send_raw_transaction,
-            transactions_processor,
-            accounts_manager,
-            transactions_parser,
-            consensus_service,
-        ),
-        method_name="eth_sendRawTransaction",
-    )
-    register_rpc_endpoint(
-        partial(get_transaction_count, transactions_processor),
-        method_name="eth_getTransactionCount",
-    )
-    register_rpc_endpoint(
         partial(get_transactions_for_address, transactions_processor, accounts_manager),
         method_name="sim_getTransactionsForAddress",
     )
@@ -899,8 +955,62 @@ def register_all_rpc_endpoints(
         partial(get_contract, consensus_service),
         method_name="sim_getConsensusContract",
     )
+
+    # Gen methods
+    register_rpc_endpoint(
+        partial(get_contract_schema, accounts_manager, msg_handler),
+        method_name="gen_getContractSchema",
+    )
+    register_rpc_endpoint(
+        partial(get_contract_schema_for_code, msg_handler),
+        method_name="gen_getContractSchemaForCode",
+    )
+    register_rpc_endpoint(
+        partial(
+            gen_call,
+            request_session,
+            accounts_manager,
+            msg_handler,
+            transactions_parser,
+            validators_registry,
+        ),
+        method_name="gen_call",
+    )
+
+    # Eth methods
+    register_rpc_endpoint(
+        partial(get_balance, accounts_manager),
+        method_name="eth_getBalance",
+    )
+    register_rpc_endpoint(
+        partial(get_transaction_by_hash, transactions_processor),
+        method_name="eth_getTransactionByHash",
+    )
+    register_rpc_endpoint(
+        partial(
+            eth_call,
+            request_session,
+            accounts_manager,
+            msg_handler,
+            transactions_parser,
+        ),
+        method_name="eth_call",
+    )
+    register_rpc_endpoint(
+        partial(
+            send_raw_transaction,
+            transactions_processor,
+            accounts_manager,
+            transactions_parser,
+            consensus_service,
+        ),
+        method_name="eth_sendRawTransaction",
+    )
+    register_rpc_endpoint(
+        partial(get_transaction_count, transactions_processor),
+        method_name="eth_getTransactionCount",
+    )
     register_rpc_endpoint(get_chain_id, method_name="eth_chainId")
-    register_rpc_endpoint(get_net_version, method_name="net_version")
     register_rpc_endpoint(
         partial(get_block_number, transactions_processor),
         method_name="eth_blockNumber",
@@ -919,3 +1029,6 @@ def register_all_rpc_endpoints(
         partial(get_block_by_hash, transactions_processor),
         method_name="eth_getBlockByHash",
     )
+
+    # Net methods
+    register_rpc_endpoint(get_net_version, method_name="net_version")

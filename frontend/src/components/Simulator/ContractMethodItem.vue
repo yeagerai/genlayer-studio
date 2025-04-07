@@ -21,7 +21,9 @@ const props = defineProps<{
 
 const isExpanded = ref(false);
 const isCalling = ref(false);
-const responseMessage = ref();
+const responseMessageAccepted = ref('');
+const responseMessageFinalized = ref('');
+const responseMessageSimulate = ref('');
 
 const calldataArguments = ref<ArgData>({ args: [], kwargs: {} });
 
@@ -47,6 +49,48 @@ const formatResponseIfNeeded = (response: string): string => {
 };
 
 const handleCallReadMethod = async () => {
+  responseMessageAccepted.value = '';
+  responseMessageFinalized.value = '';
+  isCalling.value = true;
+
+  try {
+    const responseMessages = [
+      responseMessageAccepted,
+      responseMessageFinalized,
+    ];
+
+    for (let i = 0; i < 2; i++) {
+      const result = await callReadMethod(
+        props.name,
+        unfoldArgsData(calldataArguments.value),
+        i === 0 ? 'latest-nonfinal' : 'latest-final',
+      );
+
+      if (result !== undefined) {
+        const resultString = abi.calldata.toString(result);
+        responseMessages[i].value = formatResponseIfNeeded(resultString);
+      } else {
+        responseMessages[i].value = '<genlayer.client is undefined>';
+      }
+    }
+
+    trackEvent('called_read_method', {
+      contract_name: contract.value?.name || '',
+      method_name: props.name,
+    });
+  } catch (error) {
+    notify({
+      title: 'Error',
+      text: (error as Error)?.message || 'Error getting contract state',
+      type: 'error',
+    });
+  } finally {
+    isCalling.value = false;
+  }
+};
+
+const handleCallSimulateMethod = async () => {
+  responseMessageSimulate.value = '';
   isCalling.value = true;
 
   try {
@@ -57,9 +101,9 @@ const handleCallReadMethod = async () => {
 
     if (result !== undefined) {
       const resultString = abi.calldata.toString(result);
-      responseMessage.value = formatResponseIfNeeded(resultString);
+      responseMessageSimulate.value = formatResponseIfNeeded(resultString);
     } else {
-      responseMessage.value = '<genlayer.client is undefined>';
+      responseMessageSimulate.value = '<genlayer.client is undefined>';
     }
 
     trackEvent('called_read_method', {
@@ -161,15 +205,44 @@ const handleCallWriteMethod = async () => {
             :disabled="isCalling"
             >{{ isCalling ? 'Sending...' : 'Send Transaction' }}</Btn
           >
+
+          <div v-if="methodType === 'write'" class="h-2"></div>
+
+          <Btn
+            v-if="methodType === 'write'"
+            @click="handleCallSimulateMethod"
+            tiny
+            :data-testid="`write-simulate-method-btn-${name}`"
+            :loading="isCalling"
+            :disabled="isCalling"
+            >{{ isCalling ? 'Sending...' : 'Simulate Transaction' }}</Btn
+          >
         </div>
 
-        <div v-if="responseMessage" class="w-full break-all text-sm">
+        <div
+          v-if="responseMessageAccepted || responseMessageFinalized"
+          class="w-full break-all text-sm"
+        >
           <div class="mb-1 text-xs font-medium">Response:</div>
           <div
             :data-testid="`method-response-${name}`"
             class="w-full whitespace-pre-wrap rounded bg-white p-1 font-mono text-xs dark:bg-slate-600"
           >
-            {{ responseMessage }}
+            <div v-if="responseMessageAccepted">
+              •Accepted = {{ responseMessageAccepted }}
+            </div>
+            <div v-if="responseMessageFinalized">
+              •Finalized = {{ responseMessageFinalized }}
+            </div>
+          </div>
+        </div>
+
+        <div v-if="responseMessageSimulate" class="w-full break-all text-sm">
+          <div class="mb-1 text-xs font-medium">Response:</div>
+          <div
+            class="w-full whitespace-pre-wrap rounded bg-white p-1 font-mono text-xs dark:bg-slate-600"
+          >
+            {{ responseMessageSimulate }}
           </div>
         </div>
       </div>
