@@ -34,7 +34,6 @@ async function main() {
     const gasPrice = await hre.network.provider.send("eth_gasPrice");
 
     // Take a snapshot of the current state
-    //console.log(`[${new Date().toISOString()}] Taking EVM snapshot...`);
     const snapshotId = await hre.network.provider.send("evm_snapshot");
     console.log(`[${new Date().toISOString()}] Snapshot taken successfully with ID: ${snapshotId}`);
 
@@ -56,14 +55,40 @@ async function main() {
       "Messages"
     ];
 
-    for (const name of contractNames) {
-      const deployment = await hre.deployments.get(name);
-      if (deployment) {
-        deployments[name] = {
-          address: deployment.address,
-          abi: deployment.abi,
-          bytecode: deployment.bytecode
+    // Read all deployment files from the deployment directory
+    const deploymentDir = path.join(__dirname, '../deployments/genlayer_network');
+    const deploymentFiles = fs.readdirSync(deploymentDir).filter(file => file.endsWith('.json'));
+
+    // console.log(`[${new Date().toISOString()}] Found ${deploymentFiles.length} deployment files`);
+
+    // Process all deployment files
+    for (const file of deploymentFiles) {
+      const contractName = file.replace('.json', '');
+      try {
+        // Read deployment file directly to get all data including bytecode
+        const deploymentPath = path.join(deploymentDir, file);
+        const deploymentData = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+
+        // Verify contract exists on chain and get current bytecode
+        const address = deploymentData.address;
+        const currentCode = await hre.network.provider.send("eth_getCode", [address, "latest"]);
+
+        if (currentCode === '0x' || currentCode === '') {
+          /// console.log(`[${new Date().toISOString()}] Warning: Contract ${contractName} at ${address} has no bytecode!`);
+          continue;
+        }
+
+        // Store the complete deployment data
+        deployments[contractName] = {
+          address: address,
+          abi: deploymentData.abi,
+          bytecode: deploymentData.bytecode,
+          deployedBytecode: deploymentData.deployedBytecode
         };
+
+        // console.log(`[${new Date().toISOString()}] Saved deployment info for ${contractName} at ${address}`);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] Error processing ${contractName}:`, error);
       }
     }
 
@@ -78,6 +103,12 @@ async function main() {
     for (const account of accounts) {
       const nonce = await hre.network.provider.send("eth_getTransactionCount", [account, "latest"]);
       accountNonces[account] = parseInt(nonce, 16);
+    }
+
+    // Build contract address mapping for quick access
+    const contractAddresses = {};
+    for (const [name, deployment] of Object.entries(deployments)) {
+      contractAddresses[name] = deployment.address;
     }
 
     const snapshotData = {
@@ -101,38 +132,27 @@ async function main() {
         nonces: accountNonces
       },
       deployments: deployments,
-      contracts: {
-        ConsensusMain: deployments.ConsensusMain?.address,
-        ConsensusManager: deployments.ConsensusManager?.address,
-        ConsensusData: deployments.ConsensusData?.address,
-        GhostContract: deployments.GhostContract?.address,
-        GhostFactory: deployments.GhostFactory?.address,
-        GhostBlueprint: deployments.GhostBlueprint?.address,
-        MockGenStaking: deployments.MockGenStaking?.address,
-        Queues: deployments.Queues?.address,
-        Transactions: deployments.Transactions?.address,
-        Messages: deployments.Messages?.address
-      }
+      contracts: contractAddresses
     };
 
+    // Create snapshots directory if it doesn't exist
+    const snapshotsDir = path.join(__dirname, '../snapshots');
+    if (!fs.existsSync(snapshotsDir)) {
+      fs.mkdirSync(snapshotsDir, { recursive: true });
+    }
+
     // Save the snapshot with timestamp
-    const snapshotPath = path.join(__dirname, '../snapshots', `snapshot-${timestamp}.json`);
+    const snapshotPath = path.join(snapshotsDir, `snapshot-${timestamp}.json`);
     fs.writeFileSync(snapshotPath, JSON.stringify(snapshotData, null, 2));
 
     // Update the latest.json to point to this snapshot
-    const latestPath = path.join(__dirname, '../snapshots/latest.json');
+    const latestPath = path.join(snapshotsDir, 'latest.json');
     fs.writeFileSync(latestPath, JSON.stringify({
       ...snapshotData,
       file: `snapshot-${timestamp}.json`
     }, null, 2));
 
-    //console.log(`[${new Date().toISOString()}] Snapshot data saved to ${snapshotPath}`);
-    //console.log(`[${new Date().toISOString()}] Current block number: ${blockNumberDec}`);
-    //console.log(`[${new Date().toISOString()}] Latest block hash: ${latestBlock.hash}`);
-    //console.log(`[${new Date().toISOString()}] Transactions in latest block: ${latestBlock.transactions.length}`);
-    //console.log(`[${new Date().toISOString()}] Gas used in latest block: ${parseInt(latestBlock.gasUsed, 16)}`);
-    //console.log(`[${new Date().toISOString()}] Number of accounts: ${accounts.length}`);
-    //console.log(`[${new Date().toISOString()}] Number of deployed contracts: ${Object.keys(deployments).length}`);
+    // console.log(`[${new Date().toISOString()}] Snapshot saved with ${Object.keys(deployments).length} contracts and ${accounts.length} accounts`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error taking snapshot:`, error);
     throw error;
