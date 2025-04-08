@@ -21,323 +21,206 @@ async function mineToBlock(targetBlock) {
  * @param {object} snapshotData Data from the snapshot
  */
 async function restoreFixtureConfigurations(snapshotData) {
-  console.log(`Restoring contract configurations from deploy fixture...`);
+  console.log(`Restoring contract configurations from deploy_fixture...`);
 
   try {
     const { deployments } = snapshotData;
-
-    // Get signers - we need deployer (first account)
     const signers = await hre.ethers.getSigners();
     const deployer = signers[0];
 
-    // First check which contracts we have
-    const deployedContracts = {};
-    for (const [name, data] of Object.entries(deployments)) {
+    const getContract = (name) => {
+      const data = deployments[name];
+      if (!data) return null;
+      return new hre.ethers.Contract(data.address, data.abi, deployer);
+    };
+
+    const c = {
+      GhostFactory: getContract("GhostFactory"),
+      GhostBlueprint: getContract("GhostBlueprint"),
+      ConsensusMain: getContract("ConsensusMain"),
+      Transactions: getContract("Transactions"),
+      Queues: getContract("Queues"),
+      Messages: getContract("Messages"),
+      ConsensusManager: getContract("ConsensusManager"),
+      MockGenStaking: getContract("MockGenStaking"),
+      Idleness: getContract("Idleness"),
+      Rounds: getContract("Rounds"),
+      Voting: getContract("Voting"),
+      Utils: getContract("Utils"),
+      ConsensusData: getContract("ConsensusData"),
+    };
+
+    // 1. Initialize GhostFactory
+    if (c.GhostFactory?.initialize) {
       try {
-        deployedContracts[name] = new hre.ethers.Contract(
-          data.address,
-          data.abi,
-          deployer
+        console.log(`Initializing GhostFactory...`);
+        await c.GhostFactory.initialize();
+      } catch (_) {}
+    }
+
+    // 2. Initialize GhostBlueprint
+    if (c.GhostBlueprint?.initialize) {
+      try {
+        console.log(`Initializing GhostBlueprint...`);
+        await c.GhostBlueprint.initialize(deployer.address);
+      } catch (_) {}
+    }
+
+    // 3. Set GhostBlueprint
+    if (c.GhostFactory && c.GhostBlueprint?.address && c.GhostFactory.setGhostBlueprint) {
+      try {
+        console.log(`Setting GhostBlueprint in GhostFactory...`);
+        await c.GhostFactory.setGhostBlueprint(c.GhostBlueprint.address);
+      } catch (_) {}
+    }
+
+    // 4. Deploy new beacon proxy
+    let latestGhost = null;
+    if (c.GhostFactory?.deployNewBeaconProxy) {
+      try {
+        console.log(`Deploying new beacon proxy...`);
+        const tx = await c.GhostFactory.deployNewBeaconProxy();
+        const receipt = await tx.wait();
+        const event = receipt.events.find(e => e.event === 'GhostDeployed');
+        if (event) {
+          latestGhost = event.args[0];
+        }
+      } catch (_) {}
+    }
+
+    // 5. Initialize ConsensusMain
+    if (c.ConsensusMain?.initialize) {
+      try {
+        console.log(`Initializing ConsensusMain...`);
+        await c.ConsensusMain.initialize();
+      } catch (_) {}
+    }
+
+    // 6. Initialize Transactions with ConsensusMain
+    if (c.Transactions?.initialize && c.ConsensusMain?.address) {
+      try {
+        console.log(`Initializing Transactions...`);
+        await c.Transactions.initialize(c.ConsensusMain.address);
+      } catch (_) {}
+    }
+
+    // 7. Initialize Queues
+    if (c.Queues?.initialize && c.ConsensusMain?.address) {
+      try {
+        console.log(`Initializing Queues...`);
+        await c.Queues.initialize(c.ConsensusMain.address);
+      } catch (_) {}
+    }
+
+    // 8. Initialize Messages
+    if (c.Messages?.initialize) {
+      try {
+        console.log(`Initializing Messages...`);
+        await c.Messages.initialize();
+      } catch (_) {}
+    }
+
+    // 9. Set external contracts in ConsensusMain
+    if (
+      c.ConsensusMain?.setExternalContracts &&
+      c.GhostFactory && c.ConsensusManager && c.Transactions &&
+      c.Queues && c.MockGenStaking && c.Messages && c.Idleness
+    ) {
+      try {
+        console.log(`Setting external contracts in ConsensusMain...`);
+        await c.ConsensusMain.setExternalContracts(
+          c.GhostFactory.address,
+          c.ConsensusManager.address,
+          c.Transactions.address,
+          c.Queues.address,
+          c.MockGenStaking.address,
+          c.Messages.address,
+          c.Idleness.address
         );
-      } catch (error) {
-        console.log(`Error creating contract instance for ${name}: ${error.message}`);
+      } catch (_) {}
+    }
+
+    // 9.1. Re-store the ghost into ConsensusMain
+    if (latestGhost && c.ConsensusMain?.storeGhost) {
+      try {
+        console.log(`Storing ghost ${latestGhost} in ConsensusMain...`);
+        await c.ConsensusMain.storeGhost(latestGhost);
+      } catch (err) {
+        console.log(`Error storing ghost: ${err.message}`);
       }
     }
 
-    // Initialize core contracts if needed
-    const initializeContracts = async () => {
-      // 1. Initialize GhostFactory
-      if (deployedContracts.GhostFactory &&
-          deployedContracts.GhostFactory.interface.fragments.some(f => f.name === 'initialize')) {
-        try {
-          // Check if already initialized by checking owner
-          if (deployedContracts.GhostFactory.interface.fragments.some(f => f.name === 'owner')) {
-            const owner = await deployedContracts.GhostFactory.owner();
-            if (owner === "0x0000000000000000000000000000000000000000") {
-              console.log(`Initializing GhostFactory...`);
-              await deployedContracts.GhostFactory.initialize();
-            }
-          } else {
-            // No way to check, try to initialize anyway
-            try {
-              await deployedContracts.GhostFactory.initialize();
-            } catch (error) {
-              // Likely already initialized, ignore
-            }
-          }
-        } catch (error) {
-          console.log(`GhostFactory initialization skipped: ${error.message}`);
-        }
-      }
+    // 10. Set external contracts in Transactions
+    if (
+      c.Transactions?.setExternalContracts &&
+      c.ConsensusMain && c.MockGenStaking && c.Rounds &&
+      c.Voting && c.Idleness && c.Utils
+    ) {
+      try {
+        console.log(`Setting external contracts in Transactions...`);
+        await c.Transactions.setExternalContracts(
+          c.ConsensusMain.address,
+          c.MockGenStaking.address,
+          c.Rounds.address,
+          c.Voting.address,
+          c.Idleness.address,
+          c.Utils.address
+        );
+      } catch (_) {}
+    }
 
-      // 2. Initialize GhostBlueprint
-      if (deployedContracts.GhostBlueprint &&
-          deployedContracts.GhostBlueprint.interface.fragments.some(f => f.name === 'initialize')) {
-        try {
-          // Check if already initialized
-          if (deployedContracts.GhostBlueprint.interface.fragments.some(f => f.name === 'owner')) {
-            const owner = await deployedContracts.GhostBlueprint.owner();
-            if (owner === "0x0000000000000000000000000000000000000000") {
-              console.log(`Initializing GhostBlueprint...`);
-              await deployedContracts.GhostBlueprint.initialize(deployer.address);
-            }
-          } else {
-            try {
-              await deployedContracts.GhostBlueprint.initialize(deployer.address);
-            } catch (error) {
-              // Likely already initialized, ignore
-            }
-          }
-        } catch (error) {
-          console.log(`GhostBlueprint initialization skipped: ${error.message}`);
-        }
-      }
+    // 11. Initialize ConsensusData
+    if (c.ConsensusData?.initialize && c.ConsensusMain && c.Transactions && c.Queues) {
+      try {
+        console.log(`Initializing ConsensusData...`);
+        await c.ConsensusData.initialize(
+          c.ConsensusMain.address,
+          c.Transactions.address,
+          c.Queues.address
+        );
+      } catch (_) {}
+    }
 
-      // 3. Initialize ConsensusMain
-      if (deployedContracts.ConsensusMain &&
-          deployedContracts.ConsensusMain.interface.fragments.some(f => f.name === 'initialize')) {
-        try {
-          // Check if already initialized
-          if (deployedContracts.ConsensusMain.interface.fragments.some(f => f.name === 'owner')) {
-            const owner = await deployedContracts.ConsensusMain.owner();
-            if (owner === "0x0000000000000000000000000000000000000000") {
-              console.log(`Initializing ConsensusMain...`);
-              await deployedContracts.ConsensusMain.initialize();
-            }
-          } else {
-            try {
-              await deployedContracts.ConsensusMain.initialize();
-            } catch (error) {
-              // Likely already initialized, ignore
-            }
-          }
-        } catch (error) {
-          console.log(`ConsensusMain initialization skipped: ${error.message}`);
-        }
-      }
+    // 12. Set GenConsensus in GhostFactory
+    if (c.GhostFactory?.setGenConsensus && c.ConsensusMain) {
+      try {
+        console.log(`Setting GenConsensus in GhostFactory...`);
+        await c.GhostFactory.setGenConsensus(c.ConsensusMain.address);
+      } catch (_) {}
+    }
 
-      // 4. Initialize Transactions
-      if (deployedContracts.Transactions && deployedContracts.ConsensusMain &&
-          deployedContracts.Transactions.interface.fragments.some(f => f.name === 'initialize')) {
-        try {
-          console.log(`Setting up Transactions...`);
-          try {
-            await deployedContracts.Transactions.initialize(
-              deployedContracts.ConsensusMain.address
-            );
-          } catch (error) {
-            // Might be already initialized, continue
-          }
-        } catch (error) {
-          console.log(`Transactions initialization skipped: ${error.message}`);
-        }
-      }
+    // 13. Set GhostManager in GhostFactory
+    if (c.GhostFactory?.setGhostManager && c.ConsensusMain) {
+      try {
+        console.log(`Setting GhostManager in GhostFactory...`);
+        await c.GhostFactory.setGhostManager(c.ConsensusMain.address);
+      } catch (_) {}
+    }
 
-      // 5. Initialize Queues
-      if (deployedContracts.Queues && deployedContracts.ConsensusMain &&
-          deployedContracts.Queues.interface.fragments.some(f => f.name === 'initialize')) {
-        try {
-          console.log(`Setting up Queues...`);
-          try {
-            await deployedContracts.Queues.initialize(
-              deployedContracts.ConsensusMain.address
-            );
-          } catch (error) {
-            // Might be already initialized, continue
-          }
-        } catch (error) {
-          console.log(`Queues initialization skipped: ${error.message}`);
-        }
-      }
+    // 14. Set GenConsensus in Messages
+    if (c.Messages?.setGenConsensus && c.ConsensusMain) {
+      try {
+        console.log(`Setting GenConsensus in Messages...`);
+        await c.Messages.setGenConsensus(c.ConsensusMain.address);
+      } catch (_) {}
+    }
 
-      // 6. Initialize Messages
-      if (deployedContracts.Messages &&
-          deployedContracts.Messages.interface.fragments.some(f => f.name === 'initialize')) {
-        try {
-          console.log(`Setting up Messages...`);
-          try {
-            await deployedContracts.Messages.initialize();
-          } catch (error) {
-            // Might be already initialized, continue
-          }
-        } catch (error) {
-          console.log(`Messages initialization skipped: ${error.message}`);
-        }
-      }
+    // 15. Set GenTransactions in Messages
+    if (c.Messages?.setGenTransactions && c.Transactions) {
+      try {
+        console.log(`Setting GenTransactions in Messages...`);
+        await c.Messages.setGenTransactions(c.Transactions.address);
+      } catch (_) {}
+    }
 
-      // 7. Initialize ConsensusData
-      if (deployedContracts.ConsensusData && deployedContracts.ConsensusMain &&
-          deployedContracts.Transactions && deployedContracts.Queues &&
-          deployedContracts.ConsensusData.interface.fragments.some(f => f.name === 'initialize')) {
-        try {
-          console.log(`Setting up ConsensusData...`);
-          try {
-            await deployedContracts.ConsensusData.initialize(
-              deployedContracts.ConsensusMain.address,
-              deployedContracts.Transactions.address,
-              deployedContracts.Queues.address
-            );
-          } catch (error) {
-            // Might be already initialized, continue
-          }
-        } catch (error) {
-          console.log(`ConsensusData initialization skipped: ${error.message}`);
-        }
-      }
-    };
-
-    // Set up all external contracts and relationships
-    const setupContractRelationships = async () => {
-      // 1. Set GhostBlueprint in GhostFactory
-      if (deployedContracts.GhostFactory && deployedContracts.GhostBlueprint &&
-          deployedContracts.GhostFactory.interface.fragments.some(f => f.name === 'setGhostBlueprint')) {
-        try {
-          console.log(`Setting GhostBlueprint in GhostFactory...`);
-          await deployedContracts.GhostFactory.setGhostBlueprint(
-            deployedContracts.GhostBlueprint.address
-          );
-        } catch (error) {
-          console.log(`Setting GhostBlueprint skipped: ${error.message}`);
-        }
-      }
-
-      // 2. Set GenConsensus in GhostFactory
-      if (deployedContracts.GhostFactory && deployedContracts.ConsensusMain &&
-          deployedContracts.GhostFactory.interface.fragments.some(f => f.name === 'setGenConsensus')) {
-        try {
-          console.log(`Setting GenConsensus in GhostFactory...`);
-          await deployedContracts.GhostFactory.setGenConsensus(
-            deployedContracts.ConsensusMain.address
-          );
-        } catch (error) {
-          console.log(`Setting GenConsensus in GhostFactory skipped: ${error.message}`);
-        }
-      }
-
-      // 3. Set GhostManager in GhostFactory
-      if (deployedContracts.GhostFactory && deployedContracts.ConsensusMain &&
-          deployedContracts.GhostFactory.interface.fragments.some(f => f.name === 'setGhostManager')) {
-        try {
-          console.log(`Setting GhostManager in GhostFactory...`);
-          await deployedContracts.GhostFactory.setGhostManager(
-            deployedContracts.ConsensusMain.address
-          );
-        } catch (error) {
-          console.log(`Setting GhostManager skipped: ${error.message}`);
-        }
-      }
-
-      // 4. Set GenConsensus in Messages
-      if (deployedContracts.Messages && deployedContracts.ConsensusMain &&
-          deployedContracts.Messages.interface.fragments.some(f => f.name === 'setGenConsensus')) {
-        try {
-          console.log(`Setting GenConsensus in Messages...`);
-          await deployedContracts.Messages.setGenConsensus(
-            deployedContracts.ConsensusMain.address
-          );
-        } catch (error) {
-          console.log(`Setting GenConsensus in Messages skipped: ${error.message}`);
-        }
-      }
-
-      // 5. Set GenTransactions in Messages
-      if (deployedContracts.Messages && deployedContracts.Transactions &&
-          deployedContracts.Messages.interface.fragments.some(f => f.name === 'setGenTransactions')) {
-        try {
-          console.log(`Setting GenTransactions in Messages...`);
-          await deployedContracts.Messages.setGenTransactions(
-            deployedContracts.Transactions.address
-          );
-        } catch (error) {
-          console.log(`Setting GenTransactions in Messages skipped: ${error.message}`);
-        }
-      }
-
-      // 6. Set external contracts in ConsensusMain
-      if (deployedContracts.ConsensusMain &&
-          deployedContracts.GhostFactory &&
-          deployedContracts.ConsensusManager &&
-          deployedContracts.Transactions &&
-          deployedContracts.Queues &&
-          deployedContracts.MockGenStaking &&
-          deployedContracts.Messages &&
-          deployedContracts.Idleness &&
-          deployedContracts.ConsensusMain.interface.fragments.some(f => f.name === 'setExternalContracts')) {
-        try {
-          console.log(`Setting external contracts in ConsensusMain...`);
-          await deployedContracts.ConsensusMain.setExternalContracts(
-            deployedContracts.GhostFactory.address,
-            deployedContracts.ConsensusManager.address,
-            deployedContracts.Transactions.address,
-            deployedContracts.Queues.address,
-            deployedContracts.MockGenStaking.address,
-            deployedContracts.Messages.address,
-            deployedContracts.Idleness.address
-          );
-        } catch (error) {
-          console.log(`Setting external contracts in ConsensusMain skipped: ${error.message}`);
-        }
-      }
-
-      // 7. Set external contracts in Transactions
-      if (deployedContracts.Transactions &&
-          deployedContracts.ConsensusMain &&
-          deployedContracts.MockGenStaking &&
-          deployedContracts.Rounds &&
-          deployedContracts.Voting &&
-          deployedContracts.Idleness &&
-          deployedContracts.Utils &&
-          deployedContracts.Transactions.interface.fragments.some(f => f.name === 'setExternalContracts')) {
-        try {
-          console.log(`Setting external contracts in Transactions...`);
-          await deployedContracts.Transactions.setExternalContracts(
-            deployedContracts.ConsensusMain.address,
-            deployedContracts.MockGenStaking.address,
-            deployedContracts.Rounds.address,
-            deployedContracts.Voting.address,
-            deployedContracts.Idleness.address,
-            deployedContracts.Utils.address
-          );
-        } catch (error) {
-          console.log(`Setting external contracts in Transactions skipped: ${error.message}`);
-        }
-      }
-
-      // 8. Add validators to MockGenStaking if needed
-      if (deployedContracts.MockGenStaking &&
-          deployedContracts.MockGenStaking.interface.fragments.some(f => f.name === 'addValidators')) {
-        try {
-          // Add the validators as in 001_deploy_fixture
-          const validators = [
-            signers[1].address, // validator1
-            signers[2].address, // validator2
-            signers[3].address, // validator3
-            signers[4].address, // validator4
-            signers[5].address  // validator5
-          ];
-
-          console.log(`Adding validators to MockGenStaking...`);
-          await deployedContracts.MockGenStaking.addValidators(validators);
-        } catch (error) {
-          console.log(`Adding validators skipped: ${error.message}`);
-        }
-      }
-
-      // 9. Deploy beacon proxy if needed
-      if (deployedContracts.GhostFactory &&
-          deployedContracts.GhostFactory.interface.fragments.some(f => f.name === 'deployNewBeaconProxy')) {
-        try {
-          console.log(`Deploying new beacon proxy from GhostFactory...`);
-          await deployedContracts.GhostFactory.deployNewBeaconProxy();
-        } catch (error) {
-          console.log(`Beacon proxy deployment skipped: ${error.message}`);
-        }
-      }
-    };
-
-    // Execute the initialization sequence
-    await initializeContracts();
-    await setupContractRelationships();
+    // 16. Add validators
+    if (c.MockGenStaking?.addValidators) {
+      try {
+        const validators = signers.slice(1, 6).map(s => s.address);
+        console.log(`Adding validators to MockGenStaking...`);
+        await c.MockGenStaking.addValidators(validators);
+      } catch (_) {}
+    }
 
     console.log(`Contract configurations restored successfully`);
     return true;
