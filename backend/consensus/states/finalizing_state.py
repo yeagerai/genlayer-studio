@@ -28,8 +28,9 @@ class FinalizingState(TransactionState):
             leaders_contract_snapshot = context.contract_snapshot_factory(
                 context.transaction.to_address
             )
-            leaders_contract_snapshot.update_contract_state(
-                finalized_state=leader_receipt.contract_state
+            context.contract_processor.update_contract_state(
+                context.transaction.to_address,
+                finalized_state=leader_receipt.contract_state,
             )
 
         # Update the transaction status to FINALIZED

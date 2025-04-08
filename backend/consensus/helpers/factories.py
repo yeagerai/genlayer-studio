@@ -8,6 +8,7 @@ from typing import Callable
 from sqlalchemy.orm import Session
 from backend.database_handler.chain_snapshot import ChainSnapshot
 from backend.database_handler.contract_snapshot import ContractSnapshot
+from backend.database_handler.contract_processor import ContractProcessor
 from backend.database_handler.transactions_processor import (
     TransactionsProcessor,
     TransactionStatus,
@@ -143,3 +144,10 @@ def accounts_manager_factory(session: Session):
         AccountsManager: A new AccountsManager instance.
     """
     return AccountsManager(session)
+
+
+def contract_processor_factory(session: Session):
+    """
+    Factory function to create a ContractProcessor instance.
+    """
+    return ContractProcessor(session)

@@ -18,11 +18,12 @@ from backend.protocol_rpc.endpoints import register_all_rpc_endpoints
 from backend.protocol_rpc.validators_init import initialize_validators
 from backend.protocol_rpc.transactions_parser import TransactionParser
 from dotenv import load_dotenv
-
+from backend.consensus.algorithm.transaction_status import TransactionStatusManager
 from backend.database_handler.transactions_processor import TransactionsProcessor
 from backend.database_handler.validators_registry import ValidatorsRegistry
 from backend.database_handler.accounts_manager import AccountsManager
-from backend.consensus.base import ConsensusAlgorithm, contract_processor_factory
+from backend.consensus.consensus_algorithm import ConsensusAlgorithm
+from backend.consensus.helpers.factories import contract_processor_factory
 from backend.database_handler.models import Base, TransactionStatus
 from backend.rollup.consensus_service import ConsensusService
 from backend.domain.types import Transaction
@@ -169,7 +170,7 @@ def restore_stuck_transactions():
 
         restore_transactions = [tx2, *newer_transactions]
         for restore_transaction in restore_transactions:
-            ConsensusAlgorithm.dispatch_transaction_status_update(
+            TransactionStatusManager.dispatch_transaction_status_update(
                 transactions_processor,
                 restore_transaction["hash"],
                 TransactionStatus.PENDING,
@@ -227,7 +228,7 @@ def restore_stuck_transactions():
                 )
             else:
                 contract_processor.update_contract_state(
-                    contract_address=tx1_accepted["to_address"],
+                    contract_address="",
                     accepted_state={},
                     finalized_state={},
                 )

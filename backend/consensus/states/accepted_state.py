@@ -141,8 +141,9 @@ class AcceptedState(TransactionState):
                     )
                 # Update contract state if it is an existing contract
                 else:
-                    leaders_contract_snapshot.update_contract_state(
-                        accepted_state=leader_receipt.contract_state
+                    context.contract_processor.update_contract_state(
+                        context.transaction.to_address,
+                        accepted_state=leader_receipt.contract_state,
                     )
 
                 _emit_transactions(
