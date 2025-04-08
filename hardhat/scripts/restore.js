@@ -3,8 +3,8 @@ const fs = require("fs");
 const path = require("path");
 
 /**
- * Mina bloques hasta llegar al número de bloque objetivo
- * @param {number} targetBlock Número de bloque a alcanzar
+ * Mine blocks until reaching the target block number
+ * @param {number} targetBlock Target block number to reach
  */
 async function mineToBlock(targetBlock) {
   const currentHex = await hre.network.provider.send("eth_blockNumber");
@@ -231,8 +231,8 @@ async function restoreFixtureConfigurations(snapshotData) {
 }
 
 /**
- * Restaura el estado usando evm_revert, y si no funciona, hace una restauración completa
- * @param {object} snapshotData Datos del snapshot
+ * Restores state using evm_revert, and if it fails, performs a full restoration
+ * @param {object} snapshotData Snapshot data
  */
 async function restoreState(snapshotData) {
   const snapshotId = snapshotData.id;
@@ -240,17 +240,17 @@ async function restoreState(snapshotData) {
   console.log(`Attempting to restore state from block ${originalBlockNumber} with snapshot ID ${snapshotId}...`);
 
   try {
-    // Método 1: Intentar con evm_revert (esto es lo más rápido y fiable)
+    // Method 1: Try with evm_revert (this is the fastest and most reliable)
     const reverted = await hre.network.provider.send("evm_revert", [snapshotId]);
 
     if (reverted === true) {
       console.log(`evm_revert successful!`);
 
-      // Tomar inmediatamente un nuevo snapshot para preservar el estado
+      // Take a new snapshot immediately to preserve the state
       const newSnapshotId = await hre.network.provider.send("evm_snapshot");
       console.log(`New snapshot taken with ID: ${newSnapshotId}`);
 
-      // Actualizar el snapshot con el nuevo ID
+      // Update snapshot with new ID
       snapshotData.id = newSnapshotId;
 
       const snapshotPath = path.join(__dirname, "../snapshots/latest.json");
@@ -274,13 +274,13 @@ async function restoreState(snapshotData) {
     console.log(`Falling back to full restoration...`);
   }
 
-  // Método 2: Restauración completa (si evm_revert falló)
+  // Method 2: Full restoration (if evm_revert failed)
   return await restoreBlockchainState(snapshotData);
 }
 
 /**
- * Restauración completa del estado del blockchain (usado como fallback)
- * @param {object} snapshotData Datos del snapshot
+ * Full restoration of blockchain state (used as fallback)
+ * @param {object} snapshotData Snapshot data
  */
 async function restoreBlockchainState(snapshotData) {
   console.log(`Starting full state restoration...`);
@@ -298,19 +298,19 @@ async function restoreBlockchainState(snapshotData) {
     fs.mkdirSync(deploymentsDir, { recursive: true });
   }
 
-  // Reset completo del nodo
+  // Complete node reset
   await hre.network.provider.send("hardhat_reset");
 
-  // Minar hasta el bloque capturado en el snapshot
+  // Mine until the block captured in the snapshot
   await mineToBlock(originalBlockNumber);
 
-  // Restaurar código y storage de contratos
+  // Restore contract code and storage
   for (const [contractName, data] of Object.entries(snapshotData.deployments)) {
-    // Verificar si el contrato ya tiene código
+    // Check if contract already has code
     const code = await hre.network.provider.send("eth_getCode", [data.address, "latest"]);
 
     if (code === "0x") {
-      // Restaurar bytecode
+      // Restore bytecode
       let bytecode = data.runtimeCode || data.deployedBytecode || data.bytecode;
       if (!bytecode) {
         console.log(`No bytecode for ${contractName}, skipping`);
@@ -326,11 +326,11 @@ async function restoreBlockchainState(snapshotData) {
         await hre.network.provider.send("hardhat_setCode", [data.address, bytecode]);
       } catch (error) {
         console.log(`Error restoring code for ${contractName}: ${error.message}`);
-        continue; // Si no podemos restaurar el código, pasamos al siguiente contrato
+        continue; // If we can't restore the code, move to next contract
       }
     }
 
-    // Restaurar storage
+    // Restore storage
     if (data.storage && Object.keys(data.storage).length > 0) {
       console.log(`Restoring ${Object.keys(data.storage).length} storage slots for ${contractName}`);
 
@@ -343,7 +343,7 @@ async function restoreBlockchainState(snapshotData) {
       }
     }
 
-    // Registrar en hardhat-deploy
+    // Register in hardhat-deploy
     try {
       await hre.deployments.save(contractName, {
         address: data.address,
@@ -367,11 +367,11 @@ async function restoreBlockchainState(snapshotData) {
   // Restore all contract configurations from deploy_fixture
   await restoreFixtureConfigurations(snapshotData);
 
-  // Tomar un nuevo snapshot del estado restaurado
+  // Take a new snapshot of the restored state
   const newSnapshotId = await hre.network.provider.send("evm_snapshot");
   console.log(`New snapshot taken with ID: ${newSnapshotId}`);
 
-  // Actualizar el archivo de snapshot con el nuevo ID
+  // Update snapshot file with new ID
   snapshotData.id = newSnapshotId;
   const snapshotPath = path.join(__dirname, "../snapshots/latest.json");
   fs.writeFileSync(snapshotPath, JSON.stringify(snapshotData, null, 2));
@@ -380,8 +380,8 @@ async function restoreBlockchainState(snapshotData) {
 }
 
 /**
- * Ejecuta pruebas para verificar que los contratos funcionan correctamente
- * @param {object} snapshotData Datos del snapshot
+ * Run tests to verify that contracts are working correctly
+ * @param {object} snapshotData Snapshot data
  */
 async function verifyContractsWork(snapshotData) {
   if (!snapshotData.deployments.ConsensusMain) {
@@ -390,7 +390,7 @@ async function verifyContractsWork(snapshotData) {
   }
 
   try {
-    // Verificar que podemos interactuar con ConsensusMain
+    // Verify that we can interact with ConsensusMain
     console.log(`Verifying ConsensusMain functionality...`);
 
     const [signer] = await hre.ethers.getSigners();
@@ -400,7 +400,7 @@ async function verifyContractsWork(snapshotData) {
       signer
     );
 
-    // Verificar que el contrato responde
+    // Verify that the contract responds
     const owner = await consensusMain.owner();
 
     // Verify GhostFactory functionality if it exists
@@ -467,10 +467,10 @@ async function main() {
   const originalBlockNumber = snapshotData.blockNumber;
   console.log(`Original block number: ${originalBlockNumber}`);
 
-  // Restaurar el estado
+  // Restore state
   await restoreState(snapshotData);
 
-  // Verificar que todo funciona correctamente
+  // Verify everything works correctly
   await verifyContractsWork(snapshotData);
 
   // Verify final block number
@@ -489,7 +489,7 @@ async function main() {
   await takeNewSnapshot();
 }
 
-// Ejecutar el script
+// Execute the script
 main()
   .then(() => process.exit(0))
   .catch(err => {
