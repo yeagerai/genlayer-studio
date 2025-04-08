@@ -103,17 +103,8 @@ RUN echo '#!/bin/sh' > /app/start.sh && \
     echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Creating initial snapshot..."' >> /app/start.sh && \
     echo '  npx hardhat run scripts/snapshot.js --network genlayer_network' >> /app/start.sh && \
     echo 'fi' >> /app/start.sh && \
-    echo '/app/snapshot.sh &' >> /app/start.sh && \
     echo 'wait' >> /app/start.sh && \
     chmod +x /app/start.sh
-
-# Add the automatic snapshot script
-RUN echo '#!/bin/sh' > /app/snapshot.sh && \
-    echo 'while true; do' >> /app/snapshot.sh && \
-    echo '  npx hardhat run scripts/snapshot.js --network genlayer_network' >> /app/snapshot.sh && \
-    echo '  sleep 5' >> /app/snapshot.sh && \
-    echo 'done' >> /app/snapshot.sh && \
-    chmod +x /app/snapshot.sh
 
 # Add a healthcheck script
 RUN echo '#!/bin/sh' > /app/healthcheck.sh && \
