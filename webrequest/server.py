@@ -11,11 +11,11 @@ from time import time
 import llms
 
 from pathlib import Path
+import asyncio
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 from dotenv import load_dotenv
-
 load_dotenv()
 
 app = Flask("genvm_api")
@@ -47,11 +47,11 @@ _cached_plugins: dict[str, llms.Plugin] = {}
 
 
 @jsonrpc.method("llm_plugin_get")
-def llm_plugin_get(plugin: str, plugin_config: dict) -> dict:
+async def llm_plugin_get(plugin: str, plugin_config: dict) -> dict:
     id = json.dumps({"plugin": plugin, "config": plugin_config}, sort_keys=True)
     got = _cached_plugins.get(id, None)
     if got is None:
-        plug = llms.get_llm_plugin(plugin, plugin_config)
+        plug = await llms.get_llm_plugin(plugin, plugin_config)
         _cached_plugins[id] = plug
     return return_success(id)
 
@@ -95,7 +95,7 @@ async def llm_genvm_module_call(
     id = json.dumps({"plugin": plugin, "config": plugin_config}, sort_keys=True)
     got = _cached_plugins.get(id, None)
     if got is None:
-        got = llms.get_llm_plugin(plugin, plugin_config)
+        got = await llms.get_llm_plugin(plugin, plugin_config)
         _cached_plugins[id] = got
     res = await got.call(obj, prompt, None, None)
     return return_success(res)
