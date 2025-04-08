@@ -227,7 +227,7 @@ def restore_stuck_transactions():
                 )
             else:
                 contract_processor.update_contract_state(
-                    contract_address=tx1_accepted["to_address"],
+                    contract_address=tx2["to_address"],
                     accepted_state={},
                     finalized_state={},
                 )
