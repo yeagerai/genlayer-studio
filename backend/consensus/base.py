@@ -77,7 +77,6 @@ def node_factory(
         msg_handler=msg_handler,
         validator=Validator(
             address=validator["address"],
-            private_key=validator["private_key"],
             stake=validator["stake"],
             llmprovider=LLMProvider(
                 provider=validator["provider"],
@@ -2382,6 +2381,21 @@ def _emit_transactions(
             data = {
                 "calldata": pending_transaction.calldata,
             }
+
+        receipt = context.consensus_service.emit_transaction_event(
+            "addTransaction",
+            context.transaction.consensus_data.leader_receipt.node_config,
+            context.transaction.to_address,
+            pending_transaction.address,
+            5,
+            0,
+            data,
+        )
+
+        new_event_receipt = context.consensus_service.wait_new_transaction_event(
+            receipt
+        )
+
         context.transactions_processor.insert_transaction(
             context.transaction.to_address,  # new calls are done by the contract
             pending_transaction.address,
@@ -2391,4 +2405,5 @@ def _emit_transactions(
             nonce=nonce,
             leader_only=context.transaction.leader_only,  # Cascade
             triggered_by_hash=context.transaction.hash,
+            transaction_hash=new_event_receipt["tx_id_hex"],
         )
