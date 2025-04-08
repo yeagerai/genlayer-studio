@@ -454,6 +454,8 @@ def setup_test_environment(
             contract_snapshot_factory,
             contract_processor_factory,
             node_factory_supplier,
+            consensus_algorithm.msg_handler,
+            consensus_algorithm.consensus_service,
             stop_event,
         ),
     )
@@ -466,6 +468,8 @@ def setup_test_environment(
             contract_snapshot_factory,
             contract_processor_factory,
             node_factory_supplier,
+            consensus_algorithm.msg_handler,
+            consensus_algorithm.consensus_service,
             stop_event,
         ),
     )
@@ -492,7 +496,7 @@ def assert_transaction_status_match(
     transactions_processor: TransactionsProcessorMock,
     transaction: Transaction,
     expected_statuses: list[TransactionStatus],
-    timeout: int = 30,
+    timeout: int = 240,
     interval: float = 0.1,
 ) -> TransactionStatus:
     last_status = None

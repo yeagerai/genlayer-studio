@@ -78,6 +78,7 @@ class TransactionContext:
         self.involved_validators: list[dict] = []
         self.remaining_validators: list = []
         self.num_validators: int = 0
+        self.contract_snapshot: ContractSnapshot | None = None
         self.contract_snapshot_supplier: Callable[[], ContractSnapshot] | None = None
         self.votes: dict = {}
         self.validator_nodes: list = []

@@ -31,7 +31,11 @@ class ContractProcessor:
         """
         Update the accepted and/or finalized state of the contract in the database.
         """
-        contract = self.session.query(CurrentState).filter_by(id=contract_address).one()
+        contract = (
+            self.session.query(CurrentState)
+            .filter_by(id=contract_address)
+            .one_or_none()
+        )
 
         new_state = {
             "accepted": (
@@ -46,9 +50,10 @@ class ContractProcessor:
             ),
         }
         new_contract_data = {
-            "code": contract.data["code"],
-            "state": new_state,
+            "code": contract.data["code"] if contract else "",
+            "state": new_state if new_state else {},
         }
 
-        contract.data = new_contract_data
+        if contract:
+            contract.data = new_contract_data
         self.session.commit()

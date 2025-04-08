@@ -455,9 +455,6 @@ class ConsensusAlgorithm:
                                                     self.consensus_service,
                                                 )
                                                 task_session.commit()
-                                                print(
-                                                    "COMMITTED PROCESSING FINALIZATION!!!"
-                                                )
 
                                         else:
                                             # Handle transactions that are appealed
@@ -518,7 +515,6 @@ class ConsensusAlgorithm:
                                                 )
                                                 task_session.commit()
 
-                                print("creating task queue now for undetermined...")
                                 tg.create_task(
                                     exec_appeal_window_with_session_handling(
                                         task_session, accepted_undetermined_queue
