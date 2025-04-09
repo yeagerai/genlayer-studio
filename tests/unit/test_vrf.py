@@ -1,4 +1,4 @@
-from backend.consensus.vrf import get_validators_for_transaction
+from backend.consensus.helpers.vrf import get_validators_for_transaction
 from unittest.mock import Mock
 
 
