@@ -5,10 +5,11 @@ on:
     types: [closed]
     branches:
       - main  # or your default branch name
+  workflow_dispatch:  # Add manual trigger
 
 jobs:
   trigger-infra-workflow:
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Infra Deploy Studio to Staging Environment
