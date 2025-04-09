@@ -239,7 +239,31 @@ class ConsensusService:
                 tx, private_key=account_private_key
             )
 
-            return self.forward_transaction(signed_tx.raw_transaction)
+            receipt = self.forward_transaction(signed_tx.raw_transaction)
+
+            if (
+                event_name == "emitTransactionAccepted"
+                or event_name == "emitTransactionFinalized"
+            ):
+                new_tx_events = (
+                    consensus_main_contract.events.NewTransaction().process_receipt(
+                        receipt
+                    )
+                )
+
+                tx_ids_hex = []
+                for new_tx_event in new_tx_events:
+                    tx_id = new_tx_event["args"]["txId"]
+                    tx_ids_hex.append(
+                        "0x" + tx_id.hex() if isinstance(tx_id, bytes) else tx_id
+                    )
+
+                return {
+                    "receipt": receipt,
+                    "tx_ids_hex": tx_ids_hex,
+                }
+
+            return receipt
 
         except Exception as e:
             print(f"[CONSENSUS_SERVICE]: Error emitting {event_name}: {str(e)}")
