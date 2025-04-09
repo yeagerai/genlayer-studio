@@ -16,7 +16,6 @@ from backend.node.base import Node
 from backend.node.types import ExecutionMode, Receipt
 from backend.consensus.helpers.transaction_context import TransactionContext
 from backend.consensus.states.pending_state import PendingState
-from backend.consensus.states.transaction_state import TransactionState
 from backend.rollup.consensus_service import ConsensusService
 import threading
 import time
@@ -40,7 +39,7 @@ def execute_transfer(
         transaction (dict): The transaction details including from_address, to_address, and value.
         transactions_processor (TransactionsProcessor): Instance responsible for handling transaction operations within the database.
         accounts_manager (AccountsManager): Manager to handle account balance updates.
-        msg_handler (MessageHandler): The message handler.
+        msg_handler (MessageHandler): Handler for messaging.
     """
     # Check if the transaction is a fund_account call
     if not transaction.from_address is None:
@@ -57,7 +56,6 @@ def execute_transfer(
                 msg_handler,
             )
 
-            # transactions_processor.create_rollup_transaction(transaction.hash)
             return
 
         # Update the balance of the sender account
@@ -84,66 +82,6 @@ def execute_transfer(
     )
 
     # transactions_processor.create_rollup_transaction(transaction.hash)
-
-
-# async def process_transaction(
-#     context: TransactionContext,
-#     initial_state_class: TransactionState,
-#     pending_queues: dict[str, asyncio.Queue],
-#     is_pending_queue_task_running: Callable[[str], bool],
-#     start_pending_queue_task: Callable[[str], None],
-#     stop_pending_queue_task: Callable[[str], None],
-#     transactions_processor: TransactionsProcessor = None,
-# ):
-#     """
-#     Process a transaction through state transitions.
-
-#     Args:
-#         context (TransactionContext): The transaction context.
-#         initial_state_class: The initial state class to start with.
-#     """
-#     state = initial_state_class()
-#     while True:
-#         next_state = await state.handle(context)
-#         if next_state is None:
-#             break
-#         elif next_state == "leader_appeal_success":
-#             TransactionProcessor.rollback_transactions(
-#                 context,
-#                 pending_queues,
-#                 is_pending_queue_task_running,
-#                 stop_pending_queue_task,
-#                 start_pending_queue_task,
-#             )
-#             break
-#         elif next_state == "validator_appeal_success":
-#             TransactionProcessor.rollback_transactions(
-#                 context,
-#                 pending_queues,
-#                 is_pending_queue_task_running,
-#                 stop_pending_queue_task,
-#                 start_pending_queue_task,
-#             )
-#             transactions_processor.update_transaction_status(
-#                 context.transaction.hash,
-#                 TransactionStatus.PENDING,
-#             )
-
-#             previous_contact_state = (
-#                 context.transaction.contract_snapshot.encoded_state
-#                 if hasattr(context.transaction.contract_snapshot, "encoded_state")
-#                 else {}
-#             )
-#             if previous_contact_state:
-#                 leaders_contract_snapshot = context.contract_snapshot_factory(
-#                     context.transaction.to_address
-#                 )
-#                 context.contract_processor.update_contract_state(
-#                     context.transaction.to_address,
-#                     accepted_state=previous_contact_state,
-#                 )
-#             break
-#         state = next_state
 
 
 class TransactionProcessor:
@@ -244,88 +182,6 @@ class TransactionProcessor:
                 for queue_address in pending_queues:
                     pending_queue_task_running[queue_address] = False
             await asyncio.sleep(consensus_sleep_time)
-
-    # @staticmethod
-    # async def process_pending_transactions(
-    #     get_session: Callable[[], Session],
-    #     chain_snapshot_factory: Callable[[Session], ChainSnapshot],
-    #     transactions_processor_factory: Callable[[Session], TransactionsProcessor],
-    #     accounts_manager_factory: Callable[[Session], AccountsManager],
-    #     contract_snapshot_factory: Callable[
-    #         [str, Session, Transaction], ContractSnapshot
-    #     ],
-    #     contract_processor_factory: Callable[],
-    #     node_factory: Callable[
-    #         [
-    #             dict,
-    #             ExecutionMode,
-    #             ContractSnapshot,
-    #             Receipt | None,
-    #             MessageHandler,
-    #             Callable[[str], ContractSnapshot],
-    #         ],
-    #         Node,
-    #     ],
-    #     pending_queues: dict[str, asyncio.Queue],
-    #     pending_queue_stop_events: dict[str, asyncio.Event],
-    #     pending_queue_task_running: dict[str, bool],
-    #     msg_handler: MessageHandler,
-    #     consensus_service: ConsensusService,
-    #     consensus_sleep_time: float,
-    #     stop_event: asyncio.Event,
-    # ):
-    #     """Process pending transactions."""
-    #     asyncio.set_event_loop(asyncio.new_event_loop())
-    #     while not stop_event.is_set():
-    #         try:
-    #             async with asyncio.TaskGroup() as tg:
-    #                 for queue_address, queue in pending_queues.items():
-    #                     if (
-    #                         not queue.empty()
-    #                         and not pending_queue_stop_events.get(
-    #                             queue_address, asyncio.Event()
-    #                         ).is_set()
-    #                     ):
-    #                         pending_queue_task_running[queue_address] = True
-    #                         transaction: Transaction = await queue.get()
-    #                         with get_session() as session:
-    #
-    #                             async def exec_transaction_with_session_handling(
-    #                                 session: Session,
-    #                                 transaction: Transaction,
-    #                                 queue_address: str,
-    #                             ):
-    #                                 transactions_processor = (
-    #                                     transactions_processor_factory(session)
-    #                                 )
-    #                                 await TransactionProcessor.exec_transaction(
-    #                                     transaction,
-    #                                     transactions_processor,
-    #                                     chain_snapshot_factory(session),
-    #                                     accounts_manager_factory(session),
-    #                                     lambda contract_address: contract_snapshot_factory(
-    #                                         contract_address, session, transaction
-    #                                     ),
-    #                                     # contract_processor,
-    #                                     node_factory,
-    #                                     msg_handler,
-    #                                     consensus_service,
-    #                                 )
-    #                                 session.commit()
-    #                                 pending_queue_task_running[queue_address] = False
-    #
-    #                         tg.create_task(
-    #                             exec_transaction_with_session_handling(
-    #                                 session, transaction, queue_address
-    #                             )
-    #                         )
-    #
-    #         except Exception as e:
-    #             print("Error running consensus", e)
-    #         finally:
-    #             for queue_address in pending_queues:
-    #                 pending_queue_task_running[queue_address] = False
-    #         await asyncio.sleep(consensus_sleep_time)
 
     @staticmethod
     async def exec_transaction(

@@ -180,8 +180,6 @@ class ConsensusAlgorithm:
             ],
             Node,
         ] = node_factory,
-        msg_handler: MessageHandler = MessageHandler,
-        consensus_service: ConsensusService = ConsensusService,
         stop_event: threading.Event = threading.Event(),
     ):
         """Run the process pending transactions loop."""
@@ -200,107 +198,12 @@ class ConsensusAlgorithm:
                 self.pending_queue_stop_events,
                 self.pending_queue_task_running,
                 self.msg_handler,
-                consensus_service,
+                self.consensus_service,
                 self.consensus_sleep_time,
                 stop_event,
             )
         )
         loop.close()
-
-    async def _process_pending_transactions(
-        self,
-        chain_snapshot_factory: Callable[[Session], ChainSnapshot],
-        transactions_processor_factory: Callable[[Session], TransactionsProcessor],
-        accounts_manager_factory: Callable[[Session], AccountsManager],
-        contract_snapshot_factory: Callable[
-            [str, Session, Transaction], ContractSnapshot
-        ],
-        contract_processor_factory: Callable[[Session], ContractProcessor],
-        node_factory: Callable[
-            [
-                dict,
-                ExecutionMode,
-                ContractSnapshot,
-                Receipt | None,
-                MessageHandler,
-                Callable[[str], ContractSnapshot],
-            ],
-            Node,
-        ],
-        msg_handler: MessageHandler,
-        consensus_service: ConsensusService,
-        stop_event: threading.Event,
-    ):
-        """
-        Process pending transactions.
-
-        Args:
-            chain_snapshot_factory (Callable[[Session], ChainSnapshot]): Creates snapshots of the blockchain state at specific points in time.
-            transactions_processor_factory (Callable[[Session], TransactionsProcessor]): Creates processors to modify transactions.
-            accounts_manager_factory (Callable[[Session], AccountsManager]): Creates managers to handle account state.
-            contract_snapshot_factory (Callable[[str, Session, Transaction], ContractSnapshot]): Creates snapshots of contract states.
-            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Creates node instances that can execute contracts and process transactions.
-            stop_event (threading.Event): Control signal to terminate the pending transactions process.
-        """
-        # Set a new event loop for the processing of pending transactions
-        asyncio.set_event_loop(asyncio.new_event_loop())
-        # Note: ollama uses GPU resources and webrequest aka selenium uses RAM
-        # TODO: Consider using async sessions to avoid blocking the current thread
-        while not stop_event.is_set():
-            try:
-                async with asyncio.TaskGroup() as tg:
-                    for queue_address, queue in self.pending_queues.items():
-                        if (
-                            not queue.empty()
-                            and not self.pending_queue_stop_events.get(
-                                queue_address, asyncio.Event()
-                            ).is_set()
-                        ):
-                            # Sessions cannot be shared between coroutines; create a new session for each coroutine
-                            # Reference: https://docs.sqlalchemy.org/en/20/orm/session_basics.html#is-the-session-thread-safe-is-asyncsession-safe-to-share-in-concurrent-tasks
-                            self.pending_queue_task_running[queue_address] = True
-                            transaction: Transaction = await queue.get()
-                            with self.get_session() as session:
-
-                                async def exec_transaction_with_session_handling(
-                                    session: Session,
-                                    transaction: Transaction,
-                                    queue_address: str,
-                                ):
-                                    transactions_processor = (
-                                        transactions_processor_factory(session)
-                                    )
-                                    await TransactionProcessor.exec_transaction(
-                                        transaction,
-                                        transactions_processor,
-                                        chain_snapshot_factory(session),
-                                        accounts_manager_factory(session),
-                                        lambda contract_address: contract_snapshot_factory(
-                                            contract_address, session, transaction
-                                        ),
-                                        contract_processor_factory(session),
-                                        node_factory,
-                                        self.msg_handler,
-                                        self.consensus_service,
-                                    )
-                                    session.commit()
-                                    self.pending_queue_task_running[queue_address] = (
-                                        False
-                                    )
-
-                            tg.create_task(
-                                exec_transaction_with_session_handling(
-                                    session, transaction, queue_address
-                                )
-                            )
-
-            except Exception as e:
-                print("Error running consensus", e)
-                print(traceback.format_exc())
-            finally:
-                for queue_address in self.pending_queues:
-                    self.pending_queue_task_running[queue_address] = False
-            await asyncio.sleep(self.consensus_sleep_time)
 
     def run_appeal_window_loop(
         self,
@@ -330,8 +233,6 @@ class ConsensusAlgorithm:
             ],
             Node,
         ] = node_factory,
-        msg_handler: MessageHandler = MessageHandler,
-        consensus_service: ConsensusService = ConsensusService,
         stop_event: threading.Event = threading.Event(),
     ):
         """Run the loop to handle the appeal window."""
@@ -345,8 +246,6 @@ class ConsensusAlgorithm:
                 contract_snapshot_factory,
                 contract_processor_factory,
                 node_factory,
-                msg_handler,
-                consensus_service,
                 stop_event,
             )
         )
@@ -372,8 +271,6 @@ class ConsensusAlgorithm:
             ],
             Node,
         ],
-        msg_handler: MessageHandler,
-        consensus_service: ConsensusService,
         stop_event: threading.Event,
     ):
         """
@@ -479,8 +376,8 @@ class ConsensusAlgorithm:
                                                         task_session
                                                     ),
                                                     node_factory,
-                                                    msg_handler,
-                                                    consensus_service,
+                                                    self.msg_handler,
+                                                    self.consensus_service,
                                                     self.pending_queues,
                                                     self.is_pending_queue_task_running,
                                                     self.start_pending_queue_task,
@@ -506,8 +403,8 @@ class ConsensusAlgorithm:
                                                         task_session
                                                     ),
                                                     node_factory,
-                                                    msg_handler,
-                                                    consensus_service,
+                                                    self.msg_handler,
+                                                    self.consensus_service,
                                                     self.pending_queues,
                                                     self.is_pending_queue_task_running,
                                                     self.start_pending_queue_task,

@@ -7,6 +7,7 @@ from backend.protocol_rpc.message_handler.types import (
     EventType,
     EventScope,
 )
+from backend.protocol_rpc.message_handler.base import MessageHandler
 
 
 class TransactionStatusManager:
@@ -15,7 +16,7 @@ class TransactionStatusManager:
         transactions_processor: TransactionsProcessor,
         transaction_hash: str,
         new_status: TransactionStatus,
-        msg_handler,
+        msg_handler: MessageHandler,
     ):
         """
         Dispatch a transaction status update.
@@ -24,9 +25,12 @@ class TransactionStatusManager:
             transactions_processor (TransactionsProcessor): Instance responsible for handling transaction operations within the database.
             transaction_hash (str): Hash of the transaction.
             new_status (TransactionStatus): New status of the transaction.
-            msg_handler: Handler for messaging.
+            msg_handler (MessageHandler): Handler for messaging.
         """
+        # Update the transaction status in the transactions processor
         transactions_processor.update_transaction_status(transaction_hash, new_status)
+
+        # Send a message indicating the transaction status update
         msg_handler.send_message(
             LogEvent(
                 "transaction_status_updated",

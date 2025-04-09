@@ -398,7 +398,7 @@ def consensus_algorithm() -> ConsensusAlgorithm:
     consensus_algorithm = ConsensusAlgorithm(
         get_session=lambda: mock_session,
         msg_handler=mock_msg_handler,
-        consensus_service=MagicMock(),
+        consensus_service=mock_session,
     )
     consensus_algorithm.finality_window_time = DEFAULT_FINALITY_WINDOW
     consensus_algorithm.consensus_sleep_time = DEFAULT_CONSENSUS_SLEEP_TIME
@@ -454,8 +454,6 @@ def setup_test_environment(
             contract_snapshot_factory,
             contract_processor_factory,
             node_factory_supplier,
-            consensus_algorithm.msg_handler,
-            consensus_algorithm.consensus_service,
             stop_event,
         ),
     )
@@ -468,8 +466,6 @@ def setup_test_environment(
             contract_snapshot_factory,
             contract_processor_factory,
             node_factory_supplier,
-            consensus_algorithm.msg_handler,
-            consensus_algorithm.consensus_service,
             stop_event,
         ),
     )
@@ -496,7 +492,7 @@ def assert_transaction_status_match(
     transactions_processor: TransactionsProcessorMock,
     transaction: Transaction,
     expected_statuses: list[TransactionStatus],
-    timeout: int = 240,
+    timeout: int = 30,
     interval: float = 0.1,
 ) -> TransactionStatus:
     last_status = None
@@ -511,6 +507,7 @@ def assert_transaction_status_match(
             return current_status
 
         if current_status != last_status:
+            print(f"Status changed to: {current_status}")  # Add debugging
             last_status = current_status
 
         # Wait for next status change
