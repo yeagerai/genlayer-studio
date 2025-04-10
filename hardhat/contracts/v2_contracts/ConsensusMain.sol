@@ -177,12 +177,20 @@ contract ConsensusMain is
 			if (!ghostContracts[internalMessages[i].recipient]) {
 				_storeGhost(internalMessages[i].recipient);
 			}
-			_addTransaction(
+			(
+				bytes32 generated_txId,
+				address newActivator
+			) = _addTransaction(
 				internalMessages[i].sender,
 				internalMessages[i].recipient,
 				5, // or pass as part of internalMessages.data
 				0, // or pass as part of internalMessages.data
 				internalMessages[i].data
+			);
+			emit InternalMessageProcessed(
+				generated_txId,
+				internalMessages[i].recipient,
+				newActivator
 			);
 		}
 	}
