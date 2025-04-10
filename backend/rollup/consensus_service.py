@@ -228,7 +228,7 @@ class ConsensusService:
             tx = event_function(*args).build_transaction(
                 {
                     "from": account_address,
-                    "gas": 500000,
+                    "gas": 5000000,
                     "gasPrice": 0,
                     "nonce": self.web3.eth.get_transaction_count(account_address),
                 }

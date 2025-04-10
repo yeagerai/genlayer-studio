@@ -174,6 +174,9 @@ contract ConsensusMain is
 
 	function _processInternalMessages(internalMessageData[] calldata internalMessages) internal {
 		for (uint256 i = 0; i < internalMessages.length; i++) {
+			if (!ghostContracts[internalMessages[i].recipient]) {
+				_storeGhost(internalMessages[i].recipient);
+			}
 			_addTransaction(
 				internalMessages[i].sender,
 				internalMessages[i].recipient,
