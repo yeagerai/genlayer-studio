@@ -78,7 +78,7 @@ class ConsensusService:
             if contract_name == "ConsensusMain":
                 default_contract = get_default_consensus_main_contract()
                 print(
-                    f"[CONSENSUS_SERVICE]: Error loading contract from netowrk, retrieving default contract: {str(e)} , using default contract: {default_contract}"
+                    f"[CONSENSUS_SERVICE]: Error loading contract from netowrk, retrieving default contract: {str(e)}"
                 )
                 return default_contract
             else:
