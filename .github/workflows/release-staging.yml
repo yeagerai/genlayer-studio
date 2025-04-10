@@ -18,4 +18,4 @@ jobs:
             -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: token ${{ secrets.CI_BOT_SECRET }}" \
             https://api.github.com/repos/yeagerai/genlayer-simulator-infra/actions/workflows/deploy-stage.yml/dispatches \
-            -d '{"ref":"main"}' 
+            -d '{"ref":"main"}'
