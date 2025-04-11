@@ -268,8 +268,8 @@ class AppealProcessor:
                         context,
                         pending_queues,
                         is_pending_queue_task_running,
-                        stop_pending_queue_task,
                         start_pending_queue_task,
+                        stop_pending_queue_task,
                     )
                     TransactionStatusManager.dispatch_transaction_status_update(
                         context.transactions_processor,
