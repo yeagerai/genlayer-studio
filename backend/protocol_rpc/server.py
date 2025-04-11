@@ -137,7 +137,7 @@ def shutdown_session(exception=None):
 def run_socketio():
     socketio.run(
         app,
-        debug=os.environ["VSCODEDEBUG"] == "false",
+        debug=os.environ.get("VSCODEDEBUG", "false") == "false",
         port=os.environ.get("RPCPORT"),
         host="0.0.0.0",
         allow_unsafe_werkzeug=True,
