@@ -8,11 +8,11 @@ from flask_jsonrpc import JSONRPC
 from flask_jsonrpc.exceptions import JSONRPCError
 from sqlalchemy import Table
 from sqlalchemy.orm import Session
-
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
 from backend.rollup.consensus_service import ConsensusService
-from backend.database_handler.models import Base
+from backend.database_handler.models import Base, CurrentState
+from backend.database_handler.errors import AccountNotFoundError
 from backend.domain.types import LLMProvider, Validator, TransactionType
 from backend.node.create_nodes.providers import (
     get_default_provider_for,
@@ -167,12 +167,10 @@ def create_validator(
         )
         validate_provider(llm_provider)
 
-    account = accounts_manager.create_new_account()
-
+    new_address = accounts_manager.create_new_account().address
     return validators_registry.create_validator(
         Validator(
-            address=account.address,
-            private_key=account.key,
+            address=new_address,
             stake=stake,
             llmprovider=llm_provider,
         )
@@ -223,15 +221,10 @@ async def create_random_validators(
     response = []
     for detail in details:
         stake = random.randint(min_stake, max_stake)
-        validator_account = accounts_manager.create_new_account()
+        validator_address = accounts_manager.create_new_account().address
 
         validator = validators_registry.create_validator(
-            Validator(
-                address=validator_account.address,
-                private_key=validator_account.key,
-                stake=stake,
-                llmprovider=detail,
-            )
+            Validator(address=validator_address, stake=stake, llmprovider=detail)
         )
         response.append(validator)
 
@@ -495,10 +488,6 @@ def send_raw_transaction(
     if not transaction_signature_valid:
         raise InvalidTransactionError("Transaction signature verification failed")
 
-    rollup_transaction_details = consensus_service.add_transaction(
-        signed_rollup_transaction, from_address
-    )
-
     to_address = decoded_rollup_transaction.to_address
     nonce = decoded_rollup_transaction.nonce
     value = decoded_rollup_transaction.value
@@ -515,15 +504,7 @@ def send_raw_transaction(
         if value > 0:
             raise InvalidTransactionError("Deploy Transaction can't send value")
 
-        if (
-            rollup_transaction_details is None
-            or not "recipient" in rollup_transaction_details
-        ):
-            new_account = accounts_manager.create_new_account()
-            new_contract_address = new_account.address
-        else:
-            new_contract_address = rollup_transaction_details["recipient"]
-            accounts_manager.create_new_account_with_address(new_contract_address)
+        new_contract_address = accounts_manager.create_new_account().address
 
         transaction_data = {
             "contract_address": new_contract_address,
@@ -541,12 +522,6 @@ def send_raw_transaction(
         to_address = genlayer_transaction.to_address
         transaction_data = {"calldata": genlayer_transaction.data.calldata}
 
-    # Obtain transaction hash from new transaction event
-    if rollup_transaction_details and "tx_id_hex" in rollup_transaction_details:
-        transaction_hash = rollup_transaction_details["tx_id_hex"]
-    else:
-        transaction_hash = None
-
     # Insert transaction into the database
     transaction_hash = transactions_processor.insert_transaction(
         genlayer_transaction.from_address,
@@ -556,9 +531,8 @@ def send_raw_transaction(
         genlayer_transaction.type.value,
         nonce,
         leader_only,
-        None,
-        transaction_hash,
     )
+    consensus_service.forward_transaction(signed_rollup_transaction)
 
     return transaction_hash
 
@@ -750,6 +724,19 @@ def get_contract(consensus_service: ConsensusService, contract_name: str) -> dic
     }
 
 
+def get_contract_by_address(
+    request_session: Session, accounts_manager: AccountsManager, address: str
+) -> dict[str, Any] | None:
+    if not accounts_manager.is_valid_address(address):
+        raise AccountNotFoundError(address, f"Account {address} does not exist.")
+
+    deployed_contract: CurrentState = accounts_manager.get_account(address)
+    if deployed_contract:
+        return {"contract_code": base64.b64decode(deployed_contract.data.get("code"))}
+
+    return None
+
+
 def register_all_rpc_endpoints(
     jsonrpc: JSONRPC,
     msg_handler: MessageHandler,
@@ -918,4 +905,8 @@ def register_all_rpc_endpoints(
     register_rpc_endpoint(
         partial(get_block_by_hash, transactions_processor),
         method_name="eth_getBlockByHash",
+    )
+    register_rpc_endpoint(
+        partial(get_contract_by_address, request_session, accounts_manager),
+        method_name="gen_getContractByAddress",
     )
