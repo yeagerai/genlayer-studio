@@ -51,7 +51,7 @@ async def llm_plugin_get(plugin: str, plugin_config: dict) -> dict:
     id = json.dumps({"plugin": plugin, "config": plugin_config}, sort_keys=True)
     got = _cached_plugins.get(id, None)
     if got is None:
-        plug = await llms.get_llm_plugin(plugin, plugin_config)
+        plug = llms.get_llm_plugin(plugin, plugin_config)
         _cached_plugins[id] = plug
     return return_success(id)
 
@@ -61,9 +61,14 @@ def llm_plugin_is_available(plugin_id: str) -> dict:
     return return_success(_cached_plugins[plugin_id].is_available())
 
 
-@jsonrpc.method("llm_plugin_is_model_available")
-def llm_plugin_is_model_available(plugin_id: str, model: str) -> dict:
-    return return_success(_cached_plugins[plugin_id].is_model_available(model))
+@jsonrpc.method("llm_plugin_get")
+def llm_plugin_get(plugin: str, plugin_config: dict) -> dict:
+    id = json.dumps({"plugin": plugin, "config": plugin_config}, sort_keys=True)
+    got = _cached_plugins.get(id, None)
+    if got is None:
+        plug = llms.get_llm_plugin(plugin, plugin_config)
+        _cached_plugins[id] = plug
+    return return_success(id)
 
 
 @jsonrpc.method("llm_plugin_call")
