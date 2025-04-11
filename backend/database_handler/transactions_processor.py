@@ -70,7 +70,6 @@ class TransactionsProcessor:
                 transaction.hash
                 for transaction in transaction_data.triggered_transactions
             ],
-            "ghost_contract_address": transaction_data.ghost_contract_address,
             "appealed": transaction_data.appealed,
             "timestamp_awaiting_finalization": transaction_data.timestamp_awaiting_finalization,
             "appeal_failed": transaction_data.appeal_failed,
@@ -196,8 +195,6 @@ class TransactionsProcessor:
                 from_address, to_address, data, value, type, current_nonce
             )
 
-        ghost_contract_address = None
-
         new_transaction = Transactions(
             hash=transaction_hash,
             from_address=from_address,
@@ -220,7 +217,6 @@ class TransactionsProcessor:
                 if triggered_by_hash
                 else None
             ),
-            ghost_contract_address=ghost_contract_address,
             appealed=False,
             timestamp_awaiting_finalization=None,
             appeal_failed=0,
