@@ -163,6 +163,7 @@ class LLMProviderDBModel(Base):
     config: Mapped[dict | str] = mapped_column(JSONB)
     plugin: Mapped[str] = mapped_column(String(255), nullable=False)
     plugin_config: Mapped[dict] = mapped_column(JSONB)
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(True), server_default=func.current_timestamp(), init=False
     )
