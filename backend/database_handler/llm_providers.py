@@ -12,9 +12,10 @@ class LLMProviderRegistry:
 
     def reset_defaults(self):
         """Reset all providers to their default values."""
-        # Delete only default providers
+        # Delete all providers
         self.session.query(LLMProviderDBModel).delete()
 
+        # Add default providers
         providers = get_default_providers()
         for provider in providers:
             self.session.add(_to_db_model(provider, is_default=True))

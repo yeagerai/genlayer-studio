@@ -24,7 +24,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Add is_default column with default value false
-    # Use sa.Boolean() for the column type to ensure proper boolean handling
     op.add_column(
         "llm_provider",
         sa.Column(
@@ -56,9 +55,7 @@ def upgrade() -> None:
                     llm_provider_query.c.plugin == plugin,
                 )
             )
-            .values(
-                is_default=sa.true()
-            )  # Use SQLAlchemy's true() for proper boolean value
+            .values(is_default=sa.true())
         )
 
 
