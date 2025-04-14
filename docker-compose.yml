@@ -1,35 +1,13 @@
 services:
-  nginx:
-    profiles: ["studio"]  # For hosted studio, turned off by default
-    build:
-      context: ./
-      dockerfile: ./docker/Dockerfile.nginx
-    cap_add:
-      - NET_BIND_SERVICE
+  traefik:
+    profiles: ["studio"]
+    image: traefik:v3.2
     ports:
       - "80:80"
-      - "443:443"   # For the frontend
-      - "8443:8443" # For the jsonrpc
+      - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - ./nginx/rpc-blocker.lua:/etc/nginx/rpc-blocker.lua:ro
-    depends_on:
-      - frontend
-      - jsonrpc
-    healthcheck:
-      test: ["CMD", "nginx", "-t"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: always
-    security_opt:
-      - "no-new-privileges=true"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yaml:/etc/traefik/traefik.yaml:ro
 
   frontend:
     build:
@@ -58,6 +36,11 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    labels:
+      traefik.enable: true
+      traefik.http.routers.frontend.rule: Host(`${SERVER_NAME}`)
+      traefik.http.routers.frontend.entrypoints: websecure
+      traefik.http.routers.frontend.tls: true
 
   jsonrpc:
     build:
@@ -71,6 +54,7 @@ services:
       - RPCDEBUGPORT=${RPCDEBUGPORT}
       - WEBREQUESTPORT=${WEBREQUESTPORT}
       - WEBREQUESTHOST=${WEBREQUESTHOST}
+      - WEBDRIVERHOST=${WEBDRIVERHOST}
       - WEBREQUESTPROTOCOL=${WEBREQUESTPROTOCOL}
     ports:
       - "${RPCPORT}:${RPCPORT}"
@@ -81,19 +65,22 @@ services:
       - hardhat_artifacts:/app/hardhat/artifacts
       - hardhat_deployments:/app/hardhat/deployments
     depends_on:
-      hardhat:
-        condition: service_healthy
       database-migration:
         condition: service_completed_successfully
       webrequest:
         condition: service_healthy
+      webdriver:
+        condition: service_healthy
+      hardhat:
+        condition: service_healthy
+        required: false
     expose:
       - "${RPCPORT}"
     healthcheck:
       test: ["CMD", "python3", "backend/healthcheck.py", "--port", "${RPCPORT}"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 10
       start_period: 30s
     restart: always
     security_opt:
@@ -105,18 +92,22 @@ services:
         max-file: "3"
     deploy:
       replicas: ${JSONRPC_REPLICAS:-1}
+    labels:
+      traefik.enable: true
+      traefik.http.routers.jsonrpc.rule: Host(`${SERVER_NAME}`) && (PathPrefix(`/api`) || PathPrefix(`/socket.io`))
+      traefik.http.routers.jsonrpc.entrypoints: websecure
+      traefik.http.routers.jsonrpc.tls: true
 
   webrequest:
     build:
       context: ./
       dockerfile: ./docker/Dockerfile.webrequest
-    shm_size: 2gb
     volumes:
       - ./.env:/app/webrequest/.env
       - ./webrequest:/app/webrequest
     environment:
       - FLASK_SERVER_PORT=${WEBREQUESTPORT}
-      - WEBREQUESTSELENIUMPORT=${WEBREQUESTSELENIUMPORT}
+      - WEBDRIVERPORT=${WEBDRIVERPORT}
       # TODO: remove this in production
       - PYTHONUNBUFFERED=1
     depends_on:
@@ -124,7 +115,26 @@ services:
         condition: service_started
     expose:
       - "${WEBREQUESTPORT}:${WEBREQUESTPORT}"
-      - "${WEBREQUESTSELENIUMPORT}:${WEBREQUESTSELENIUMPORT}"
+    restart: always
+    security_opt:
+      - "no-new-privileges=true"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  webdriver:
+    build:
+      context: ./
+      dockerfile: ./docker/Dockerfile.webdriver
+    shm_size: 2gb
+    volumes:
+      - ./.env:/wd/.env
+    environment:
+      - WEBDRIVERPORT=${WEBDRIVERPORT}
+    expose:
+      - "${WEBDRIVERPORT}:${WEBDRIVERPORT}"
     restart: always
     security_opt:
       - "no-new-privileges=true"
@@ -184,6 +194,7 @@ services:
       - DB_URL=postgresql://${DBUSER}:${DBUSER}@postgres/${DBNAME}
       - WEBREQUESTPORT=${WEBREQUESTPORT}
       - WEBREQUESTHOST=${WEBREQUESTHOST}
+      - WEBDRIVERHOST=${WEBDRIVERHOST}
       - WEBREQUESTPROTOCOL=${WEBREQUESTPROTOCOL}
     depends_on:
       postgres:
@@ -192,33 +203,28 @@ services:
         condition: service_healthy
 
   hardhat:
+    profiles: ["hardhat"]
     build:
       context: .
       dockerfile: docker/Dockerfile.hardhat
     ports:
       - "${HARDHAT_PORT:-8545}:8545"
     volumes:
-      - ./hardhat/contracts:/app/contracts
-      - ./hardhat/scripts:/app/scripts
-      - ./hardhat/test:/app/test
-      - ./hardhat/hardhat.config.js:/app/hardhat.config.js
-      - ./hardhat/deploy:/app/deploy
+      - ./hardhat:/app/hardhat_src
       - hardhat_artifacts:/app/artifacts
       - hardhat_cache:/app/cache
       - hardhat_deployments:/app/deployments
-      - ignition_deployments:/app/ignition/deployments
-    environment:
-      - HARDHAT_NETWORK=hardhat
+      - hardhat_snapshots:/app/snapshots
     restart: always
-    healthcheck:
-      test: ["CMD", "curl", "-X", "POST", "-H", "Content-Type: application/json", "--fail", "http://localhost:8545", "-d", '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}']
-      interval: 60s
-      timeout: 30s
-      retries: 5
-      start_period: 60s
+    labels:
+      traefik.enable: true
+      traefik.http.routers.hardhat.rule: Host(`${SERVER_NAME}`) && PathPrefix(`/hardhat`)
+      traefik.http.routers.hardhat.entrypoints: websecure
+      traefik.http.routers.hardhat.tls: true
 
 volumes:
   hardhat_artifacts:
   hardhat_cache:
   hardhat_deployments:
   ignition_deployments:
+  hardhat_snapshots:

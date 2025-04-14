@@ -3,8 +3,7 @@
   "plugin": "openai",
   "model": "o1-mini",
   "config": {
-    "temperature": 0.75,
-    "max_tokens": 500
+    "max_completion_tokens": 5000
   },
   "plugin_config": {
     "api_key_env_var": "OPENAIKEY",

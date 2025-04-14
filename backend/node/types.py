@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Literal
 import base64
 
 import collections.abc
@@ -125,6 +125,8 @@ class PendingTransaction:
     calldata: bytes
     code: bytes | None
     salt_nonce: int
+    on: Literal["accepted", "finalized"]
+    value: int
 
     def is_deploy(self) -> bool:
         return self.code is not None
@@ -150,13 +152,17 @@ class PendingTransaction:
                 calldata=base64.b64decode(input["calldata"]),
                 code=base64.b64decode(input["code"]),
                 salt_nonce=input.get("salt_nonce", 0),
+                value=input.get("value", 0),
+                on=input.get("on", "finalized"),
             )
         else:
             return cls(
                 address=input["address"],
                 calldata=base64.b64decode(input["calldata"]),
+                value=input.get("value", 0),
                 code=None,
                 salt_nonce=0,
+                on=input.get("on", "finalized"),
             )
 
 
@@ -172,6 +178,7 @@ class Receipt:
     execution_result: ExecutionResultStatus
     vote: Optional[Vote] = None
     pending_transactions: Iterable[PendingTransaction] = ()
+    genvm_result: dict[str, str] | None = None
 
     def to_dict(self):
         return {
@@ -188,6 +195,7 @@ class Receipt:
                 pending_transaction.to_dict()
                 for pending_transaction in self.pending_transactions
             ],
+            "genvm_result": self.genvm_result,
         }
 
     @classmethod
@@ -209,6 +217,7 @@ class Receipt:
                     PendingTransaction.from_dict(pending_transaction)
                     for pending_transaction in input.get("pending_transactions", [])
                 ],
+                genvm_result=input.get("genvm_result"),
             )
         else:
             return None
