@@ -58,6 +58,13 @@ def get_transaction_count(account_address: str):
     return parsed_raw_response["result"]
 
 
+def get_consensus_contract_address() -> str:
+    payload_data = payload("sim_getConsensusContract", "ConsensusMain")
+    raw_response = post_request_localhost(payload_data)
+    parsed_raw_response = raw_response.json()
+    return parsed_raw_response["result"]["address"]
+
+
 def call_contract_method(
     contract_address: str,
     from_account: Account,
@@ -78,7 +85,9 @@ def call_contract_method(
         )
     ).json()
     enc_result = method_response["result"]
-    return calldata.decode(eth_utils.hexadecimal.decode_hex(enc_result))
+    result = calldata.decode(eth_utils.hexadecimal.decode_hex(enc_result))
+    print(f"Result of {method_name}: {result}")
+    return result
 
 
 def _prepare_transaction(
@@ -88,11 +97,8 @@ def _prepare_transaction(
     value: int = 0,
 ) -> str:
     """Helper function to prepare a transaction for the consensus contract"""
-    # Get consensus contract address from environment
-    consensus_contract_address = os.environ.get("CONSENSUS_CONTRACT_ADDRESS")
-    if not consensus_contract_address:
-        raise ValueError("CONSENSUS_CONTRACT_ADDRESS not set in environment")
-
+    # Get consensus contract address from JSONRPC
+    consensus_contract_address = get_consensus_contract_address()
     # Default values from environment or constants
     num_initial_validators = int(os.environ.get("DEFAULT_NUM_INITIAL_VALIDATORS", 1))
     max_rotations = int(os.environ.get("DEFAULT_CONSENSUS_MAX_ROTATIONS", 100))
@@ -144,6 +150,7 @@ def write_intelligent_contract(
     method_name: str | None,
     method_args: list | None,
     value: int = 0,
+    assert_success: bool = True,
 ):
     # Encode the transaction data for the contract method
     call_method_data = (
@@ -160,11 +167,22 @@ def write_intelligent_contract(
     signed_transaction = _prepare_transaction(
         account, contract_address, genlayer_transaction_data, value
     )
-    return send_raw_transaction(signed_transaction)
+    result = send_raw_transaction(signed_transaction)
+    if assert_success and result["consensus_data"]:
+        assert (
+            result["consensus_data"]["leader_receipt"]["execution_result"] == "SUCCESS"
+        ), print(
+            "Send transaction: ",
+            json.dumps(decode_nested_data(result), indent=3),
+        )
+    return result
 
 
 def deploy_intelligent_contract(
-    account: Account, contract_code: str | bytes, method_args: list
+    account: Account,
+    contract_code: str | bytes,
+    method_args: list,
+    assert_success: bool = True,
 ) -> tuple[str, dict]:
     # Prepare deploy data
     deploy_data = [
@@ -182,6 +200,13 @@ def deploy_intelligent_contract(
     )
 
     result = send_raw_transaction(signed_transaction)
+    if assert_success:
+        assert (
+            result["consensus_data"]["leader_receipt"]["execution_result"] == "SUCCESS"
+        ), print(
+            "Deployed intelligent contract: ",
+            json.dumps(decode_nested_data(result), indent=3),
+        )
     contract_address = result["data"]["contract_address"]
     return contract_address, result
 
@@ -219,3 +244,39 @@ def wait_for_transaction(transaction_hash: str, interval: int = 10, retries: int
     raise TimeoutError(
         f"Transaction {transaction_hash} not finalized after {retries} retries"
     )
+
+
+def decode_base64(encoded_str):
+    try:
+        return base64.b64decode(encoded_str).decode("utf-8")
+    except UnicodeDecodeError:
+        return encoded_str
+
+
+def decode_contract_state(contract_state):
+    decoded_state = {}
+    for key, value in contract_state.items():
+        decoded_state[decode_base64(key)] = {
+            decode_base64(k): decode_base64(v) for k, v in value.items()
+        }
+    return decoded_state
+
+
+def decode_nested_data(data):
+    """
+    Helper function to decode data from the transaction response to have more readable output
+    """
+    if isinstance(data, dict):
+        decoded_data = {}
+        for key, value in data.items():
+            if key == "calldata" and isinstance(value, str):
+                decoded_data[key] = calldata.decode(base64.b64decode(value))
+            elif key == "contract_state" and isinstance(value, dict):
+                decoded_data[key] = decode_contract_state(value)
+            else:
+                decoded_data[key] = decode_nested_data(value)
+        return decoded_data
+    elif isinstance(data, list):
+        return [decode_nested_data(item) for item in data]
+    else:
+        return data

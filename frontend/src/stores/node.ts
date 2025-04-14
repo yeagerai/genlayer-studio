@@ -28,8 +28,7 @@ export const useNodeStore = defineStore('nodeStore', () => {
     'endpoint_success',
     'endpoint_error',
     'transaction_status_updated',
-    'consensus_reached',
-    'consensus_failed',
+    'consensus_event',
     'contract_stdout',
     'read_contract',
     'write_contract',
@@ -208,10 +207,6 @@ export const useNodeStore = defineStore('nodeStore', () => {
     ],
   );
 
-  async function setFinalityWindowTime(time: number) {
-    rpcClient.setFinalityWindowTime(time);
-  }
-
   return {
     logs,
     validators,
@@ -236,7 +231,5 @@ export const useNodeStore = defineStore('nodeStore', () => {
     availableModelsForProvider,
     validatorsOrderedById,
     hasAtLeastOneValidator,
-
-    setFinalityWindowTime,
   };
 });

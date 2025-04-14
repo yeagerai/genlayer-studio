@@ -9,6 +9,10 @@ import EmptyListPlaceholder from '@/components/Simulator/EmptyListPlaceholder.vu
 const contractsStore = useContractsStore();
 const transactionsStore = useTransactionsStore();
 
+const props = defineProps({
+  finalityWindow: Number,
+});
+
 const transactions = computed(() => {
   const contractTransactions = transactionsStore.transactions.filter(
     (t) => t.localContractId === contractsStore.currentContractId,
@@ -54,6 +58,7 @@ const handleClearTransactions = () => {
         v-for="transaction in transactions"
         :key="transaction.hash"
         :transaction="transaction"
+        :finalityWindow="props.finalityWindow ?? 0"
       />
     </div>
 

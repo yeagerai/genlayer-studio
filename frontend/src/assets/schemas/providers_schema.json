@@ -87,6 +87,9 @@
           },
           "model": {
             "enum": [
+              "claude-3-7-sonnet-20250219",
+              "claude-3-5-haiku-20241022",
+              "claude-3-5-sonnet-20241022",
               "claude-3-5-sonnet-20240620",
               "claude-3-opus-20240229",
               "claude-3-sonnet-20240229",
@@ -282,7 +285,16 @@
                 "minimum": 100,
                 "maximum": 2000,
                 "multipleOf": 10,
-                "default": 500
+                "default": 500,
+                "$comment": "gpt-4, gpt-4o, gpt-4o-mini"
+              },
+              "max_completion_tokens": {
+                "type": "integer",
+                "minimum": 3000,
+                "maximum": 25000,
+                "multipleOf": 100,
+                "default": 5000,
+                "$comment": "o1-preview, o1-mini"
               }
             }
           }

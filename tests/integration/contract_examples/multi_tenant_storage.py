@@ -3,8 +3,7 @@
 from genlayer import *
 
 
-@gl.contract
-class MultiTentantStorage:
+class MultiTentantStorage(gl.Contract):
     """
     Same functionality as UserStorage, but implemented with multiple storage contracts.
     Each user is assigned to a storage contract, and all storage contracts are managed by this same contract.
@@ -39,11 +38,11 @@ class MultiTentantStorage:
     @gl.public.write
     def update_storage(self, new_storage: str) -> None:
         # Assign user to a storage contract if not already assigned
-        if gl.message.sender_account not in self.mappings:
-            self.mappings[gl.message.sender_account] = self.available_storage_contracts[
+        if gl.message.sender_address not in self.mappings:
+            self.mappings[gl.message.sender_address] = self.available_storage_contracts[
                 -1
             ]
             self.available_storage_contracts.pop()
 
-        contract_to_use = self.mappings[gl.message.sender_account]
+        contract_to_use = self.mappings[gl.message.sender_address]
         gl.ContractAt(contract_to_use).emit(gas=100000).update_storage(new_storage)
