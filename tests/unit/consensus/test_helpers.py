@@ -506,7 +506,6 @@ def assert_transaction_status_match(
             return current_status
 
         if current_status != last_status:
-            print(f"Status changed to: {current_status}")  # Add debugging
             last_status = current_status
 
         # Wait for next status change

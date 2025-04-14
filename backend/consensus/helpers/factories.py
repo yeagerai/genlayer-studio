@@ -100,7 +100,6 @@ def contract_snapshot_factory(
         ret.balance = transaction.value or 0
         ret.states = {"accepted": {}, "finalized": {}}
         ret.encoded_state = ret.states["accepted"]
-        ret.ghost_contract_address = transaction.ghost_contract_address
         return ret
 
     # Return a ContractSnapshot instance for an existing contract

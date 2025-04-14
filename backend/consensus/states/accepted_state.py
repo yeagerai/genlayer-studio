@@ -123,7 +123,6 @@ class AcceptedState(TransactionState):
                                 "finalized": {},
                             },
                             "code": context.transaction.data["contract_code"],
-                            "ghost_contract_address": context.transaction.ghost_contract_address,
                         },
                     }
                     leaders_contract_snapshot.register_contract(new_contract)
