@@ -250,8 +250,6 @@ const checkRules = () => {
           // Extract model lists from schema comments
           const gpt4Models =
             openAIConfig.max_tokens?.$comment?.split(', ') || [];
-          const o1Models =
-            openAIConfig.max_completion_tokens?.$comment?.split(', ') || [];
 
           // Start with empty properties
           const newConfigProperties: Record<string, SchemaProperty> = {};
