@@ -263,7 +263,6 @@ def transaction_to_dict(transaction: Transaction) -> dict:
         "v": transaction.v,
         "leader_only": transaction.leader_only,
         "created_at": transaction.created_at,
-        "ghost_contract_address": transaction.ghost_contract_address,
         "appealed": transaction.appealed,
         "timestamp_awaiting_finalization": transaction.timestamp_awaiting_finalization,
         "appeal_failed": transaction.appeal_failed,
