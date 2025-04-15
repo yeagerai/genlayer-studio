@@ -254,6 +254,9 @@ class TransactionsProcessor:
         )
         transaction.status = new_status
 
+        if not transaction.consensus_history:
+            transaction.consensus_history = {}
+
         if "current_status_changes" in transaction.consensus_history:
             transaction.consensus_history["current_status_changes"].append(
                 new_status.value
