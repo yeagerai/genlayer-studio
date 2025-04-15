@@ -51,8 +51,8 @@ const leaderReceipt = computed(() => {
 
 const eqOutputs = computed(() => {
   const outputs = leaderReceipt.value?.eq_outputs || {};
-  return Object.entries(outputs).map(([key, value]) => {
-    const decodedResult = resultToUserFriendlyJson(value);
+  return Object.entries(outputs).map(([key, value]: [string, unknown]) => {
+    const decodedResult = resultToUserFriendlyJson(String(value));
     const parsedValue = decodedResult?.payload?.readable ?? value;
     console.log("🚀 ~ returnObject.entries ~ parsedValue 1:", parsedValue)
     try {
