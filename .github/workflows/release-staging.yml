@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Get CI Bot Token
-        uses: tibdex/github-app-token@v1
+        uses: tibdex/github-app-token@v2
         id: ci_bot_token
         with:
           app_id: ${{ secrets.CI_BOT_APP_ID }}
