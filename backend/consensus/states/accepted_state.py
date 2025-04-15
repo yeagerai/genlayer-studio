@@ -125,7 +125,7 @@ class AcceptedState(TransactionState):
                             "code": context.transaction.data["contract_code"],
                         },
                     }
-                    leaders_contract_snapshot.register_contract(new_contract)
+                    context.contract_processor.register_contract(new_contract)
 
                     # Send a message indicating successful contract deployment
                     context.msg_handler.send_message(
