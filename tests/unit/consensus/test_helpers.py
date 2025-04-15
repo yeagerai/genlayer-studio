@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import Callable
 from unittest.mock import AsyncMock, Mock, MagicMock
+from pathlib import Path
 import time
 import threading
 import pytest
@@ -14,6 +15,7 @@ from backend.domain.types import Transaction, TransactionType
 from backend.node.base import Node
 from backend.node.types import ExecutionMode, ExecutionResultStatus, Receipt, Vote
 from backend.protocol_rpc.message_handler.base import MessageHandler
+import backend.validators as validators
 from typing import Optional
 from backend.rollup.consensus_service import ConsensusService
 from datetime import datetime
@@ -209,12 +211,8 @@ class TransactionsProcessorMock:
 
 
 class SnapshotMock:
-    def __init__(self, nodes: list, transactions_processor: TransactionsProcessorMock):
-        self.nodes = nodes
+    def __init__(self, transactions_processor: TransactionsProcessorMock):
         self.transactions_processor = transactions_processor
-
-    def get_all_validators(self):
-        return self.nodes
 
     def get_pending_transactions(self):
         return self.transactions_processor.get_pending_transactions()
@@ -396,6 +394,7 @@ def node_factory(
     receipt: Receipt | None,
     msg_handler: MessageHandler,
     contract_snapshot_factory: Callable[[str], ContractSnapshot],
+    snap: validators.Snapshot,
     vote: Vote,
 ):
     mock = Mock(Node)
@@ -489,11 +488,13 @@ def consensus_algorithm() -> ConsensusAlgorithm:
     # Mock the session and other dependencies
     mock_session = MagicMock()
     mock_msg_handler = MessageHandlerMock()
+    mock_validators_manager = AsyncMock()
 
     consensus_algorithm = ConsensusAlgorithm(
         get_session=lambda: mock_session,
         msg_handler=mock_msg_handler,
         consensus_service=MagicMock(),
+        validators_manager=mock_validators_manager,
     )
     consensus_algorithm.finality_window_time = DEFAULT_FINALITY_WINDOW
     consensus_algorithm.consensus_sleep_time = DEFAULT_CONSENSUS_SLEEP_TIME
@@ -508,7 +509,28 @@ def setup_test_environment(
     get_vote: Callable[[], Vote],
     contract_db: ContractDB | None = None,
 ):
-    chain_snapshot = SnapshotMock(nodes, transactions_processor)
+    import contextlib
+    from backend.domain.types import Validator, LLMProvider
+
+    @contextlib.asynccontextmanager
+    async def fake_snapshot():
+        snap_nodes: list[validators.SingleValidatorSnapshot] = []
+        for i in nodes:
+            snap_nodes.append(
+                validators.SingleValidatorSnapshot(
+                    Validator(
+                        i["address"],
+                        i["stake"],
+                        LLMProvider("heurist", "other", {}, "heurist", {}),
+                    ),
+                    "",
+                )
+            )
+        yield validators.Snapshot(snap_nodes, Path())
+
+    consensus_algorithm.validators_manager.snapshot = fake_snapshot
+
+    chain_snapshot = SnapshotMock(transactions_processor)
     accounts_manager = AccountsManagerMock()
 
     chain_snapshot_factory = lambda session: chain_snapshot
@@ -530,63 +552,74 @@ def setup_test_environment(
         lambda address, session, transaction: ContractSnapshotMock(address, contract_db)
     )
     contract_processor_factory = lambda session: ContractProcessorMock(contract_db)
-    node_factory_supplier = (
-        lambda node, mode, contract_snapshot, receipt, msg_handler, contract_snapshot_factory: created_nodes.append(
+
+    def node_factory_supplier(*args):
+        created_nodes.append(
             node_factory(
-                node,
-                mode,
-                contract_snapshot,
-                receipt,
-                msg_handler,
-                contract_snapshot_factory,
-                get_vote(),
+                *args,
+                vote=get_vote(),
             )
         )
-        or created_nodes[-1]
-    )
+        return created_nodes[-1]
 
     # Create a stop event
     stop_event = threading.Event()
 
+    import asyncio
+
+    consensus_loop = asyncio.new_event_loop()
+
+    async def start_all():
+        futures = [
+            consensus_algorithm.run_crawl_snapshot_loop(
+                chain_snapshot_factory, transactions_processor_factory, stop_event
+            ),
+            consensus_algorithm.run_process_pending_transactions_loop(
+                chain_snapshot_factory,
+                transactions_processor_factory,
+                accounts_manager_factory,
+                contract_snapshot_factory,
+                contract_processor_factory,
+                node_factory_supplier,
+                stop_event,
+            ),
+            consensus_algorithm.run_appeal_window_loop(
+                chain_snapshot_factory,
+                transactions_processor_factory,
+                accounts_manager_factory,
+                contract_snapshot_factory,
+                contract_processor_factory,
+                node_factory_supplier,
+                stop_event,
+            ),
+        ]
+
+        await asyncio.wait(
+            [asyncio.tasks.create_task(f) for f in futures],
+            return_when="FIRST_EXCEPTION",
+        )
+
+    def start_thread():
+        try:
+            consensus_loop.run_until_complete(start_all())
+        except BaseException as e:
+            import traceback
+
+            traceback.print_exception(e)
+            import sys
+
+            sys.exit(1)
+
     # Start the crawl_snapshot, process_pending_transactions and appeal_window threads
-    thread_crawl_snapshot = threading.Thread(
-        target=consensus_algorithm.run_crawl_snapshot_loop,
-        args=(chain_snapshot_factory, transactions_processor_factory, stop_event),
-    )
-    thread_process_pending_transactions = threading.Thread(
-        target=consensus_algorithm.run_process_pending_transactions_loop,
-        args=(
-            chain_snapshot_factory,
-            transactions_processor_factory,
-            accounts_manager_factory,
-            contract_snapshot_factory,
-            contract_processor_factory,
-            node_factory_supplier,
-            stop_event,
-        ),
-    )
-    thread_appeal_window = threading.Thread(
-        target=consensus_algorithm.run_appeal_window_loop,
-        args=(
-            chain_snapshot_factory,
-            transactions_processor_factory,
-            accounts_manager_factory,
-            contract_snapshot_factory,
-            contract_processor_factory,
-            node_factory_supplier,
-            stop_event,
-        ),
+    thread_all = threading.Thread(
+        target=start_thread,
     )
 
-    thread_crawl_snapshot.start()
-    thread_process_pending_transactions.start()
-    thread_appeal_window.start()
+    thread_all.start()
 
     return (
         stop_event,
-        thread_crawl_snapshot,
-        thread_process_pending_transactions,
-        thread_appeal_window,
+        thread_all,
     )
 
 

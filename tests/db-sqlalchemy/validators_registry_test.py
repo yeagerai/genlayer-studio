@@ -13,7 +13,7 @@ def validators_registry(session: Session) -> Iterable[ValidatorsRegistry]:
     yield ValidatorsRegistry(session)
 
 
-def test_validators_registry(validators_registry: ValidatorsRegistry):
+async def test_validators_registry(validators_registry: ValidatorsRegistry):
     validator_address = "0xabcdef"
 
     stake = 1
@@ -36,7 +36,7 @@ def test_validators_registry(validators_registry: ValidatorsRegistry):
     )
 
     # Create
-    actual_validator = validators_registry.create_validator(validator)
+    actual_validator = await validators_registry.create_validator(validator)
     assert validators_registry.count_validators() == 1
 
     assert actual_validator["stake"] == stake

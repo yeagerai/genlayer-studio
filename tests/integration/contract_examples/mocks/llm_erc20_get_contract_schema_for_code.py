@@ -19,6 +19,7 @@ llm_erc20_contract_schema = {
             "transfer": {
                 "kwparams": {},
                 "params": [["amount", "int"], ["to_address", "string"]],
+                "payable": False,
                 "readonly": False,
                 "ret": "null",
             },

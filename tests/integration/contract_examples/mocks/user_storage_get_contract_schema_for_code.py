@@ -19,6 +19,7 @@ user_storage_contract_schema = {
             "update_storage": {
                 "kwparams": {},
                 "params": [["new_storage", "string"]],
+                "payable": False,
                 "readonly": False,
                 "ret": "null",
             },
