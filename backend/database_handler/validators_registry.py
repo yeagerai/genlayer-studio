@@ -1,6 +1,6 @@
 # consensus/domain/state.py
 
-from typing import List
+from typing import List, Callable, Coroutine
 from sqlalchemy.orm import Session
 
 from backend.domain.types import LLMProvider, Validator
@@ -53,11 +53,13 @@ class ValidatorsRegistry:
     def get_validator(self, validator_address: str) -> dict:
         return to_dict(self._get_validator_or_fail(validator_address))
 
-    def create_validator(self, validator: Validator) -> dict:
+
+class ModifiableValidatorsRegistry(ValidatorsRegistry):
+    async def create_validator(self, validator: Validator) -> dict:
         self.session.add(_to_db_model(validator))
         return self.get_validator(validator.address)
 
-    def update_validator(
+    async def update_validator(
         self,
         new_validator: Validator,
     ) -> dict:
@@ -72,12 +74,12 @@ class ValidatorsRegistry:
 
         return to_dict(validator)
 
-    def delete_validator(self, validator_address):
+    async def delete_validator(self, validator_address):
         validator = self._get_validator_or_fail(validator_address)
 
         self.session.delete(validator)
 
-    def delete_all_validators(self):
+    async def delete_all_validators(self):
         self.session.query(Validators).delete()
 
 
