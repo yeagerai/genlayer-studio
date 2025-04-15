@@ -41,6 +41,23 @@ class Validator:
     llmprovider: LLMProvider
     id: int | None = None
 
+    @staticmethod
+    def from_dict(d: dict) -> "Validator":
+        ret = Validator.__new__(Validator)
+
+        ret.address = d["address"]
+        ret.stake = d["stake"]
+        ret.llmprovider = LLMProvider(
+            provider=d["provider"],
+            config=d["config"],
+            model=d["model"],
+            plugin=d["plugin"],
+            plugin_config=d["plugin_config"],
+        )
+        ret.id = d.get("id", None)
+
+        return ret
+
     def to_dict(self):
         result = {
             "address": self.address,
@@ -149,13 +166,13 @@ class Transaction:
             leader_only=input.get("leader_only", False),
             created_at=input.get("created_at"),
             ghost_contract_address=input.get("ghost_contract_address"),
-            appealed=input.get("appealed"),
+            appealed=input.get("appealed", False),
             timestamp_awaiting_finalization=input.get(
                 "timestamp_awaiting_finalization"
             ),
             appeal_failed=input.get("appeal_failed", 0),
             appeal_undetermined=input.get("appeal_undetermined", False),
-            consensus_history=input.get("consensus_history"),
+            consensus_history=input.get("consensus_history", {}),
             timestamp_appeal=input.get("timestamp_appeal"),
             appeal_processing_time=input.get("appeal_processing_time", 0),
             contract_snapshot=ContractSnapshot.from_dict(

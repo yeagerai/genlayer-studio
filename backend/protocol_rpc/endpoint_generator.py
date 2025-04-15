@@ -61,6 +61,10 @@ def _decode_exception(x: Exception) -> typing.Any:
         return repr(x)
 
 
+import asyncio
+from .aio import *
+
+
 def generate_rpc_endpoint(
     jsonrpc: JSONRPC,
     msg_handler: MessageHandler,
@@ -74,9 +78,11 @@ def generate_rpc_endpoint(
     @wraps(partial_function)
     async def endpoint(*endpoint_args, **endpoint_kwargs):
         try:
-            result = partial_function(*endpoint_args, **endpoint_kwargs)
-            if hasattr(result, "__await__"):
-                result = await result
+            initial_result = partial_function(*endpoint_args, **endpoint_kwargs)
+            if not hasattr(initial_result, "__await__"):
+                result = initial_result
+            else:
+                result = await run_in_main_server_loop(initial_result)
             return _serialize(result)
 
         except JSONRPCError as e:

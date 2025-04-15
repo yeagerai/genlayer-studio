@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from eth_account import Account
 from eth_abi import encode
 from web3 import Web3
+import base64
 
 from tests.common.transactions import sign_transaction, encode_transaction_data
 
