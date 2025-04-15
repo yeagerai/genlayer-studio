@@ -5,7 +5,7 @@
   "properties": {
     "provider": {
       "type": "string",
-      "examples": ["ollama", "heuristai", "openai", "anthropic", "xai"]
+      "examples": ["ollama", "heuristai", "openai", "anthropic", "xai", "google"]
     },
     "model": {
       "type": "string"
@@ -49,8 +49,26 @@
           },
           "model": {
             "enum": [
-              "grok-2-1212",
-              "grok-3-mini-beta"
+              "grok-2-1212"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provider": { "const": "google" }
+        }
+      },
+      "then": {
+        "properties": {
+          "plugin": {
+            "const": "openai"
+          },
+          "model": {
+            "enum": [
+              "gemini-2.0-flash-lite-001"
             ]
           }
         }
