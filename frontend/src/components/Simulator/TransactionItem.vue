@@ -54,7 +54,6 @@ const eqOutputs = computed(() => {
   return Object.entries(outputs).map(([key, value]: [string, unknown]) => {
     const decodedResult = resultToUserFriendlyJson(String(value));
     const parsedValue = decodedResult?.payload?.readable ?? value;
-    console.log("🚀 ~ returnObject.entries ~ parsedValue 1:", parsedValue)
     try {
       if (typeof parsedValue === 'string') {
         return {
@@ -67,7 +66,7 @@ const eqOutputs = computed(() => {
     }
     return {
       key,
-      value: parsedValue
+      value: parsedValue,
     };
   });
 });
@@ -355,15 +354,18 @@ function prettifyTxData(x: any): any {
             >
           </div>
         </ModalSection>
-        
+
         <ModalSection v-if="eqOutputs.length > 0">
           <template #title>Equivalence Principles Output</template>
           <div class="flex flex-col gap-2">
             <div v-for="(output, index) in eqOutputs" :key="index">
-              <div class="font-medium text-xs mb-1">Equivalence Principle #{{ output.key }}:</div>
+              <div class="mb-1 text-xs font-medium">
+                Equivalence Principle #{{ output.key }}:
+              </div>
               <pre
                 class="overflow-x-auto whitespace-pre rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
-                >{{ output.value }}</pre>
+                >{{ output.value }}</pre
+              >
             </div>
           </div>
         </ModalSection>

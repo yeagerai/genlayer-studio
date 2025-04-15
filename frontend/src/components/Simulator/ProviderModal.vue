@@ -243,10 +243,9 @@ const checkRules = () => {
     if (rule.if?.properties?.plugin?.const === newProviderData.plugin) {
       pluginConfigProperties.value =
         rule.then?.properties?.plugin_config?.properties || {};
-      
+
       // Handle other plugins normally
-      configProperties.value =
-        rule.then?.properties?.config?.properties || {};
+      configProperties.value = rule.then?.properties?.config?.properties || {};
       if (isCreateMode.value) {
         const config = extractDefaults(configProperties.value);
         newProviderData.config = config ? { ...config } : {};
