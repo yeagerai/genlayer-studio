@@ -1,7 +1,7 @@
 services:
   traefik:
     profiles: ["studio"]
-    image: traefik:v3.2
+    image: traefik:v3.3
     ports:
       - "80:80"
       - "443:443"
@@ -145,7 +145,7 @@ services:
         max-file: "3"
 
   ollama:
-    image: ollama/ollama:0.5.7
+    image: ollama/ollama:0.6.5
     ports:
       - 11434:11434
     volumes:
