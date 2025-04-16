@@ -168,12 +168,18 @@ async function main() {
   const [owner, validator1, validator2, validator3, validator4, validator5] = await hre.ethers.getSigners();
   const validators = [validator1, validator2, validator3, validator4, validator5];
 
-  // Get contract instances from local deployment
-  console.log("Network name:", hre.network.name);
-  console.log("Using local deployment files from deployments/localhost");
-
-  // Load contracts from deployment files
-  const deployPath = path.join('./deployments/localhost');
+  // Determine the correct deployment path based on network
+  let deployPath;
+  if (hre.network.name === "genlayer_network") {
+    deployPath = path.join('./deployments/genlayer_network');
+    console.log("Using deployment files from deployments/genlayer_network");
+  } else if (hre.network.name === "hardhat") {
+    deployPath = path.join('./deployments/hardhat');
+    console.log("Using deployment files from deployments/hardhat");
+  } else {
+    deployPath = path.join('./deployments/localhost');
+    console.log("Using deployment files from deployments/localhost");
+  }
 
   try {
     // Verify directory exists
