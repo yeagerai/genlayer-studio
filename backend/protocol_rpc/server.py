@@ -61,7 +61,9 @@ def create_app():
     transactions_processor = TransactionsProcessor(sqlalchemy_db.session)
     accounts_manager = AccountsManager(sqlalchemy_db.session)
     validators_registry = ValidatorsRegistry(sqlalchemy_db.session)
-    llm_provider_registry = LLMProviderRegistry(sqlalchemy_db.session)
+    with app.app_context():
+        llm_provider_registry = LLMProviderRegistry(sqlalchemy_db.session)
+        llm_provider_registry.update_defaults()
     consensus_service = ConsensusService()
     transactions_parser = TransactionParser(consensus_service)
     # Initialize validators from environment configuration in a thread
