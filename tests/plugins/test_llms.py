@@ -115,7 +115,7 @@ async def test_anthropic_plugin():
     plugin_config = {"api_key_env_var": "ANTHROPIC_API_KEY", "api_url": None}
     node_config = {
         "provider": "anthropic",
-        "model": "claude-3-5-sonnet-20240620",
+        "model": "claude-3-5-sonnet-20241022",
         "config": {"max_tokens": 10},
         "plugin_config": plugin_config,
     }
