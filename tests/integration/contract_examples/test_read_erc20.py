@@ -1,4 +1,3 @@
-import json
 import os
 
 from tests.common.request import (
@@ -18,6 +17,8 @@ def test_read_erc20(setup_validators, from_account):
 
     It's like a linked list, but with contracts.
     """
+    setup_validators()
+
     TOKEN_TOTAL_SUPPLY = 1000
     current_directory = os.path.dirname(os.path.abspath(__file__))
     contract_file = os.path.join(current_directory, "read_erc20.py")
