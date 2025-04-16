@@ -4,6 +4,7 @@ from backend.node.types import Vote
 from backend.consensus.base import DEFAULT_VALIDATORS_COUNT
 from tests.unit.consensus.test_helpers import (
     TransactionsProcessorMock,
+    ContractDB,
     transaction_to_dict,
     init_dummy_transaction,
     get_nodes_specs,
@@ -16,6 +17,8 @@ from tests.unit.consensus.test_helpers import (
     get_leader_address,
     assert_transaction_status_match,
     assert_transaction_status_change_and_match,
+    check_contract_state,
+    check_contract_state_with_timeout,
 )
 
 
@@ -334,6 +337,17 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
     transactions_processor = TransactionsProcessorMock(
         [transaction_to_dict(transaction)]
     )
+    contract_db = ContractDB(
+        {
+            "to_address": {
+                "id": "to_address",
+                "data": {
+                    "state": {"accepted": {}, "finalized": {}},
+                    "code": "contract_code",
+                },
+            }
+        }
+    )
 
     def get_vote():
         """
@@ -348,10 +362,16 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
             return Vote.AGREE
 
     event, *threads = setup_test_environment(
-        consensus_algorithm, transactions_processor, nodes, created_nodes, get_vote
+        consensus_algorithm,
+        transactions_processor,
+        nodes,
+        created_nodes,
+        get_vote,
+        contract_db,
     )
 
     try:
+        check_contract_state(contract_db, transaction.to_address, {}, {})
         assert_transaction_status_match(
             transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
@@ -363,6 +383,10 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
             transactions_processor.get_transaction_by_hash(transaction.hash)[
                 "timestamp_awaiting_finalization"
             ]
+        )
+
+        check_contract_state_with_timeout(
+            contract_db, transaction.to_address, {"state_var": "0"}, {}
         )
 
         appeal(transaction, transactions_processor)
@@ -397,6 +421,8 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
             transaction, transactions_processor
         )
         old_leader_address = get_leader_address(transaction, transactions_processor)
+
+        check_contract_state_with_timeout(contract_db, transaction.to_address, {}, {})
 
         assert_transaction_status_match(
             transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
@@ -440,6 +466,14 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
             ]
             == 0
         )
+
+        check_contract_state(
+            contract_db, transaction.to_address, {"state_var": "0"}, {"state_var": "0"}
+        )
+        assert created_nodes[0].contract_snapshot.states == {
+            "accepted": {},
+            "finalized": {},
+        }  # appeal nodes use original contract snapshot
     finally:
         cleanup_threads(event, threads)
 
@@ -1188,6 +1222,17 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
     transactions_processor = TransactionsProcessorMock(
         [transaction_to_dict(transaction)]
     )
+    contract_db = ContractDB(
+        {
+            "to_address": {
+                "id": "to_address",
+                "data": {
+                    "state": {"accepted": {}, "finalized": {}},
+                    "code": "contract_code",
+                },
+            }
+        }
+    )
 
     def get_vote():
         """
@@ -1214,10 +1259,16 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
             return Vote.DISAGREE
 
     event, *threads = setup_test_environment(
-        consensus_algorithm, transactions_processor, nodes, created_nodes, get_vote
+        consensus_algorithm,
+        transactions_processor,
+        nodes,
+        created_nodes,
+        get_vote,
+        contract_db,
     )
 
     try:
+        check_contract_state(contract_db, transaction.to_address, {}, {})
         assert_transaction_status_match(
             transactions_processor, transaction, [TransactionStatus.UNDETERMINED.value]
         )
@@ -1242,6 +1293,8 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
         )
         check_validator_count(transaction, transactions_processor, nb_validators)
         assert len(created_nodes) == nb_created_nodes
+
+        check_contract_state(contract_db, transaction.to_address, {}, {})
 
         appeal(transaction, transactions_processor)
         assert_transaction_status_change_and_match(
@@ -1279,6 +1332,8 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
             is not None
         )
 
+        check_contract_state(contract_db, transaction.to_address, {}, {})
+
         appeal(transaction, transactions_processor)
         assert_transaction_status_match(
             transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
@@ -1296,6 +1351,10 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
         assert transactions_processor.updated_transaction_status_history == {
             "transaction_hash": transaction_status_history
         }
+
+        check_contract_state_with_timeout(
+            contract_db, transaction.to_address, {"state_var": "0"}, {}
+        )
 
         nb_validators += nb_validators + 1
         nb_created_nodes += nb_validators * 3
@@ -1363,6 +1422,8 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
         check_validator_count(transaction, transactions_processor, nb_validators)
         assert len(created_nodes) == nb_created_nodes
 
+        check_contract_state_with_timeout(contract_db, transaction.to_address, {}, {})
+
         appeal(transaction, transactions_processor)
         assert_transaction_status_match(
             transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
@@ -1399,5 +1460,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
             ]
             is not None
         )
+
+        check_contract_state(contract_db, transaction.to_address, {}, {})
     finally:
         cleanup_threads(event, threads)
