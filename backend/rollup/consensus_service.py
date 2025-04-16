@@ -6,6 +6,10 @@ from pathlib import Path
 from hexbytes import HexBytes
 import re
 
+from backend.rollup.default_contracts.consensus_main import (
+    get_default_consensus_main_contract,
+)
+
 
 class ConsensusService:
     def __init__(self):
@@ -18,8 +22,7 @@ class ConsensusService:
         hardhat_url = f"{url}:{port}"
         self.web3 = Web3(Web3.HTTPProvider(hardhat_url))
 
-        if not self.web3.is_connected():
-            raise ConnectionError(f"Failed to connect to Hardhat node at {hardhat_url}")
+        self.web3_connected = self.web3.is_connected()
 
     def _get_contract(self, contract_name: str):
         """
@@ -72,8 +75,14 @@ class ConsensusService:
             }
 
         except Exception as e:
-            print(f"[CONSENSUS_SERVICE]: Error loading contract: {str(e)}")
-            return None
+            if contract_name == "ConsensusMain":
+                default_contract = get_default_consensus_main_contract()
+                print(
+                    f"[CONSENSUS_SERVICE]: Error loading contract from netowrk, retrieving default contract: {str(e)}"
+                )
+                return default_contract
+            else:
+                raise e
 
     def _load_deployment_data(self, contract_name: str) -> Optional[Dict[str, Any]]:
         """
