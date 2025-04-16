@@ -69,10 +69,7 @@ def mock_llms():
     env_var = os.getenv("TEST_WITH_MOCK_LLMS", "false")  # default no mocking
     if env_var == "true":
         return True
-    elif env_var == "false":
-        return False
-    else:
-        raise ValueError("TEST_WITH_MOCK_LLMS must be true or false")
+    return False
 
 
 @pytest.fixture
