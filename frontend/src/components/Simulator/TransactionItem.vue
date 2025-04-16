@@ -49,6 +49,28 @@ const leaderReceipt = computed(() => {
   return props.transaction?.data?.consensus_data?.leader_receipt;
 });
 
+const eqOutputs = computed(() => {
+  const outputs = leaderReceipt.value?.eq_outputs || {};
+  return Object.entries(outputs).map(([key, value]: [string, unknown]) => {
+    const decodedResult = resultToUserFriendlyJson(String(value));
+    const parsedValue = decodedResult?.payload?.readable ?? value;
+    try {
+      if (typeof parsedValue === 'string') {
+        return {
+          key,
+          value: JSON.parse(parsedValue),
+        };
+      }
+    } catch (e) {
+      console.error('Error parsing JSON:', e);
+    }
+    return {
+      key,
+      value: parsedValue,
+    };
+  });
+});
+
 const shortHash = computed(() => {
   return props.transaction.hash?.slice(0, 6);
 });
@@ -266,21 +288,6 @@ function prettifyTxData(x: any): any {
           </p>
         </div>
 
-        <ModalSection v-if="transaction.data.data">
-          <template #title>Input</template>
-
-          <pre
-            v-if="transaction.data.data.calldata.readable"
-            class="overflow-hidden rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
-            >{{ transaction.data.data.calldata.readable }}</pre
-          >
-          <pre
-            v-if="!transaction.data.data.calldata.readable"
-            class="overflow-hidden rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
-            >{{ transaction.data.data.calldata.base64 }}</pre
-          >
-        </ModalSection>
-
         <ModalSection v-if="leaderReceipt">
           <template #title>
             Execution
@@ -319,6 +326,46 @@ function prettifyTxData(x: any): any {
                 <span class="font-medium">Provider:</span>
                 {{ leaderReceipt.node_config.provider }}
               </div>
+            </div>
+          </div>
+        </ModalSection>
+
+        <ModalSection v-if="transaction.data.data">
+          <template #title>Input</template>
+
+          <pre
+            v-if="transaction.data.data.calldata.readable"
+            class="overflow-x-auto whitespace-pre rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+            >{{ transaction.data.data.calldata.readable }}</pre
+          >
+          <pre
+            v-if="!transaction.data.data.calldata.readable"
+            class="overflow-x-auto whitespace-pre rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+            >{{ transaction.data.data.calldata.base64 }}</pre
+          >
+        </ModalSection>
+
+        <ModalSection v-if="transaction.data.data">
+          <template #title>Output</template>
+          <div>
+            <pre
+              class="overflow-x-auto whitespace-pre rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+              >{{ transaction.data.result || 'None' }}</pre
+            >
+          </div>
+        </ModalSection>
+
+        <ModalSection v-if="eqOutputs.length > 0">
+          <template #title>Equivalence Principles Output</template>
+          <div class="flex flex-col gap-2">
+            <div v-for="(output, index) in eqOutputs" :key="index">
+              <div class="mb-1 text-xs font-medium">
+                Equivalence Principle #{{ output.key }}:
+              </div>
+              <pre
+                class="overflow-x-auto whitespace-pre rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+                >{{ output.value }}</pre
+              >
             </div>
           </div>
         </ModalSection>
@@ -414,7 +461,7 @@ function prettifyTxData(x: any): any {
           <template #title>Equivalence Principle Output</template>
 
           <pre
-            class="overflow-x-auto rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+            class="overflow-x-auto whitespace-pre rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
             >{{ leaderReceipt?.eq_outputs?.leader }}</pre
           >
         </ModalSection>
