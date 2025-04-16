@@ -329,6 +329,8 @@ class TransactionsProcessor:
             self.set_transaction_timestamp_appeal(transaction, int(time.time()))
             self.session.commit()
 
+        return appeal
+
     def set_transaction_timestamp_awaiting_finalization(
         self, transaction_hash: str, timestamp_awaiting_finalization: int = None
     ):
@@ -357,6 +359,8 @@ class TransactionsProcessor:
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.appeal_undetermined = appeal_undetermined
+
+        return appeal_undetermined
 
     def get_highest_timestamp(self) -> int:
         transaction = (

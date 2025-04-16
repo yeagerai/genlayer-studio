@@ -4,9 +4,7 @@ from unittest.mock import AsyncMock, Mock, MagicMock
 import time
 import threading
 import pytest
-from backend.consensus.base import (
-    ConsensusAlgorithm,
-)
+from backend.consensus.consensus_algorithm import ConsensusAlgorithm
 from backend.database_handler.transactions_processor import TransactionsProcessor
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.models import TransactionStatus
@@ -399,7 +397,7 @@ def consensus_algorithm() -> ConsensusAlgorithm:
     consensus_algorithm = ConsensusAlgorithm(
         get_session=lambda: mock_session,
         msg_handler=mock_msg_handler,
-        consensus_service=MagicMock(),
+        consensus_service=mock_session,
     )
     consensus_algorithm.finality_window_time = DEFAULT_FINALITY_WINDOW
     consensus_algorithm.consensus_sleep_time = DEFAULT_CONSENSUS_SLEEP_TIME
