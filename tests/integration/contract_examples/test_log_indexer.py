@@ -22,13 +22,14 @@ from tests.common.response import (
 )
 
 from tests.common.request import call_contract_method
-import json
 
 TOKEN_TOTAL_SUPPLY = 1000
 TRANSFER_AMOUNT = 100
 
 
 def test_log_indexer(setup_validators, from_account):
+    setup_validators()
+
     # Get contract schema
     contract_code = open("examples/contracts/log_indexer.py", "r").read()
     result_schema = post_request_localhost(

@@ -22,6 +22,7 @@ cur_dir = Path(__file__).parent
 
 
 def test_deploy(setup_validators, from_account):
+    setup_validators()
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, mode="w") as zip:
         zip.write(cur_dir.joinpath("src", "__init__.py"), "contract/__init__.py")

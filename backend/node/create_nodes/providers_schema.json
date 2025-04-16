@@ -15,13 +15,33 @@
     },
     "plugin": {
       "$comment": "Plugin to be loaded by the Studio to interact with the provider",
-      "enum": ["openai", "ollama", "anthropic"]
+      "enum": ["openai", "ollama", "anthropic", "mock"]
     },
     "plugin_config": {
       "type": "object"
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "provider": { "const": "mock" }
+        },
+        "required": ["provider"]
+      },
+      "then": {
+        "properties": {
+          "plugin": {
+            "const": "mock"
+          },
+          "plugin_config": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": {

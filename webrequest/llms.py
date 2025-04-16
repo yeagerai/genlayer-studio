@@ -288,6 +288,47 @@ class AnthropicPlugin:
         return os.environ.get(self.api_key_env_var)
 
 
+class MockPlugin:
+    def __init__(self, plugin_config: dict):
+        pass
+
+    async def call(
+        self,
+        node_config: dict,
+        prompt: str,
+        regex: Optional[str],
+        return_streaming_channel: Optional[asyncio.Queue],
+    ) -> str:
+        def compare_with_template(template: str, actual: str) -> bool:
+            parts = template.split("{")
+            constants = [parts[0]] + [
+                part.split("}")[-1] for part in parts[1:] if "}" in part
+            ]
+            return all(part in actual for part in constants if part)
+
+        cfg = node_config.get("config")
+        responses = cfg.get("responses")
+        eq_result = cfg.get("eq_result")
+
+        if not responses:
+            return ""
+
+        for contract_prompt, response in responses.items():
+            if compare_with_template(contract_prompt, prompt):
+                if "<output>" in prompt:  # non-comparative
+                    return json.dumps({"result": eq_result})
+                else:
+                    return json.dumps(response)
+        else:
+            return json.dumps({"result": eq_result})
+
+    def is_available(self) -> bool:
+        return True
+
+    def is_model_available(self, model: str) -> bool:
+        return True
+
+
 def get_llm_plugin(plugin: str, plugin_config: dict) -> Plugin:
     """
     Function to register new providers
@@ -296,6 +337,7 @@ def get_llm_plugin(plugin: str, plugin_config: dict) -> Plugin:
         "ollama": OllamaPlugin,
         "openai": OpenAIPlugin,
         "anthropic": AnthropicPlugin,
+        "mock": MockPlugin,
     }
 
     if plugin not in plugin_map:
