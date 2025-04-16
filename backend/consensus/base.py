@@ -1830,7 +1830,6 @@ class RevealingState(TransactionState):
             len([vote for vote in context.votes.values() if vote == Vote.AGREE.value])
             > context.num_validators // 2
         )
-        majority_agrees = True
 
         # Send event in rollup to communicate the votes are revealed
         context.consensus_service.emit_transaction_event(
