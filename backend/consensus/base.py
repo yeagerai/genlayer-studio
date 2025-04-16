@@ -251,12 +251,13 @@ class TransactionContext:
         self.rotation_count: int = 0
         self.consensus_service = consensus_service
 
-        if self.transaction.contract_snapshot:
-            self.contract_snapshot = self.transaction.contract_snapshot
-        else:
-            self.contract_snapshot = self.contract_snapshot_factory(
-                self.transaction.to_address
-            )
+        if self.transaction.type != TransactionType.SEND:
+            if self.transaction.contract_snapshot:
+                self.contract_snapshot = self.transaction.contract_snapshot
+            else:
+                self.contract_snapshot = self.contract_snapshot_factory(
+                    self.transaction.to_address
+                )
 
 
 class ConsensusAlgorithm:
