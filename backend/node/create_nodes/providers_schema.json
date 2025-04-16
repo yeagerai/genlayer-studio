@@ -317,8 +317,7 @@
                 "minimum": 100,
                 "maximum": 2000,
                 "multipleOf": 10,
-                "default": 500,
-                "$comment": "gpt-4, gpt-4o"
+                "default": 500
               }
             }
           }
