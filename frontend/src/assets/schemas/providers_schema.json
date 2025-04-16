@@ -5,7 +5,14 @@
   "properties": {
     "provider": {
       "type": "string",
-      "examples": ["ollama", "heuristai", "openai", "anthropic", "xai", "google"]
+      "examples": [
+        "ollama",
+        "heuristai",
+        "openai",
+        "anthropic",
+        "xai",
+        "google"
+      ]
     },
     "model": {
       "type": "string"
@@ -48,9 +55,7 @@
             "const": "openai"
           },
           "model": {
-            "enum": [
-              "grok-2-1212"
-            ]
+            "enum": ["grok-2-1212"]
           }
         }
       }
@@ -67,9 +72,7 @@
             "const": "openai"
           },
           "model": {
-            "enum": [
-              "gemini-2.0-flash-lite-001"
-            ]
+            "enum": ["gemini-2.0-flash-lite-001"]
           }
         }
       }
@@ -124,10 +127,7 @@
             "const": "anthropic"
           },
           "model": {
-            "enum": [
-              "claude-3-7-sonnet-20250219",
-              "claude-3-5-haiku-20241022"
-            ]
+            "enum": ["claude-3-7-sonnet-20250219", "claude-3-5-haiku-20241022"]
           }
         }
       }
