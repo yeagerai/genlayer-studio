@@ -90,7 +90,6 @@ async def call_openai(
     stream = await get_openai_stream(client, prompt, node_config)
 
     result = await get_openai_output(stream, regex, return_streaming_channel)
-    print("bla: result", result)
     return result
 
 
@@ -116,8 +115,6 @@ async def get_openai_stream(client: AsyncOpenAI, prompt, node_config):
             and v is not None
         },
     }
-
-    print("bla: params", params)
 
     return await client.chat.completions.create(**params)
 

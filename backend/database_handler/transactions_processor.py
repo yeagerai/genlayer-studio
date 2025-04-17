@@ -533,19 +533,23 @@ class TransactionsProcessor:
             self._parse_transaction_data(transaction) for transaction in transactions
         ]
 
-    def previous_transaction_with_status(
-        self, transaction_hash: str, status: TransactionStatus
+    def get_previous_transaction(
+        self, transaction_hash: str, status: TransactionStatus | None = None
     ) -> dict | None:
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
+
+        filters = [
+            Transactions.created_at < transaction.created_at,
+            Transactions.to_address == transaction.to_address,
+        ]
+        if status is not None:
+            filters.append(Transactions.status == status)
+
         closest_transaction = (
             self.session.query(Transactions)
-            .filter(
-                Transactions.created_at < transaction.created_at,
-                Transactions.to_address == transaction.to_address,
-                Transactions.status == status,
-            )
+            .filter(*filters)
             .order_by(desc(Transactions.created_at))
             .first()
         )
