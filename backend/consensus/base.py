@@ -589,13 +589,30 @@ class ConsensusAlgorithm:
             consensus_service=self.consensus_service,
         )
 
-        # Begin state transitions starting from PendingState
-        state = PendingState()
-        while True:
-            next_state = await state.handle(context)
-            if next_state is None:
-                break
-            state = next_state
+        previous_transaction = transactions_processor.get_previous_transaction(
+            transaction.hash,
+        )
+
+        if (
+            (previous_transaction is None)
+            or (previous_transaction["appealed"] == True)
+            or (previous_transaction["appeal_undetermined"] == True)
+            or (
+                previous_transaction["status"]
+                in [
+                    TransactionStatus.ACCEPTED.value,
+                    TransactionStatus.UNDETERMINED.value,
+                    TransactionStatus.FINALIZED.value,
+                ]
+            )
+        ):
+            # Begin state transitions starting from PendingState
+            state = PendingState()
+            while True:
+                next_state = await state.handle(context)
+                if next_state is None:
+                    break
+                state = next_state
 
     @staticmethod
     def dispatch_transaction_status_update(
