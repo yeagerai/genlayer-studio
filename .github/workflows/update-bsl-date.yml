@@ -38,6 +38,11 @@ jobs:
             fi
           done
 
+      - name: Display changes
+        run: |
+          git diff
+          cat LICENSE
+
       - name: Commit & Push changes
         uses: actions-js/push@master
         with:
