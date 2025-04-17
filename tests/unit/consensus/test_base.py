@@ -1464,3 +1464,115 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
         check_contract_state(contract_db, transaction.to_address, {}, {})
     finally:
         cleanup_threads(event, threads)
+
+
+@pytest.mark.asyncio
+async def test_exec_validator_appeal_success_with_rollback_second_tx(
+    consensus_algorithm,
+):
+    """
+    Test that a validator appeal is successful and the second transaction (future transaction) is rolled back to pending state.
+    Also check the contract state is correctly updated and restored during this changes.
+    """
+    transaction_1 = init_dummy_transaction("transaction_hash_1")
+    transaction_2 = init_dummy_transaction("transaction_hash_2")
+    nodes = get_nodes_specs(2 * DEFAULT_VALIDATORS_COUNT + 2)
+    created_nodes = []
+    transactions_processor = TransactionsProcessorMock(
+        [transaction_to_dict(transaction_1), transaction_to_dict(transaction_2)]
+    )
+    contract_db = ContractDB(
+        {
+            "to_address": {
+                "id": "to_address",
+                "data": {
+                    "state": {"accepted": {}, "finalized": {}},
+                    "code": "contract_code",
+                },
+            }
+        }
+    )
+
+    consensus_algorithm.finality_window_time = 60
+
+    def get_vote():
+        """
+        Transaction 1: Leader agrees + 4 validators agree.
+        Transaction 2: Leader agrees + 4 validators agree.
+        Transaction 1 Appeal: 7 disagree. So appeal succeeds.
+        Transaction 1: Leader agrees + 10 validators agree.
+        Transaction 2: Leader agrees + 4 validators agree. Recalculation because of rollback.
+        """
+        if len(created_nodes) < (2 * DEFAULT_VALIDATORS_COUNT):
+            return Vote.AGREE
+        elif (len(created_nodes) >= (2 * DEFAULT_VALIDATORS_COUNT)) and (
+            len(created_nodes) < (3 * DEFAULT_VALIDATORS_COUNT + 2)
+        ):
+            return Vote.DISAGREE
+        else:
+            return Vote.AGREE
+
+    event, *threads = setup_test_environment(
+        consensus_algorithm,
+        transactions_processor,
+        nodes,
+        created_nodes,
+        get_vote,
+        contract_db,
+    )
+
+    try:
+        contract_address = transaction_1.to_address
+        check_contract_state(contract_db, contract_address, {}, {})
+
+        assert_transaction_status_match(
+            transactions_processor, transaction_1, [TransactionStatus.ACCEPTED.value]
+        )
+        assert len(created_nodes) == DEFAULT_VALIDATORS_COUNT
+
+        check_contract_state_with_timeout(
+            contract_db, contract_address, {"state_var": "0"}, {}
+        )
+
+        assert_transaction_status_match(
+            transactions_processor, transaction_2, [TransactionStatus.ACCEPTED.value]
+        )
+        assert len(created_nodes) == DEFAULT_VALIDATORS_COUNT * 2
+
+        check_contract_state_with_timeout(
+            contract_db, contract_address, {"state_var": "01"}, {}
+        )
+
+        appeal(transaction_1, transactions_processor)
+
+        assert_transaction_status_match(
+            transactions_processor,
+            transaction_1,
+            [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
+        )
+
+        assert (
+            transactions_processor.get_transaction_by_hash(transaction_2.hash)["status"]
+            == TransactionStatus.PENDING.value
+        )
+
+        check_contract_state_with_timeout(contract_db, contract_address, {}, {})
+
+        assert_transaction_status_match(
+            transactions_processor, transaction_1, [TransactionStatus.ACCEPTED.value]
+        )
+
+        check_contract_state_with_timeout(
+            contract_db, contract_address, {"state_var": "0"}, {}
+        )
+
+        assert_transaction_status_match(
+            transactions_processor, transaction_2, [TransactionStatus.ACCEPTED.value]
+        )
+
+        check_contract_state_with_timeout(
+            contract_db, contract_address, {"state_var": "01"}, {}
+        )
+
+    finally:
+        cleanup_threads(event, threads)

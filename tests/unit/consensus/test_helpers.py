@@ -16,6 +16,7 @@ from backend.node.types import ExecutionMode, ExecutionResultStatus, Receipt, Vo
 from backend.protocol_rpc.message_handler.base import MessageHandler
 from typing import Optional
 from backend.rollup.consensus_service import ConsensusService
+from datetime import datetime
 
 DEFAULT_FINALITY_WINDOW = 5
 DEFAULT_CONSENSUS_SLEEP_TIME = 2
@@ -137,7 +138,15 @@ class TransactionsProcessorMock:
         return sorted(result, key=lambda x: x["created_at"])
 
     def get_newer_transactions(self, transaction_hash: str):
-        return []
+        current_transaction = self.get_transaction_by_hash(transaction_hash)
+
+        result = []
+        for transaction in self.transactions:
+            if (transaction["created_at"] > current_transaction["created_at"]) and (
+                transaction["to_address"] == current_transaction["to_address"]
+            ):
+                result.append(transaction)
+        return sorted(result, key=lambda x: x["created_at"])
 
     def update_consensus_history(
         self,
@@ -335,13 +344,14 @@ def transaction_to_dict(transaction: Transaction) -> dict:
     }
 
 
-def init_dummy_transaction():
+def init_dummy_transaction(hash: str | None = None):
     return Transaction(
-        hash="transaction_hash",
+        hash="transaction_hash" if hash is None else hash,
         from_address="from_address",
         to_address="to_address",
         status=TransactionStatus.PENDING,
         type=TransactionType.RUN_CONTRACT,
+        created_at=datetime.fromtimestamp(time.time()),
     )
 
 
