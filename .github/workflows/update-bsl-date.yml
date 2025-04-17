@@ -5,9 +5,6 @@ on:
     types: [opened, synchronize, reopened]
     branches:
       - main
-  push:
-    branches:
-      - chore/update-bsl-date # TODO: Remove this after testing
 
 jobs:
   update-license-dates:
@@ -39,10 +36,10 @@ jobs:
             fi
           done
 
-      - name: Display changes
-        run: |
-          git diff
-          cat LICENSE
+      # - name: Display changes
+      #   run: |
+      #     git diff
+      #     cat LICENSE
 
       - name: Commit & Push changes
         uses: actions-js/push@master
