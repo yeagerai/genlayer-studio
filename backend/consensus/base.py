@@ -246,12 +246,19 @@ class TransactionContext:
         self.involved_validators: list[dict] = []
         self.remaining_validators: list = []
         self.num_validators: int = 0
-        self.contract_snapshot_supplier: Callable[[], ContractSnapshot] | None = None
         self.votes: dict = {}
         self.validator_nodes: list = []
         self.validation_results: list = []
         self.rotation_count: int = 0
         self.consensus_service = consensus_service
+
+        if self.transaction.type != TransactionType.SEND:
+            if self.transaction.contract_snapshot:
+                self.contract_snapshot = self.transaction.contract_snapshot
+            else:
+                self.contract_snapshot = self.contract_snapshot_factory(
+                    self.transaction.to_address
+                )
 
 
 class ConsensusAlgorithm:
@@ -1089,12 +1096,6 @@ class ConsensusAlgorithm:
             )
             transaction.appeal_undetermined = True
 
-            context.contract_snapshot_supplier = (
-                lambda: context.contract_snapshot_factory(
-                    context.transaction.to_address
-                )
-            )
-
             # Begin state transitions starting from PendingState
             state = PendingState()
             while True:
@@ -1199,11 +1200,6 @@ class ConsensusAlgorithm:
             # Set up the context for the committing state
             context.num_validators = len(context.remaining_validators)
             context.votes = {}
-            context.contract_snapshot_supplier = (
-                lambda: context.contract_snapshot_factory(
-                    context.transaction.to_address
-                )
-            )
 
             # Send events in rollup to communicate the appeal is started
             context.consensus_service.emit_transaction_event(
@@ -1695,21 +1691,11 @@ class ProposingState(TransactionState):
                 + [v["address"] for v in context.remaining_validators],
             )
 
-        # Create a contract snapshot for the transaction if not exists
-        if context.transaction.contract_snapshot:
-            contract_snapshot = deepcopy(context.transaction.contract_snapshot)
-        else:
-            contract_snapshot_supplier = lambda: context.contract_snapshot_factory(
-                context.transaction.to_address
-            )
-            context.contract_snapshot_supplier = contract_snapshot_supplier
-            contract_snapshot = contract_snapshot_supplier()
-
         # Create a leader node for executing the transaction
         leader_node = context.node_factory(
             leader,
             ExecutionMode.LEADER,
-            contract_snapshot,
+            deepcopy(context.contract_snapshot),
             None,
             context.msg_handler,
             context.contract_snapshot_factory,
@@ -1770,11 +1756,7 @@ class CommittingState(TransactionState):
             context.node_factory(
                 validator,
                 ExecutionMode.VALIDATOR,
-                (
-                    deepcopy(context.transaction.contract_snapshot)
-                    if context.transaction.contract_snapshot
-                    else context.contract_snapshot_supplier()
-                ),
+                deepcopy(context.contract_snapshot),
                 context.consensus_data.leader_receipt,
                 context.msg_handler,
                 context.contract_snapshot_factory,
@@ -2130,13 +2112,10 @@ class AcceptedState(TransactionState):
 
         # Do not deploy or update the contract if validator appeal failed
         if not context.transaction.appealed:
-            # Get the contract snapshot for the transaction's target address
-            leaders_contract_snapshot = context.contract_snapshot_supplier()
-
             # Set the contract snapshot for the transaction for a future rollback
             if not context.transaction.contract_snapshot:
                 context.transactions_processor.set_transaction_contract_snapshot(
-                    context.transaction.hash, leaders_contract_snapshot.to_dict()
+                    context.transaction.hash, context.contract_snapshot.to_dict()
                 )
 
             # Do not deploy or update the contract if the execution failed
@@ -2254,7 +2233,7 @@ class UndeterminedState(TransactionState):
         # Save the contract snapshot for potential future appeals
         if not context.transaction.contract_snapshot:
             context.transactions_processor.set_transaction_contract_snapshot(
-                context.transaction.hash, context.contract_snapshot_supplier().to_dict()
+                context.transaction.hash, context.contract_snapshot.to_dict()
             )
 
         # Set the transaction result with the current consensus data
