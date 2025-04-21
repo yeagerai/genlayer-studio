@@ -202,7 +202,7 @@ def restore_stuck_transactions():
 
         # Restore the contract state
         contract_processor = contract_processor_factory(request_session)
-        tx1_finalized = transactions_processor.previous_transaction_with_status(
+        tx1_finalized = transactions_processor.get_previous_transaction(
             tx2["hash"], TransactionStatus.FINALIZED
         )
         if tx1_finalized:
@@ -215,7 +215,7 @@ def restore_stuck_transactions():
                 finalized_state=previous_contact_state,
             )
         else:
-            tx1_accepted = transactions_processor.previous_transaction_with_status(
+            tx1_accepted = transactions_processor.get_previous_transaction(
                 tx2["hash"], TransactionStatus.ACCEPTED
             )
             if tx1_accepted:
