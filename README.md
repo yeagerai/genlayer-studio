@@ -55,10 +55,46 @@ This will disable the Hardhat service when running `genlayer up`.
 
 * 🔄 **Changeable LLM Validators:** Developers can modify the large language models (LLMs) used by validators within the Studio. This allows for testing of security, efficiency, and accuracy by running different LLMs to validate transactions.
 
-
 ## 📖 The Docs
 Detailed information of how to use the Studio can be found at [GenLayer Docs](https://docs.genlayer.com/).
 
-
 ## Contributing
 As an open-source project in a rapidly developing field, we are extremely open to contributions, whether it be in the form of a new feature, improved infrastructure, or better documentation. Please read our [CONTRIBUTING](https://github.com/yeagerai/genlayer-simulator/blob/main/CONTRIBUTING.md) for guidelines on how to submit your contributions.
+
+---
+
+## Deployment
+
+GenLayer Studio supports automated deployment to three separate environments — **Development**, **Staging**, and **Production** — using GitHub Actions and Ansible on Google Cloud Platform (GCP) virtual machines. Each environment has its own dedicated deployment workflow to ensure smooth CI/CD processes across the project lifecycle.
+
+### Environments Overview
+
+- **Development (`dev`)**  
+  Used for testing new features, debugging, and integration work. Triggered via manual dispatch or push to the `main` branch in the infrastructure repository.
+  **Link**: [deploy-dev.yml](https://github.com/yeagerai/genlayer-infra/actions/workflows/deploy-dev.yml)
+  
+- **Staging (`stage`)**  
+  Mirrors production as closely as possible and is used for final QA before release. Triggered via manual dispatch or repository dispatch.
+  **Link**: [deploy-stage.yml](https://github.com/yeagerai/genlayer-infra/actions/workflows/deploy-stage.yml)
+
+- **Production (`prod`)**  
+  Serves end users and contains the latest stable release. Deployments are performed manually through GitHub Actions.  
+  **Link**: [deploy-prod.yml](https://github.com/yeagerai/genlayer-infra/actions/workflows/deploy-prod.yml)
+
+### Common Deployment Flow
+
+Each environment follows a standardized deployment sequence:
+
+1. **Display Deployment Context**: Logs the trigger method and version being deployed.
+2. **Checkout Source Code**: Retrieves the infrastructure repository codebase.
+3. **Set Up Python & Dependencies**: Installs Python and required pip packages, including Ansible.
+4. **Configure GCP Credentials**: Sets up service account authentication for GCP.
+5. **SSH & SSL Setup**: Injects secrets-based SSH and TLS certificates.
+6. **Run Ansible Playbook**: Executes deployment logic using environment-specific variables.
+7. **Secrets Cleanup**: Securely removes credentials and certificates after the job completes.
+
+Each deployment ensures security by using GitHub Actions secrets for tokens, API keys, SSH, and SSL credentials.
+
+> ⚠️ **Important**: Make sure relevant secrets (e.g., `GCP_CREDENTIALS`, `SSH_PRIVATE_KEY`, `OPENAIKEY` etc.) are defined in the infrastructure GitHub repository for successful deployment.
+
+---
