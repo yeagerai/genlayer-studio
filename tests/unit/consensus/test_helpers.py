@@ -17,6 +17,7 @@ from backend.protocol_rpc.message_handler.base import MessageHandler
 from typing import Optional
 from backend.rollup.consensus_service import ConsensusService
 from datetime import datetime
+from copy import deepcopy
 
 DEFAULT_FINALITY_WINDOW = 5
 DEFAULT_CONSENSUS_SLEEP_TIME = 2
@@ -254,6 +255,20 @@ class ContractSnapshotMock:
             self.encoded_state = self.states["accepted"]
             self.contract_db = contract_db
 
+    def __deepcopy__(self, memo):
+        """Handle deep copying without copying contract_db."""
+        new_instance = ContractSnapshotMock.__new__(ContractSnapshotMock)
+        memo[id(self)] = new_instance
+        new_instance.contract_address = self.contract_address
+        new_instance.contract_data = deepcopy(self.contract_data, memo)
+        new_instance.contract_code = self.contract_code
+        new_instance.states = deepcopy(self.states, memo)
+        new_instance.encoded_state = deepcopy(self.encoded_state, memo)
+        new_instance.contract_db = (
+            None  # threading event that cannot be copied but not used by nodes
+        )
+        return new_instance
+
     def to_dict(self):
         return {
             "contract_address": (
@@ -391,20 +406,21 @@ def node_factory(
     mock.private_key = node["private_key"]
     mock.contract_snapshot = contract_snapshot
 
-    accepted_state = contract_snapshot.states["accepted"]
-    if len(accepted_state) == 0:
-        contract_state = {"state_var": "0"}
-    else:
-        value = accepted_state["state_var"]
-        contract_state = {"state_var": value + str(len(value))}
+    async def exec_with_dynamic_state(transaction: Transaction):
+        accepted_state = contract_snapshot.states["accepted"]
+        set_value = transaction.hash[-1]
+        if len(accepted_state) == 0:
+            contract_state = {"state_var": set_value}
+        else:
+            value = accepted_state["state_var"]
+            contract_state = {"state_var": value + set_value}
 
-    mock.exec_transaction = AsyncMock(
-        return_value=Receipt(
+        return Receipt(
             vote=vote,
             calldata=b"",
             mode=mode,
             gas_used=0,
-            contract_state=contract_state,
+            contract_state=contract_state,  # Dynamic contract state based on transaction
             result=DEFAULT_EXEC_RESULT,
             node_config={
                 "address": node["address"],
@@ -413,7 +429,8 @@ def node_factory(
             eq_outputs={},
             execution_result=ExecutionResultStatus.SUCCESS,
         )
-    )
+
+    mock.exec_transaction = AsyncMock(side_effect=exec_with_dynamic_state)
 
     return mock
 

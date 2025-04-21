@@ -331,7 +331,7 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
         PROPOSING -> COMMITTING -> REVEALING -> ACCEPTED -appeal-> COMMITTING -> REVEALING -appeal-success->
         PENDING -> PROPOSING -> COMMITTING -> REVEALING -> ACCEPTED -no-appeal-> FINALIZED
     """
-    transaction = init_dummy_transaction()
+    transaction = init_dummy_transaction("transaction_hash_1")
     nodes = get_nodes_specs(2 * DEFAULT_VALIDATORS_COUNT + 2)
     created_nodes = []
     transactions_processor = TransactionsProcessorMock(
@@ -386,7 +386,7 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
         )
 
         check_contract_state_with_timeout(
-            contract_db, transaction.to_address, {"state_var": "0"}, {}
+            contract_db, transaction.to_address, {"state_var": "1"}, {}
         )
 
         appeal(transaction, transactions_processor)
@@ -411,7 +411,7 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
             transaction_status_history.append(TransactionStatus.ACTIVATED)
 
         assert transactions_processor.updated_transaction_status_history == {
-            "transaction_hash": transaction_status_history
+            "transaction_hash_1": transaction_status_history
         }
 
         expected_nb_created_nodes += expected_nb_created_nodes + 2
@@ -441,7 +441,7 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
             TransactionStatus.FINALIZED,
         ]
         assert transactions_processor.updated_transaction_status_history == {
-            "transaction_hash": transaction_status_history
+            "transaction_hash_1": transaction_status_history
         }
 
         assert (
@@ -468,7 +468,7 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
         )
 
         check_contract_state(
-            contract_db, transaction.to_address, {"state_var": "0"}, {"state_var": "0"}
+            contract_db, transaction.to_address, {"state_var": "1"}, {"state_var": "1"}
         )
         assert created_nodes[0].contract_snapshot.states == {
             "accepted": {},
@@ -1210,7 +1210,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
         -appeal-success-after-3-rounds-> ACCEPTED
         -successful-appeal-> PENDING -> UNDETERMINED -appeal-fail-> FINALIZED
     """
-    transaction = init_dummy_transaction()
+    transaction = init_dummy_transaction("transaction_hash_1")
     transaction.config_rotation_rounds = 4
     nodes = get_nodes_specs(
         2 * (2 * (2 * (2 * DEFAULT_VALIDATORS_COUNT + 2) + 2) + 2)
@@ -1284,7 +1284,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
             TransactionStatus.UNDETERMINED,
         ]
         assert transactions_processor.updated_transaction_status_history == {
-            "transaction_hash": transaction_status_history
+            "transaction_hash_1": transaction_status_history
         }
 
         nb_validators = DEFAULT_VALIDATORS_COUNT
@@ -1311,7 +1311,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
             TransactionStatus.UNDETERMINED,
         ]
         assert transactions_processor.updated_transaction_status_history == {
-            "transaction_hash": transaction_status_history
+            "transaction_hash_1": transaction_status_history
         }
 
         nb_validators += nb_validators + 1
@@ -1349,11 +1349,11 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
             TransactionStatus.ACCEPTED,
         ]
         assert transactions_processor.updated_transaction_status_history == {
-            "transaction_hash": transaction_status_history
+            "transaction_hash_1": transaction_status_history
         }
 
         check_contract_state_with_timeout(
-            contract_db, transaction.to_address, {"state_var": "0"}, {}
+            contract_db, transaction.to_address, {"state_var": "1"}, {}
         )
 
         nb_validators += nb_validators + 1
@@ -1390,7 +1390,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
             transaction_status_history.append(TransactionStatus.ACTIVATED)
 
         assert transactions_processor.updated_transaction_status_history == {
-            "transaction_hash": transaction_status_history
+            "transaction_hash_1": transaction_status_history
         }
 
         nb_created_nodes += nb_validators + 2
@@ -1414,7 +1414,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
             TransactionStatus.UNDETERMINED,
         ]
         assert transactions_processor.updated_transaction_status_history == {
-            "transaction_hash": transaction_status_history
+            "transaction_hash_1": transaction_status_history
         }
 
         nb_validators -= 1
@@ -1440,7 +1440,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
             TransactionStatus.FINALIZED,
         ]
         assert transactions_processor.updated_transaction_status_history == {
-            "transaction_hash": transaction_status_history
+            "transaction_hash_1": transaction_status_history
         }
 
         nb_validators += nb_validators + 1
@@ -1472,7 +1472,7 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
 ):
     """
     Test that a validator appeal is successful and the second transaction (future transaction) is rolled back to pending state.
-    Also check the contract state is correctly updated and restored during this changes.
+    Also check the contract state is correctly updated and restored during these changes.
     """
     transaction_1 = init_dummy_transaction("transaction_hash_1")
     transaction_2 = init_dummy_transaction("transaction_hash_2")
@@ -1531,7 +1531,7 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
         assert len(created_nodes) == DEFAULT_VALIDATORS_COUNT
 
         check_contract_state_with_timeout(
-            contract_db, contract_address, {"state_var": "0"}, {}
+            contract_db, contract_address, {"state_var": "1"}, {}
         )
 
         assert_transaction_status_match(
@@ -1540,7 +1540,7 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
         assert len(created_nodes) == DEFAULT_VALIDATORS_COUNT * 2
 
         check_contract_state_with_timeout(
-            contract_db, contract_address, {"state_var": "01"}, {}
+            contract_db, contract_address, {"state_var": "12"}, {}
         )
 
         appeal(transaction_1, transactions_processor)
@@ -1563,7 +1563,7 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
         )
 
         check_contract_state_with_timeout(
-            contract_db, contract_address, {"state_var": "0"}, {}
+            contract_db, contract_address, {"state_var": "1"}, {}
         )
 
         assert_transaction_status_match(
@@ -1571,7 +1571,95 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
         )
 
         check_contract_state_with_timeout(
-            contract_db, contract_address, {"state_var": "01"}, {}
+            contract_db, contract_address, {"state_var": "12"}, {}
+        )
+
+    finally:
+        cleanup_threads(event, threads)
+
+
+@pytest.mark.asyncio
+async def test_exec_leader_appeal_succes_with_rollback_second_tx(consensus_algorithm):
+    """
+    Test that a leader appeal is successful and the second transaction (future transaction) is rolled back to pending state.
+    Also check the contract state is correctly updated these changes.
+    """
+    transaction_1 = init_dummy_transaction("transaction_hash_1")
+    transaction_2 = init_dummy_transaction("transaction_hash_2")
+    transaction_1.config_rotation_rounds = 3
+    nodes = get_nodes_specs(5 * DEFAULT_VALIDATORS_COUNT + 1)
+    created_nodes = []
+    transactions_processor = TransactionsProcessorMock(
+        [transaction_to_dict(transaction_1), transaction_to_dict(transaction_2)]
+    )
+    contract_db = ContractDB(
+        {
+            "to_address": {
+                "id": "to_address",
+                "data": {
+                    "state": {"accepted": {}, "finalized": {}},
+                    "code": "contract_code",
+                },
+            }
+        }
+    )
+    consensus_algorithm.finality_window_time = 60
+
+    def get_vote():
+        """
+        Transaction 1: Leader disagrees + 4 validators disagree for 4 rounds.
+        Transaction 2: Leader agrees + 4 validators agree.
+
+        Transaction 1 Appeal: new leader agrees + 10 validators agree.
+        Transaction 2: Leader agrees + 4 validators agree.
+        """
+        exec_rounds = transaction_1.config_rotation_rounds + 1
+        if len(created_nodes) < DEFAULT_VALIDATORS_COUNT * exec_rounds:
+            return Vote.DISAGREE
+        else:
+            return Vote.AGREE
+
+    event, *threads = setup_test_environment(
+        consensus_algorithm,
+        transactions_processor,
+        nodes,
+        created_nodes,
+        get_vote,
+        contract_db,
+    )
+
+    try:
+        contract_address = transaction_1.to_address
+        check_contract_state(contract_db, contract_address, {}, {})
+
+        assert_transaction_status_match(
+            transactions_processor,
+            transaction_1,
+            [TransactionStatus.UNDETERMINED.value],
+        )
+        check_contract_state(contract_db, contract_address, {}, {})
+
+        assert_transaction_status_match(
+            transactions_processor, transaction_2, [TransactionStatus.ACCEPTED.value]
+        )
+        check_contract_state_with_timeout(
+            contract_db, contract_address, {"state_var": "2"}, {}
+        )
+
+        appeal(transaction_1, transactions_processor)
+
+        assert_transaction_status_match(
+            transactions_processor, transaction_1, [TransactionStatus.ACCEPTED.value]
+        )
+        check_contract_state_with_timeout(
+            contract_db, contract_address, {"state_var": "1"}, {}
+        )
+
+        assert_transaction_status_match(
+            transactions_processor, transaction_2, [TransactionStatus.ACCEPTED.value]
+        )
+        check_contract_state_with_timeout(
+            contract_db, contract_address, {"state_var": "12"}, {}
         )
 
     finally:
