@@ -1,17 +1,8 @@
-import json
-import os
-from backend.node.types import Address
-
-from tests.common.accounts import create_new_account
-from tests.common.request import (
-    call_contract_method,
-    deploy_intelligent_contract,
-    write_intelligent_contract,
-)
-from tests.common.response import has_success_status
+from gltest import get_contract_factory, create_account
+from gltest.assertions import tx_execution_succeeded
 
 
-def test_multi_read_erc20(setup_validators):
+def test_multi_read_erc20():
     """
     This test verifies the functionality of a multi-read ERC20 contract. It deploys two separate ERC20 token contracts
     (referred to as 'doge' and 'shiba') and a multi-read ERC20 contract. The test aims to:
@@ -25,92 +16,70 @@ def test_multi_read_erc20(setup_validators):
     This test demonstrates the integration contract to contract reads
     """
     TOKEN_TOTAL_SUPPLY = 1000
-    from_account_doge = create_new_account()
-    from_account_shiba = create_new_account()
-
-    current_directory = os.path.dirname(os.path.abspath(__file__))
+    from_account_doge = create_account()
+    from_account_shiba = create_account()
 
     # LLM ERC20
-    contract_code = open("examples/contracts/llm_erc20.py", "r").read()
+    llm_erc20_factory = get_contract_factory("LlmErc20")
 
     ## Deploy first LLM ERC20 Contract
-    doge_contract_address, transaction_response_deploy = deploy_intelligent_contract(
-        from_account_doge,
-        contract_code,
-        [TOKEN_TOTAL_SUPPLY],
+    doge_contract = llm_erc20_factory.deploy(
+        args=[TOKEN_TOTAL_SUPPLY], account=from_account_doge
     )
-    assert has_success_status(transaction_response_deploy)
 
     ## Deploy second LLM ERC20 Contract
-
-    shiba_contract_address, transaction_response_deploy = deploy_intelligent_contract(
-        from_account_shiba,
-        contract_code,
-        [TOKEN_TOTAL_SUPPLY],
+    shiba_contract = llm_erc20_factory.deploy(
+        args=[TOKEN_TOTAL_SUPPLY], account=from_account_shiba
     )
-    assert has_success_status(transaction_response_deploy)
 
     # Deploy Multi Read ERC20 Contract
-    contract_file = os.path.join(current_directory, "multi_read_erc20.py")
-    contract_code = open(contract_file, "r").read()
+    multi_read_erc20_factory = get_contract_factory("multi_read_erc20")
 
-    multi_read_address, transaction_response_deploy = deploy_intelligent_contract(
-        from_account_doge,
-        contract_code,
-        [],
+    multi_read_contract = multi_read_erc20_factory.deploy(
+        args=[], account=from_account_doge
     )
-    assert has_success_status(transaction_response_deploy)
 
     # update balances for doge account
-    transaction_response_call = write_intelligent_contract(
-        from_account_doge,
-        multi_read_address,
-        "update_token_balances",
-        [from_account_doge.address, [doge_contract_address, shiba_contract_address]],
+    transaction_response_call = multi_read_contract.update_token_balances(
+        args=[
+            from_account_doge.address,
+            [doge_contract.address, shiba_contract.address],
+        ]
     )
-
-    assert has_success_status(transaction_response_call)
+    assert tx_execution_succeeded(transaction_response_call)
 
     # check balances
-    call_method_response_get_balances = call_contract_method(
-        multi_read_address,
-        from_account_doge,
-        "get_balances",
-        [],
-    )
-
+    call_method_response_get_balances = multi_read_contract.get_balances(args=[])
     assert call_method_response_get_balances == {
         from_account_doge.address: {
-            doge_contract_address: TOKEN_TOTAL_SUPPLY,
-            shiba_contract_address: 0,
+            doge_contract.address: TOKEN_TOTAL_SUPPLY,
+            shiba_contract.address: 0,
         }
     }
 
     # update balances for shiba account
-    transaction_response_call = write_intelligent_contract(
-        from_account_shiba,
-        multi_read_address,
-        "update_token_balances",
-        [from_account_shiba.address, [doge_contract_address, shiba_contract_address]],
+    transaction_response_call = multi_read_contract.connect(
+        from_account_shiba
+    ).update_token_balances(
+        args=[
+            from_account_shiba.address,
+            [doge_contract.address, shiba_contract.address],
+        ]
     )
-
-    assert has_success_status(transaction_response_call)
+    assert tx_execution_succeeded(transaction_response_call)
 
     # check balances
-    call_method_response_get_balances = call_contract_method(
-        multi_read_address,
-        from_account_shiba,
-        "get_balances",
-        [],
-    )
+    call_method_response_get_balances = multi_read_contract.connect(
+        from_account_shiba
+    ).get_balances(args=[])
 
     assert call_method_response_get_balances == {
         from_account_doge.address: {
-            doge_contract_address: TOKEN_TOTAL_SUPPLY,
-            shiba_contract_address: 0,
+            doge_contract.address: TOKEN_TOTAL_SUPPLY,
+            shiba_contract.address: 0,
         },
         from_account_shiba.address: {
-            doge_contract_address: 0,
-            shiba_contract_address: TOKEN_TOTAL_SUPPLY,
+            doge_contract.address: 0,
+            shiba_contract.address: TOKEN_TOTAL_SUPPLY,
         },
     }

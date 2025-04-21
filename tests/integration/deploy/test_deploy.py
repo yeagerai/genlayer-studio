@@ -1,47 +1,13 @@
-from pathlib import Path
-import zipfile
-import io
-import base64
-
-from tests.common.request import (
-    deploy_intelligent_contract,
-    write_intelligent_contract,
-    payload,
-    post_request_localhost,
-)
-
-from tests.common.response import (
-    assert_dict_struct,
-    assert_dict_exact,
-    has_success_status,
-)
-
-from tests.common.request import call_contract_method
-
-cur_dir = Path(__file__).parent
+from gltest import get_contract_factory
+from gltest.assertions import tx_execution_succeeded
 
 
-def test_deploy(setup_validators, from_account):
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, mode="w") as zip:
-        zip.write(cur_dir.joinpath("src", "__init__.py"), "contract/__init__.py")
-        zip.write(cur_dir.joinpath("src", "other.py"), "contract/other.py")
-        zip.write(cur_dir.joinpath("src", "runner.json"), "runner.json")
-    buffer.flush()
-    contract_code = buffer.getvalue()
+def test_deploy():
+    factory = get_contract_factory("Contract")
+    contract = factory.deploy(args=[])
 
-    contract_address, transaction_response_deploy = deploy_intelligent_contract(
-        from_account, contract_code, []
-    )
-    assert has_success_status(transaction_response_deploy)
+    wait_response = contract.wait(args=[])
+    assert tx_execution_succeeded(wait_response)
 
-    # we need to wait for deployment, to do so let's put one more transaction to the queue
-    # then it (likely?) will be ordered after subsequent deploy_contract
-    wait_response = write_intelligent_contract(
-        from_account, contract_address, "wait", []
-    )
-    assert has_success_status(wait_response)
-
-    res = call_contract_method(contract_address, from_account, "test", [])
-
+    res = contract.test(args=[])
     assert res == "123"
