@@ -201,6 +201,11 @@ class TransactionsProcessorMock:
         transaction = self.get_transaction_by_hash(transaction_hash)
         transaction["contract_snapshot"] = contract_snapshot
 
+    def get_previous_transaction(
+        self, transaction_hash: str, status: TransactionStatus | None = None
+    ) -> None:
+        return None
+
 
 class SnapshotMock:
     def __init__(self, nodes: list, transactions_processor: TransactionsProcessorMock):
