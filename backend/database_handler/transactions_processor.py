@@ -502,14 +502,6 @@ class TransactionsProcessor:
         transaction.contract_snapshot = contract_snapshot
         self.session.commit()
 
-    def get_transaction_contract_snapshot(
-        self, transaction_hash: str
-    ) -> ContractSnapshot | None:
-        transaction = (
-            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
-        )
-        return ContractSnapshot.from_dict(transaction.contract_snapshot)
-
     def transactions_in_process_by_contract(self) -> list[dict]:
         transactions = (
             self.session.query(Transactions)
