@@ -40,6 +40,7 @@ class Validator:
     stake: int
     llmprovider: LLMProvider
     id: int | None = None
+    private_key: str | None = None
 
     def to_dict(self):
         result = {
@@ -54,6 +55,9 @@ class Validator:
 
         if self.id:
             result["id"] = self.id
+
+        if self.private_key:
+            result["private_key"] = self.private_key
 
         return result
 
@@ -84,7 +88,6 @@ class Transaction:
         False  # Flag to indicate if this transaction should be processed only by the leader. Used for fast and cheap execution of transactions.
     )
     created_at: str | None = None
-    ghost_contract_address: str | None = None
     appealed: bool = False
     timestamp_awaiting_finalization: int | None = None
     appeal_failed: int = 0
@@ -115,7 +118,6 @@ class Transaction:
             "v": self.v,
             "leader_only": self.leader_only,
             "created_at": self.created_at,
-            "ghost_contract_address": self.ghost_contract_address,
             "appealed": self.appealed,
             "timestamp_awaiting_finalization": self.timestamp_awaiting_finalization,
             "appeal_failed": self.appeal_failed,
@@ -148,7 +150,6 @@ class Transaction:
             v=input.get("v"),
             leader_only=input.get("leader_only", False),
             created_at=input.get("created_at"),
-            ghost_contract_address=input.get("ghost_contract_address"),
             appealed=input.get("appealed"),
             timestamp_awaiting_finalization=input.get(
                 "timestamp_awaiting_finalization"

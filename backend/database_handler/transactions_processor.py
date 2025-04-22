@@ -17,7 +17,6 @@ from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
 from sqlalchemy.orm.attributes import flag_modified
 from backend.domain.types import MAX_ROTATIONS
-
 from backend.rollup.consensus_service import ConsensusService
 
 
@@ -71,7 +70,6 @@ class TransactionsProcessor:
                 transaction.hash
                 for transaction in transaction_data.triggered_transactions
             ],
-            "ghost_contract_address": transaction_data.ghost_contract_address,
             "appealed": transaction_data.appealed,
             "timestamp_awaiting_finalization": transaction_data.timestamp_awaiting_finalization,
             "appeal_failed": transaction_data.appeal_failed,
@@ -181,6 +179,7 @@ class TransactionsProcessor:
         triggered_by_hash: (
             str | None
         ) = None,  # If filled, the transaction must be present in the database (committed)
+        transaction_hash: str | None = None,
     ) -> str:
         current_nonce = self.get_transaction_count(from_address)
 
@@ -191,10 +190,10 @@ class TransactionsProcessor:
         #         f"Unexpected nonce. Provided: {nonce}, expected: {current_nonce}"
         #     )
 
-        transaction_hash = self._generate_transaction_hash(
-            from_address, to_address, data, value, type, current_nonce
-        )
-        ghost_contract_address = None
+        if transaction_hash is None:
+            transaction_hash = self._generate_transaction_hash(
+                from_address, to_address, data, value, type, current_nonce
+            )
 
         new_transaction = Transactions(
             hash=transaction_hash,
@@ -218,7 +217,6 @@ class TransactionsProcessor:
                 if triggered_by_hash
                 else None
             ),
-            ghost_contract_address=ghost_contract_address,
             appealed=False,
             timestamp_awaiting_finalization=None,
             appeal_failed=0,
@@ -256,6 +254,9 @@ class TransactionsProcessor:
         )
         transaction.status = new_status
 
+        if not transaction.consensus_history:
+            transaction.consensus_history = {}
+
         if "current_status_changes" in transaction.consensus_history:
             transaction.consensus_history["current_status_changes"].append(
                 new_status.value
@@ -269,59 +270,14 @@ class TransactionsProcessor:
 
         self.session.commit()
 
-    def set_transaction_result(self, transaction_hash: str, consensus_data: dict):
+    def set_transaction_result(
+        self, transaction_hash: str, consensus_data: dict | None
+    ):
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.consensus_data = consensus_data
         self.session.commit()
-
-    def create_rollup_transaction(self, transaction_hash: str):
-        transaction = (
-            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
-        )
-        rollup_input_data = json.dumps(
-            self._parse_transaction_data(transaction)
-        ).encode("utf-8")
-
-        # Hardhat transaction
-        account = self.web3.eth.accounts[0]
-        private_key = os.environ.get("HARDHAT_PRIVATE_KEY")
-
-        try:
-            gas_estimate = self.web3.eth.estimate_gas(
-                {
-                    "from": account,
-                    "to": transaction.ghost_contract_address,
-                    "value": transaction.value,
-                    "data": rollup_input_data,
-                }
-            )
-
-            transaction = {
-                "from": account,
-                "to": transaction.ghost_contract_address,
-                "value": transaction.value,
-                "data": rollup_input_data,
-                "nonce": self.web3.eth.get_transaction_count(account),
-                "gas": gas_estimate,
-                "gasPrice": 0,
-            }
-
-            # Sign and send the transaction
-            signed_tx = self.web3.eth.account.sign_transaction(
-                transaction, private_key=private_key
-            )
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-
-            # Wait for transaction to be actually mined and get the receipt
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-
-            # Get full transaction details including input data
-            transaction = self.web3.eth.get_transaction(tx_hash)
-
-        except Exception as e:
-            print(f"Error creating rollup transaction: {e}")
 
     def get_transaction_count(self, address: str) -> int:
         count = (
@@ -504,8 +460,15 @@ class TransactionsProcessor:
         flag_modified(transaction, "consensus_history")
         self.session.commit()
 
+    def reset_consensus_history(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.consensus_history = {}
+        self.session.commit()
+
     def set_transaction_timestamp_appeal(
-        self, transaction: Transactions | str, timestamp_appeal: int
+        self, transaction: Transactions | str, timestamp_appeal: int | None
     ):
         if isinstance(transaction, str):  # hash
             transaction = (
@@ -539,10 +502,52 @@ class TransactionsProcessor:
         transaction.contract_snapshot = contract_snapshot
         self.session.commit()
 
-    def get_transaction_contract_snapshot(
-        self, transaction_hash: str
-    ) -> ContractSnapshot | None:
+    def transactions_in_process_by_contract(self) -> list[dict]:
+        transactions = (
+            self.session.query(Transactions)
+            .filter(
+                Transactions.to_address.isnot(None),
+                Transactions.status.in_(
+                    [
+                        TransactionStatus.ACTIVATED,
+                        TransactionStatus.PROPOSING,
+                        TransactionStatus.COMMITTING,
+                        TransactionStatus.REVEALING,
+                    ]
+                ),
+            )
+            .distinct(Transactions.to_address)
+            .order_by(Transactions.to_address, Transactions.created_at.asc())
+            .all()
+        )
+
+        return [
+            self._parse_transaction_data(transaction) for transaction in transactions
+        ]
+
+    def get_previous_transaction(
+        self, transaction_hash: str, status: TransactionStatus | None = None
+    ) -> dict | None:
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
-        return ContractSnapshot.from_dict(transaction.contract_snapshot)
+
+        filters = [
+            Transactions.created_at < transaction.created_at,
+            Transactions.to_address == transaction.to_address,
+        ]
+        if status is not None:
+            filters.append(Transactions.status == status)
+
+        closest_transaction = (
+            self.session.query(Transactions)
+            .filter(*filters)
+            .order_by(desc(Transactions.created_at))
+            .first()
+        )
+
+        return (
+            self._parse_transaction_data(closest_transaction)
+            if closest_transaction
+            else None
+        )

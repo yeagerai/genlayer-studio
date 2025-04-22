@@ -89,7 +89,8 @@ async def call_openai(
     # TODO: OpenAI exceptions need to be caught here
     stream = await get_openai_stream(client, prompt, node_config)
 
-    return await get_openai_output(stream, regex, return_streaming_channel)
+    result = await get_openai_output(stream, regex, return_streaming_channel)
+    return result
 
 
 def get_openai_client(api_key: str, url: str | None = None) -> AsyncOpenAI:
@@ -103,20 +104,19 @@ def get_openai_client(api_key: str, url: str | None = None) -> AsyncOpenAI:
 
 async def get_openai_stream(client: AsyncOpenAI, prompt, node_config):
     config: dict = node_config["config"]
-    if "temperature" in config and "max_tokens" in config:
-        return await client.chat.completions.create(
-            model=node_config["model"],
-            messages=[{"role": "user", "content": prompt}],
-            stream=True,
-            temperature=config["temperature"],
-            max_tokens=config["max_tokens"],
-        )
-    else:
-        return await client.chat.completions.create(
-            model=node_config["model"],
-            messages=[{"role": "user", "content": prompt}],
-            stream=True,
-        )
+    params = {
+        "model": node_config["model"],
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": True,
+        **{
+            k: v
+            for k, v in config.items()
+            if k in ["temperature", "max_tokens", "max_completion_tokens"]
+            and v is not None
+        },
+    }
+
+    return await client.chat.completions.create(**params)
 
 
 async def get_openai_output(

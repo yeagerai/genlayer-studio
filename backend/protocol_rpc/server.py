@@ -22,9 +22,10 @@ from dotenv import load_dotenv
 from backend.database_handler.transactions_processor import TransactionsProcessor
 from backend.database_handler.validators_registry import ValidatorsRegistry
 from backend.database_handler.accounts_manager import AccountsManager
-from backend.consensus.base import ConsensusAlgorithm
-from backend.database_handler.models import Base
+from backend.consensus.base import ConsensusAlgorithm, contract_processor_factory
+from backend.database_handler.models import Base, TransactionStatus
 from backend.rollup.consensus_service import ConsensusService
+from backend.domain.types import Transaction
 
 
 def get_db_name(database: str) -> str:
@@ -60,7 +61,9 @@ def create_app():
     transactions_processor = TransactionsProcessor(sqlalchemy_db.session)
     accounts_manager = AccountsManager(sqlalchemy_db.session)
     validators_registry = ValidatorsRegistry(sqlalchemy_db.session)
-    llm_provider_registry = LLMProviderRegistry(sqlalchemy_db.session)
+    with app.app_context():
+        llm_provider_registry = LLMProviderRegistry(sqlalchemy_db.session)
+        llm_provider_registry.update_defaults()
     consensus_service = ConsensusService()
     transactions_parser = TransactionParser(consensus_service)
     # Initialize validators from environment configuration in a thread
@@ -73,7 +76,7 @@ def create_app():
     initialize_validators_db_session.commit()
 
     consensus = ConsensusAlgorithm(
-        lambda: Session(engine, expire_on_commit=False), msg_handler
+        lambda: Session(engine, expire_on_commit=False), msg_handler, consensus_service
     )
     return (
         app,
@@ -136,7 +139,7 @@ def shutdown_session(exception=None):
 def run_socketio():
     socketio.run(
         app,
-        debug=os.environ["VSCODEDEBUG"] == "false",
+        debug=os.environ.get("VSCODEDEBUG", "false") == "false",
         port=os.environ.get("RPCPORT"),
         host="0.0.0.0",
         allow_unsafe_werkzeug=True,
@@ -156,6 +159,85 @@ def run_socketio():
         os.environ.get("FLASK_LOG_LEVEL", logging.ERROR)
     )
 
+
+def restore_stuck_transactions():
+    """Restore transactions that are stuck because of a program crash or shutdown"""
+    # Find oldest stuck transaction
+    stuck_transactions = transactions_processor.transactions_in_process_by_contract()
+
+    # Restore the transactions
+    for tx2 in stuck_transactions:
+        newer_transactions = transactions_processor.get_newer_transactions(tx2["hash"])
+
+        restore_transactions = [tx2, *newer_transactions]
+        for restore_transaction in restore_transactions:
+            ConsensusAlgorithm.dispatch_transaction_status_update(
+                transactions_processor,
+                restore_transaction["hash"],
+                TransactionStatus.PENDING,
+                msg_handler,
+            )
+            transactions_processor.set_transaction_contract_snapshot(
+                restore_transaction["hash"], None
+            )
+            transactions_processor.set_transaction_result(
+                restore_transaction["hash"], None
+            )
+            transactions_processor.set_transaction_appeal(
+                restore_transaction["hash"], False
+            )
+            transactions_processor.set_transaction_appeal_failed(
+                restore_transaction["hash"], 0
+            )
+            transactions_processor.set_transaction_appeal_undetermined(
+                restore_transaction["hash"], False
+            )
+            transactions_processor.reset_consensus_history(restore_transaction["hash"])
+            transactions_processor.set_transaction_timestamp_appeal(
+                restore_transaction["hash"], None
+            )
+            transactions_processor.reset_transaction_appeal_processing_time(
+                restore_transaction["hash"]
+            )
+
+        # Restore the contract state
+        contract_processor = contract_processor_factory(request_session)
+        tx1_finalized = transactions_processor.get_previous_transaction(
+            tx2["hash"], TransactionStatus.FINALIZED
+        )
+        if tx1_finalized:
+            previous_contact_state = tx1_finalized["consensus_data"]["leader_receipt"][
+                "contract_state"
+            ]
+            contract_processor.update_contract_state(
+                contract_address=tx1_finalized["to_address"],
+                accepted_state=previous_contact_state,
+                finalized_state=previous_contact_state,
+            )
+        else:
+            tx1_accepted = transactions_processor.get_previous_transaction(
+                tx2["hash"], TransactionStatus.ACCEPTED
+            )
+            if tx1_accepted:
+                previous_contact_state = tx1_accepted["consensus_data"][
+                    "leader_receipt"
+                ]["contract_state"]
+                contract_processor.update_contract_state(
+                    contract_address=tx1_accepted["to_address"],
+                    accepted_state=previous_contact_state,
+                    finalized_state={},
+                )
+            else:
+                contract_processor.update_contract_state(
+                    contract_address=tx2["to_address"],
+                    accepted_state={},
+                    finalized_state={},
+                )
+
+
+# Restore stuck transactions
+with app.app_context():
+    restore_stuck_transactions()
 
 # Thread for the Flask-SocketIO server
 thread_socketio = threading.Thread(target=run_socketio)

@@ -1,7 +1,7 @@
 {
   "provider": "anthropic",
   "plugin": "anthropic",
-  "model": "claude-3-opus-20240229",
+  "model": "claude-3-5-haiku-20241022",
   "config": {
     "temperature": 0.75,
     "max_tokens": 500,
