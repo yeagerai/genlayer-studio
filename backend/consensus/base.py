@@ -13,6 +13,7 @@ import threading
 import random
 from copy import deepcopy
 import json
+import base64
 
 from sqlalchemy.orm import Session
 from backend.consensus.vrf import get_validators_for_transaction
@@ -2410,7 +2411,10 @@ def _get_messages_data(
             serializable_data["contract_code"] = serializable_data[
                 "contract_code"
             ].decode()
-        serializable_data["calldata"] = serializable_data["calldata"].decode()
+        # Encode binary calldata as base64 instead of trying to decode as UTF-8
+        serializable_data["calldata"] = base64.b64encode(
+            serializable_data["calldata"]
+        ).decode("utf-8")
 
         internal_messages_data.append(
             {
@@ -2429,6 +2433,9 @@ def _emit_messages(
     receipt: dict,
 ):
     for i, insert_transaction_data in enumerate(insert_transactions_data):
+        transaction_hash = (
+            receipt["tx_ids_hex"][i] if receipt and "tx_ids_hex" in receipt else None
+        )
         context.transactions_processor.insert_transaction(
             context.transaction.to_address,  # new calls are done by the contract
             insert_transaction_data[0],
@@ -2438,5 +2445,5 @@ def _emit_messages(
             nonce=insert_transaction_data[3],
             leader_only=context.transaction.leader_only,  # Cascade
             triggered_by_hash=context.transaction.hash,
-            transaction_hash=receipt["tx_ids_hex"][i],
+            transaction_hash=transaction_hash,
         )

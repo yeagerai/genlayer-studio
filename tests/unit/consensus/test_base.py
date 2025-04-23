@@ -1551,11 +1551,6 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
             [TransactionStatus.PENDING.value, TransactionStatus.ACTIVATED.value],
         )
 
-        assert (
-            transactions_processor.get_transaction_by_hash(transaction_2.hash)["status"]
-            == TransactionStatus.PENDING.value
-        )
-
         check_contract_state_with_timeout(contract_db, contract_address, {}, {})
 
         assert_transaction_status_match(
@@ -1573,6 +1568,37 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
         check_contract_state_with_timeout(
             contract_db, contract_address, {"state_var": "12"}, {}
         )
+
+        assert transactions_processor.updated_transaction_status_history == {
+            "transaction_hash_1": [
+                TransactionStatus.ACTIVATED,
+                TransactionStatus.PROPOSING,
+                TransactionStatus.COMMITTING,
+                TransactionStatus.REVEALING,
+                TransactionStatus.ACCEPTED,
+                TransactionStatus.COMMITTING,
+                TransactionStatus.REVEALING,
+                TransactionStatus.PENDING,
+                TransactionStatus.ACTIVATED,
+                TransactionStatus.PROPOSING,
+                TransactionStatus.COMMITTING,
+                TransactionStatus.REVEALING,
+                TransactionStatus.ACCEPTED,
+            ],
+            "transaction_hash_2": [
+                TransactionStatus.ACTIVATED,
+                TransactionStatus.PROPOSING,
+                TransactionStatus.COMMITTING,
+                TransactionStatus.REVEALING,
+                TransactionStatus.ACCEPTED,
+                TransactionStatus.PENDING,
+                TransactionStatus.ACTIVATED,
+                TransactionStatus.PROPOSING,
+                TransactionStatus.COMMITTING,
+                TransactionStatus.REVEALING,
+                TransactionStatus.ACCEPTED,
+            ],
+        }
 
     finally:
         cleanup_threads(event, threads)
@@ -1661,6 +1687,36 @@ async def test_exec_leader_appeal_succes_with_rollback_second_tx(consensus_algor
         check_contract_state_with_timeout(
             contract_db, contract_address, {"state_var": "12"}, {}
         )
+
+        assert transactions_processor.updated_transaction_status_history == {
+            "transaction_hash_1": [
+                TransactionStatus.ACTIVATED,
+                *[
+                    TransactionStatus.PROPOSING,
+                    TransactionStatus.COMMITTING,
+                    TransactionStatus.REVEALING,
+                ]
+                * (transaction_1.config_rotation_rounds + 1),
+                TransactionStatus.UNDETERMINED,
+                TransactionStatus.PROPOSING,
+                TransactionStatus.COMMITTING,
+                TransactionStatus.REVEALING,
+                TransactionStatus.ACCEPTED,
+            ],
+            "transaction_hash_2": [
+                TransactionStatus.ACTIVATED,
+                TransactionStatus.PROPOSING,
+                TransactionStatus.COMMITTING,
+                TransactionStatus.REVEALING,
+                TransactionStatus.ACCEPTED,
+                TransactionStatus.PENDING,
+                TransactionStatus.ACTIVATED,
+                TransactionStatus.PROPOSING,
+                TransactionStatus.COMMITTING,
+                TransactionStatus.REVEALING,
+                TransactionStatus.ACCEPTED,
+            ],
+        }
 
     finally:
         cleanup_threads(event, threads)
