@@ -2433,12 +2433,9 @@ def _emit_messages(
     receipt: dict,
 ):
     for i, insert_transaction_data in enumerate(insert_transactions_data):
-        if receipt and "tx_ids_hex" in receipt:
-            transaction_hash = receipt["tx_ids_hex"][i]
-        else:
-            new_account = context.accounts_manager.create_new_account()
-            transaction_hash = new_account.address
-
+        transaction_hash = (
+            receipt["tx_ids_hex"][i] if receipt and "tx_ids_hex" in receipt else None
+        )
         context.transactions_processor.insert_transaction(
             context.transaction.to_address,  # new calls are done by the contract
             insert_transaction_data[0],
