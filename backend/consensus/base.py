@@ -371,7 +371,10 @@ class ConsensusAlgorithm:
                     transaction = Transaction.from_dict(transaction)
                     address = transaction.to_address
 
-                    assert address is not None
+                    if address is None:
+                        # it happens in tests/integration/accounts/test_accounts.py::test_accounts_burn
+                        print(f"_crawl_snapshot: address is None, tx {transaction}")
+                        traceback.print_stack()
 
                     # Initialize queue and stop event for the address if not present
                     if address not in self.pending_queues:

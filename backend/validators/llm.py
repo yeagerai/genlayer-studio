@@ -32,7 +32,7 @@ def provider_to_url_and_id_and_key(kind: str) -> tuple[str, str, str]:
             return "http://ollama:11434", "ollama", "<no-key>"
         case "openai":
             return "https://api.openai.com", "openai-compatible", "OPENAIKEY"
-        case "heurist":
+        case "heurist" | "heuristai":
             return (
                 "https://llm-gateway.heurist.xyz",
                 "openai-compatible",
