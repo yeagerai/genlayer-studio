@@ -206,10 +206,10 @@ async def create_random_validator(
             validators_registry,
             accounts_manager,
             llm_provider_registry,
+            validators_manager,
             1,
             stake,
             stake,
-            validators_manager,
         )
     )[0]
 
