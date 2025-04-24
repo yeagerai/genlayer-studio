@@ -15,7 +15,7 @@ cur_dir = Path(__file__).parent
 
 
 def wait_for_contract_deployment(
-    contract_address, from_account, max_retries=10, delay=1
+    contract_address, from_account, max_retries=10, delay=5
 ):
     """
     Wait for contract to be fully deployed by attempting to call a method.
@@ -48,26 +48,30 @@ def test_intelligent_oracle_factory_pattern(setup_validators, from_account):
 
     markets_data = [
         {
-            "prediction_market_id": "market1",
-            "title": "Football Match 1",
-            "description": "Predict the outcome of match 1",
-            "potential_outcomes": ["Arsenal", "Crystal Palace", "Draw"],
-            "rules": ["The outcome is the result of the match"],
-            "data_source_domains": ["bbc.com"],
+            "prediction_market_id": "marathon2024",
+            "title": "Marathon Winner Prediction",
+            "description": "Predict the male winner of a major marathon event.",
+            "potential_outcomes": ["Bekele Fikre", "Tafa Mitku", "Chebii Douglas"],
+            "rules": [
+                "The outcome is based on the official race results announced by the marathon organizers."
+            ],
+            "data_source_domains": ["thepostrace.com"],
             "resolution_urls": [],
-            "earliest_resolution_date": "2025-04-23T00:00:00+00:00",
-            "outcome": "Draw",
+            "earliest_resolution_date": "2024-01-01T00:00:00+00:00",
+            "outcome": "Tafa Mitku",
+            "evidence_urls": "https://thepostrace.com/en/blog/marathon-de-madrid-2024-results-and-rankings/?srsltid=AfmBOor1uG6O3_4oJ447hkah_ilOYuy0XXMvl8j70EApe1Z7Bzd94XJl",
         },
         {
-            "prediction_market_id": "market2",
-            "title": "Football Match 2",
-            "description": "Predict the outcome of match 2",
-            "potential_outcomes": ["Getafe", "Real Madrid", "Draw"],
-            "rules": ["The outcome is the result of the match"],
+            "prediction_market_id": "election2024",
+            "title": "Election Prediction",
+            "description": "Predict the winner of the 2024 US presidential election.",
+            "potential_outcomes": ["Kamala Harris", "Donald Trump"],
+            "rules": ["The outcome is based on official election results."],
             "data_source_domains": ["bbc.com"],
             "resolution_urls": [],
-            "earliest_resolution_date": "2025-04-23T00:00:00+00:00",
-            "outcome": "Real Madrid",
+            "earliest_resolution_date": "2024-01-01T00:00:00+00:00",
+            "outcome": "Donald Trump",
+            "evidence_urls": "https://www.bbc.com/news/election/2024/us/results",
         },
     ]
     created_market_addresses = []
@@ -133,16 +137,13 @@ def test_intelligent_oracle_factory_pattern(setup_validators, from_account):
             == expected_data["prediction_market_id"]
         )
 
-    # Test market resolution through factory
-    evidence_url = "https://www.bbc.com/sport/football/scores-fixtures/2025-04-23"
-
-    # Resolve first market
+    # Resolve markets
     for i, market_address in enumerate(created_market_addresses):
         resolve_result = write_intelligent_contract(
             from_account,
             market_address,
             "resolve",
-            [evidence_url],
+            [markets_data[i]["evidence_urls"]],
         )
         assert has_success_status(resolve_result)
         assert has_successful_execution(resolve_result)
