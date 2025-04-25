@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import type { TransactionItem } from '@/types';
 import TransactionStatusBadge from '@/components/Simulator/TransactionStatusBadge.vue';
 import { useTimeAgo } from '@vueuse/core';
@@ -9,16 +9,20 @@ import { useUIStore, useNodeStore, useTransactionsStore } from '@/stores';
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/vue/16/solid';
 import CopyTextButton from '../global/CopyTextButton.vue';
 import { FilterIcon, GavelIcon, UserPen, UserSearch } from 'lucide-vue-next';
+import type { TransactionHash } from 'genlayer-js/types';
 import { abi } from 'genlayer-js';
 import {
   resultToUserFriendlyJson,
   b64ToArray,
   calldataToUserFriendlyJson,
 } from '@/calldata/jsonifier';
+import { useRpcClient, useWebSocketClient } from '@/hooks';
 
 const uiStore = useUIStore();
 const nodeStore = useNodeStore();
 const transactionsStore = useTransactionsStore();
+const rpcClient = useRpcClient();
+const get_transaction_from_hash = ref();
 
 const props = defineProps<{
   transaction: TransactionItem;
@@ -30,6 +34,7 @@ const finalityWindowAppealFailedReduction = ref(
 );
 
 const isDetailsModalOpen = ref(false);
+const isRelatedTransactionModalOpen = ref(false);
 
 const timeThreshold = 6; // Number of hours after which the date should be displayed instead of time ago
 
@@ -149,6 +154,32 @@ function prettifyTxData(x: any): any {
     return x;
   }
 }
+
+async function FetchTransactionByHash(tx: string) {
+  try {
+    const transactionData = await rpcClient.getTransactionByHash(tx);
+    get_transaction_from_hash.value = transactionData;
+    isRelatedTransactionModalOpen.value = true;
+    console.log(get_transaction_from_hash.value?.data);
+  } catch (error) {
+    console.error('Failed to fetch transaction from hash: ', error);
+  }
+}
+
+// Function to refresh transaction data
+const refreshTransactionData = async () => {
+  const updatedTransaction = await transactionsStore.getTransaction(
+    props.transaction.hash as TransactionHash,
+  );
+  if (updatedTransaction) {
+    transactionsStore.updateTransaction(updatedTransaction);
+  }
+};
+
+// Call refreshTransactionData when the component is mounted
+onMounted(() => {
+  refreshTransactionData();
+});
 </script>
 
 <template>
@@ -466,12 +497,252 @@ function prettifyTxData(x: any): any {
           >
         </ModalSection>
 
+        <ModalSection
+          v-if="
+            transaction.data.consensus_data.leader_receipt
+              .pending_transactions[0]
+          "
+        >
+          <template #title>Transaction Messages</template>
+
+          <div class="overflow-y-auto rounded-md bg-white p-2 dark:bg-zinc-800">
+            <div
+              v-for="(transaction, index) in transaction.data.consensus_data
+                .leader_receipt.pending_transactions"
+              :key="index"
+            >
+              <a
+                href="#"
+                @click.prevent="FetchTransactionByHash(transaction.address)"
+                class="text-blue-500 hover:underline"
+              >
+                {{ transaction.address }}
+              </a>
+            </div>
+          </div>
+        </ModalSection>
+
         <ModalSection v-if="transaction.data">
           <template #title>Full Transaction Data</template>
 
           <JsonViewer
             class="overflow-y-auto rounded-md bg-white p-2 dark:bg-zinc-800"
             :value="prettifyTxData(transaction.data || {})"
+            :theme="uiStore.mode === 'light' ? 'light' : 'dark'"
+            :expand="true"
+            sort
+          />
+        </ModalSection>
+      </div>
+    </Modal>
+
+    <Modal
+      :open="isRelatedTransactionModalOpen"
+      @close="isRelatedTransactionModalOpen = false"
+      wide
+    >
+      <template #title>
+        <div class="flex flex-row items-center justify-between gap-2">
+          <div>Transaction Details</div>
+          <span class="text-[12px]">{{ dateText }}</span>
+        </div>
+      </template>
+
+      <template #info>
+        <div
+          class="flex flex-row items-center justify-center gap-2 text-xs font-normal"
+        >
+          {{ get_transaction_from_hash.hash }}
+          <CopyTextButton :text="get_transaction_from_hash.hash" f />
+        </div>
+      </template>
+
+      <div class="flex flex-col gap-4">
+        <div class="mt-2 flex flex-col">
+          <p
+            class="text-md mb-1 flex flex-row items-center gap-2 font-semibold"
+          >
+            Status:
+            <Loader
+              :size="15"
+              v-if="
+                get_transaction_from_hash.status !== 'FINALIZED' &&
+                get_transaction_from_hash.status !== 'ACCEPTED' &&
+                get_transaction_from_hash.status !== 'UNDETERMINED'
+              "
+            />
+            <TransactionStatusBadge
+              :class="[
+                'px-[4px] py-[1px] text-[9px]',
+                get_transaction_from_hash.status === 'FINALIZED'
+                  ? '!bg-green-500'
+                  : '',
+              ]"
+            >
+              {{ get_transaction_from_hash.status }}
+            </TransactionStatusBadge>
+          </p>
+        </div>
+
+        <ModalSection v-if="get_transaction_from_hash.data">
+          <template #title>Input</template>
+
+          <pre
+            v-if="get_transaction_from_hash.data.calldata.readable"
+            class="overflow-hidden rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+            >{{ get_transaction_from_hash.data.calldata.readable }}</pre
+          >
+          <pre
+            v-if="!get_transaction_from_hash.data.calldata.readable"
+            class="overflow-hidden rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+            >{{ get_transaction_from_hash.data.calldata.base64 }}</pre
+          >
+        </ModalSection>
+
+        <ModalSection v-if="leaderReceipt">
+          <template #title>
+            Execution
+            <TransactionStatusBadge
+              :class="
+                leaderReceipt.execution_result === 'ERROR'
+                  ? '!bg-red-500'
+                  : '!bg-green-500'
+              "
+            >
+              {{ leaderReceipt.execution_result }}
+            </TransactionStatusBadge>
+          </template>
+
+          <span class="text-sm font-semibold">Leader:</span>
+
+          <div class="flex flex-row items-start gap-4 text-xs">
+            <div>
+              <div>
+                <span class="font-medium">Gas used:</span>
+                {{ leaderReceipt.gas_used }}
+              </div>
+              <div>
+                <span class="font-medium"
+                  >Stake: {{ leaderReceipt.node_config.stake }}</span
+                >
+              </div>
+            </div>
+
+            <div>
+              <div>
+                <span class="font-medium">Model:</span>
+                {{ leaderReceipt.node_config.model }}
+              </div>
+              <div>
+                <span class="font-medium">Provider:</span>
+                {{ leaderReceipt.node_config.provider }}
+              </div>
+            </div>
+          </div>
+        </ModalSection>
+
+        <ModalSection
+          v-if="
+            transaction.data.consensus_history &&
+            (transaction.data.consensus_history.consensus_results?.length ||
+              transaction.data.consensus_history.current_status_changes?.length)
+          "
+        >
+          <template #title>Consensus History</template>
+
+          <div
+            v-for="(history, index) in transaction.data.consensus_history
+              .consensus_results || []"
+            :key="index"
+            class="mb-4"
+          >
+            <div class="mb-2 flex flex-col gap-1">
+              <span class="font-medium italic">
+                {{ history?.consensus_round || `Consensus Round ${index + 1}` }}
+              </span>
+              <div
+                class="flex items-center gap-2 text-[10px] text-gray-600 dark:text-gray-400"
+              >
+                <template
+                  v-for="(status, sIndex) in history.status_changes"
+                  :key="sIndex"
+                >
+                  <span>{{ status }}</span>
+                  <span
+                    v-if="sIndex < history.status_changes.length - 1"
+                    class="text-gray-400"
+                    >→</span
+                  >
+                </template>
+              </div>
+            </div>
+
+            <div
+              class="divide-y overflow-hidden rounded border dark:border-gray-600"
+            >
+              <div
+                v-if="history?.leader_result"
+                class="flex flex-row items-center justify-between p-2 text-xs dark:border-gray-600"
+              >
+                <div class="flex items-center gap-1">
+                  <UserPen class="h-4 w-4" />
+                  <span class="font-mono text-xs">{{
+                    history.leader_result.node_config.address
+                  }}</span>
+                </div>
+                <div class="flex flex-row items-center gap-1 capitalize">
+                  <template v-if="history.leader_result.vote === 'agree'">
+                    <CheckCircleIcon class="h-4 w-4 text-green-500" />
+                    Agree
+                  </template>
+                  <template v-if="history.leader_result.vote === 'disagree'">
+                    <XCircleIcon class="h-4 w-4 text-red-500" />
+                    Disagree
+                  </template>
+                </div>
+              </div>
+
+              <div
+                v-for="(validator, vIndex) in history?.validator_results || []"
+                :key="vIndex"
+                class="flex flex-row items-center justify-between p-2 text-xs dark:border-gray-600"
+              >
+                <div class="flex items-center gap-1">
+                  <UserSearch class="h-4 w-4" />
+                  <span class="font-mono text-xs">{{
+                    validator.node_config.address
+                  }}</span>
+                </div>
+                <div class="flex flex-row items-center gap-1 capitalize">
+                  <template v-if="validator.vote === 'agree'">
+                    <CheckCircleIcon class="h-4 w-4 text-green-500" />
+                    Agree
+                  </template>
+                  <template v-if="validator.vote === 'disagree'">
+                    <XCircleIcon class="h-4 w-4 text-red-500" />
+                    Disagree
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ModalSection>
+
+        <ModalSection v-if="leaderReceipt?.eq_outputs?.leader">
+          <template #title>Equivalence Principle Output</template>
+
+          <pre
+            class="overflow-x-auto rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+            >{{ leaderReceipt?.eq_outputs?.leader }}</pre
+          >
+        </ModalSection>
+
+        <ModalSection v-if="get_transaction_from_hash">
+          <template #title>Full Transaction Data</template>
+
+          <JsonViewer
+            class="overflow-y-auto rounded-md bg-white p-2 dark:bg-zinc-800"
+            :value="prettifyTxData(get_transaction_from_hash || {})"
             :theme="uiStore.mode === 'light' ? 'light' : 'dark'"
             :expand="true"
             sort
