@@ -85,14 +85,14 @@ class SnapshotManager:
         self.session.commit()
         return snapshot
 
-    def restore_snapshot(self, snapshot_id: int) -> None:
+    def restore_snapshot(self, snapshot_id: int) -> bool:
         """Restore the database state from a snapshot."""
         # Get the snapshot
         snapshot = (
             self.session.query(Snapshot).filter_by(snapshot_id=snapshot_id).first()
         )
         if not snapshot:
-            raise ValueError(f"Snapshot with id {snapshot_id} not found")
+            return False
 
         # Decompress the data
         state_data = self._decompress_data(snapshot.state_data)
@@ -159,6 +159,7 @@ class SnapshotManager:
 
         # Commit relationship updates
         self.session.commit()
+        return True
 
     def delete_all_snapshots(self) -> int:
         """Delete all snapshots from the database."""

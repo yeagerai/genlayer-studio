@@ -754,33 +754,30 @@ def get_contract(consensus_service: ConsensusService, contract_name: str) -> dic
 
 def create_snapshot(
     snapshot_manager: SnapshotManager,
-) -> dict:
+) -> int:
     """Create a new snapshot of the current state and transactions.
 
     Returns:
-        dict: Information about the created snapshot including its ID
+        int: The snapshot ID
     """
     snapshot = snapshot_manager.create_snapshot()
-    return {
-        "snapshot_id": snapshot.snapshot_id,
-        "created_at": snapshot.created_at.isoformat(),
-    }
+    return snapshot.snapshot_id
 
 
 def restore_snapshot(
     snapshot_manager: SnapshotManager,
     snapshot_id: int,
-) -> dict:
+) -> bool:
     """Restore the database state from a snapshot.
 
     Args:
         snapshot_id: ID of the snapshot to restore
 
     Returns:
-        dict: Information about the restored snapshot
+        bool: True if the snapshot was restored, False otherwise
     """
-    snapshot_manager.restore_snapshot(snapshot_id)
-    return {"snapshot_id": snapshot_id, "restored_at": datetime.now().isoformat()}
+    reverted = snapshot_manager.restore_snapshot(snapshot_id)
+    return reverted
 
 
 def delete_all_snapshots(
