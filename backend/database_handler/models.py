@@ -95,7 +95,6 @@ class Transactions(Base):
     r: Mapped[Optional[int]] = mapped_column(Integer)
     s: Mapped[Optional[int]] = mapped_column(Integer)
     v: Mapped[Optional[int]] = mapped_column(Integer)
-    ghost_contract_address: Mapped[Optional[str]] = mapped_column(String(255))
     appeal_failed: Mapped[Optional[int]] = mapped_column(Integer)
     consensus_history: Mapped[Optional[dict]] = mapped_column(JSONB)
     timestamp_appeal: Mapped[Optional[int]] = mapped_column(BigInteger)
@@ -164,6 +163,7 @@ class LLMProviderDBModel(Base):
     config: Mapped[dict | str] = mapped_column(JSONB)
     plugin: Mapped[str] = mapped_column(String(255), nullable=False)
     plugin_config: Mapped[dict] = mapped_column(JSONB)
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(True), server_default=func.current_timestamp(), init=False
     )

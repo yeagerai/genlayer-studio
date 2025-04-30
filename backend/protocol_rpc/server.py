@@ -61,7 +61,9 @@ def create_app():
     transactions_processor = TransactionsProcessor(sqlalchemy_db.session)
     accounts_manager = AccountsManager(sqlalchemy_db.session)
     validators_registry = ValidatorsRegistry(sqlalchemy_db.session)
-    llm_provider_registry = LLMProviderRegistry(sqlalchemy_db.session)
+    with app.app_context():
+        llm_provider_registry = LLMProviderRegistry(sqlalchemy_db.session)
+        llm_provider_registry.update_defaults()
     consensus_service = ConsensusService()
     transactions_parser = TransactionParser(consensus_service)
     # Initialize validators from environment configuration in a thread
@@ -137,7 +139,7 @@ def shutdown_session(exception=None):
 def run_socketio():
     socketio.run(
         app,
-        debug=os.environ["VSCODEDEBUG"] == "false",
+        debug=os.environ.get("VSCODEDEBUG", "false") == "false",
         port=os.environ.get("RPCPORT"),
         host="0.0.0.0",
         allow_unsafe_werkzeug=True,
@@ -200,7 +202,7 @@ def restore_stuck_transactions():
 
         # Restore the contract state
         contract_processor = contract_processor_factory(request_session)
-        tx1_finalized = transactions_processor.previous_transaction_with_status(
+        tx1_finalized = transactions_processor.get_previous_transaction(
             tx2["hash"], TransactionStatus.FINALIZED
         )
         if tx1_finalized:
@@ -213,7 +215,7 @@ def restore_stuck_transactions():
                 finalized_state=previous_contact_state,
             )
         else:
-            tx1_accepted = transactions_processor.previous_transaction_with_status(
+            tx1_accepted = transactions_processor.get_previous_transaction(
                 tx2["hash"], TransactionStatus.ACCEPTED
             )
             if tx1_accepted:
