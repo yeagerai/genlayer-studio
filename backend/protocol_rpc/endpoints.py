@@ -750,6 +750,27 @@ def get_contract(consensus_service: ConsensusService, contract_name: str) -> dic
     }
 
 
+def get_genvm_version() -> dict:
+    """
+    return dict of version information for genvm and studio
+    """
+    try:
+        with open("/app/shared/genvm_version.txt") as fh:
+            genvm_version = fh.read().strip()
+    except FileNotFoundError:
+        genvm_version = "unknown"
+
+    try:
+        with open("/app/shared/studio_version.txt") as fh:
+            studio_version = fh.read().strip()
+    except FileNotFoundError:
+        studio_version = "unknown"
+
+    versioning = {"genvm_version": genvm_version, "studio_version": studio_version}
+
+    return versioning
+
+
 def register_all_rpc_endpoints(
     jsonrpc: JSONRPC,
     msg_handler: MessageHandler,
@@ -918,4 +939,8 @@ def register_all_rpc_endpoints(
     register_rpc_endpoint(
         partial(get_block_by_hash, transactions_processor),
         method_name="eth_getBlockByHash",
+    )
+    register_rpc_endpoint(
+        partial(get_genvm_version),
+        method_name="gen_protocolVersion",
     )

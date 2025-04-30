@@ -21,6 +21,7 @@ services:
     volumes:
       - ./examples:/app/src/assets/examples
       - ./frontend/src:/app/src
+      - shared_data:/app/shared
     depends_on:
       jsonrpc:
         condition: service_healthy
@@ -64,6 +65,7 @@ services:
       - ./backend:/app/backend
       - hardhat_artifacts:/app/hardhat/artifacts
       - hardhat_deployments:/app/hardhat/deployments
+      - shared_data:/app/shared
     depends_on:
       database-migration:
         condition: service_completed_successfully
@@ -227,4 +229,5 @@ volumes:
   hardhat_cache:
   hardhat_deployments:
   ignition_deployments:
+  shared_data:
   hardhat_snapshots:
