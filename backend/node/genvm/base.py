@@ -405,6 +405,9 @@ async def _run_genvm_host(
                     print(
                         f"GenVM execution timed out after {timeout} seconds (attempt {attempt + 1}/{retries + 1})"
                     )
+                except Exception as e:
+                    if "GenVM internal error" in str(e):
+                        print("GenVM internal error occurred:", e)
                 finally:
                     if host.sock is not None:
                         host.sock.close()
