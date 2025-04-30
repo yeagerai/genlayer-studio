@@ -10,7 +10,7 @@ WORKDIR $path
 SHELL ["/bin/bash", "-x", "-c"]
 RUN apt-get update -y \
     && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y --no-install-recommends \
-        curl unzip xz-utils ca-certificates python3.12 \
+        curl unzip xz-utils ca-certificates python3.12 libssl3 \
     && mkdir -p "$HOME/.config/pip/" \
     && printf "[global]\nbreak-system-packages = true\n" >> "$HOME/.config/pip/pip.conf" \
     && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 2 \
@@ -42,13 +42,7 @@ RUN cd /genvm \
            EXECUTOR_URL="https://github.com/yeagerai/genvm/releases/download/$GENVM_TAG/genvm-linux-amd64.zip" ; \
        elif [[ "$TARGETPLATFORM" == "linux/arm64" ]] ; \
        then \
-           EXECUTOR_URL="https://github.com/yeagerai/genvm/releases/download/$GENVM_TAG/genvm-linux-arm64.zip" && \
-           DIR="$(pwd)" && \
-           mkdir -p /openssl && cd /openssl && \
-           curl -L --fail-with-body -H 'Accept: application/octet-stream' -o "openssl.tar.xz" "http://mirror.archlinuxarm.org/aarch64/core/openssl-1.0-1.0.2.u-1-aarch64.pkg.tar.xz" && \
-           tar -xf openssl.tar.xz && \
-           cp usr/lib/*.so* /usr/lib/ && \
-           cd "$DIR" || exit 1 ; \
+           EXECUTOR_URL="https://github.com/yeagerai/genvm/releases/download/$GENVM_TAG/genvm-linux-arm64.zip" ; \
        else echo "Sorry, $TARGETPLATFORM is not supported yet" ; exit 1 ; \
        fi \
     && curl -L --fail-with-body -H 'Accept: application/octet-stream' -o executor.zip "$EXECUTOR_URL" \
