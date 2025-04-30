@@ -21,22 +21,33 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Create sequence first
-    op.execute("""
-        CREATE SEQUENCE snapshot_id_seq 
-        START WITH 1 
-        INCREMENT BY 1 
-        NO MINVALUE 
-        NO MAXVALUE 
+    op.execute(
+        """
+        CREATE SEQUENCE snapshot_id_seq
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
         CACHE 1;
-    """)
-    
+    """
+    )
+
     # Create table with sequence as default
     op.create_table(
         "snapshots",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column('snapshot_id', sa.Integer(), nullable=False, server_default=sa.text("nextval('snapshot_id_seq')")),
-        sa.Column("state_data", sa.LargeBinary(), nullable=False),  # Stores compressed state data
-        sa.Column("transaction_data", sa.LargeBinary(), nullable=False),  # Stores compressed transaction data
+        sa.Column(
+            "snapshot_id",
+            sa.Integer(),
+            nullable=False,
+            server_default=sa.text("nextval('snapshot_id_seq')"),
+        ),
+        sa.Column(
+            "state_data", sa.LargeBinary(), nullable=False
+        ),  # Stores compressed state data
+        sa.Column(
+            "transaction_data", sa.LargeBinary(), nullable=False
+        ),  # Stores compressed transaction data
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -44,9 +55,9 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.PrimaryKeyConstraint("id", name="snapshots_pkey"),
-        sa.UniqueConstraint('snapshot_id', name='snapshots_snapshot_id_key')
+        sa.UniqueConstraint("snapshot_id", name="snapshots_snapshot_id_key"),
     )
-    
+
     # Set sequence ownership
     op.execute("ALTER SEQUENCE snapshot_id_seq OWNED BY snapshots.snapshot_id")
 
