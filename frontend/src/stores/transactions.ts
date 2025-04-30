@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import type { TransactionItem } from '@/types';
 import type { TransactionHash } from 'genlayer-js/types';
 import { useDb, useGenlayer, useWebSocketClient, useRpcClient } from '@/hooks';
@@ -7,7 +7,7 @@ import { useContractsStore } from '@/stores';
 
 export const useTransactionsStore = defineStore('transactionsStore', () => {
   const genlayer = useGenlayer();
-  const genlayerClient = genlayer.client?.value;
+  const genlayerClient = computed(() => genlayer.client.value);
   const webSocketClient = useWebSocketClient();
   const transactions = ref<TransactionItem[]>([]);
   const contractsStore = useContractsStore();
@@ -46,7 +46,7 @@ export const useTransactionsStore = defineStore('transactionsStore', () => {
   }
 
   async function getTransaction(hash: TransactionHash) {
-    return genlayerClient?.getTransaction({ hash });
+    return genlayerClient.value?.getTransaction({ hash });
   }
 
   async function refreshPendingTransactions() {
@@ -87,7 +87,9 @@ export const useTransactionsStore = defineStore('transactionsStore', () => {
   }
 
   async function setTransactionAppeal(tx_address: string) {
-    rpcClient.setTransactionAppeal(tx_address);
+    await genlayerClient.value?.appealTransaction({
+      txId: tx_address,
+    });
   }
 
   function subscribe(topics: string[]) {

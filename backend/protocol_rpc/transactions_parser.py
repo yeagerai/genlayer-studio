@@ -20,6 +20,7 @@ from backend.protocol_rpc.types import (
     DecodedRollupTransactionDataArgs,
     DecodedGenlayerTransaction,
     DecodedGenlayerTransactionData,
+    DecodedsubmitAppealDataArgs,
     ZERO_ADDRESS,
 )
 
@@ -143,7 +144,11 @@ class TransactionParser:
                                         data=params["_txData"],
                                     ),
                                 )
-                            break
+                            elif decoded_data["function"] == "submitAppeal":
+                                params = decoded_data["params"]
+                                decoded_data = DecodedsubmitAppealDataArgs(
+                                    tx_id=params["_txId"],
+                                )
 
             return DecodedRollupTransaction(
                 from_address=sender,
