@@ -6,7 +6,7 @@ psycopg2-binary>=2.9.9
 requests==2.32.3
 python-dotenv==1.1.0
 asgiref==3.8.1
-pydantic==2.11.3
+pydantic==2.11.4
 numpy==1.26.4
 pytest==8.3.5
 pytest-asyncio==0.26.0
@@ -21,4 +21,4 @@ Flask-SQLAlchemy==3.1.1
 jsf==0.11.2
 jsonschema==4.23.0
 loguru==0.7.3
-web3==7.10.0
+web3==7.11.0
