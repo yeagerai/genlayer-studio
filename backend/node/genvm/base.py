@@ -369,33 +369,50 @@ async def _run_genvm_host(
 ) -> ExecutionResult:
     tmpdir = Path(tempfile.mkdtemp())
     try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock_listener:
-            sock_listener.setblocking(False)
-            sock_path = tmpdir.joinpath("sock")
-            sock_listener.bind(str(sock_path))
-            sock_listener.listen(1)
+        retries = 1
+        timeout = 1.0  # seconds
 
-            new_args = [
-                get_genvm_path(),
-                "run",
-                "--host",
-                f"unix://{sock_path}",
-                "--print=none",
-            ]
+        for attempt in range(retries + 1):
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock_listener:
+                sock_listener.setblocking(False)
+                sock_path = tmpdir.joinpath(f"sock_{attempt}")
+                sock_listener.bind(str(sock_path))
+                sock_listener.listen(1)
 
-            if config is not None:
-                conf_path = tmpdir.joinpath("conf.json")
-                conf_path.write_text(config)
-                new_args.extend(["--config", conf_path])
-            new_args.extend(args)
+                new_args = [
+                    get_genvm_path(),
+                    "run",
+                    "--host",
+                    f"unix://{sock_path}",
+                    "--print=none",
+                ]
 
-            host: _Host = host_supplier(sock_listener)  # _Host(sock_listener)
-            try:
-                return host.provide_result(
-                    await genvmhost.run_host_and_program(host, new_args)
-                )
-            finally:
-                if host.sock is not None:
-                    host.sock.close()
+                if config is not None:
+                    conf_path = tmpdir.joinpath("conf.json")
+                    conf_path.write_text(config)
+                    new_args.extend(["--config", conf_path])
+                new_args.extend(args)
+
+                host: _Host = host_supplier(sock_listener)  # _Host(sock_listener)
+                try:
+                    return host.provide_result(
+                        await asyncio.wait_for(
+                            genvmhost.run_host_and_program(host, new_args),
+                            timeout=timeout,
+                        )
+                    )
+                except asyncio.TimeoutError:
+                    print(
+                        f"GenVM execution timed out after {timeout} seconds (attempt {attempt + 1}/{retries + 1})"
+                    )
+                finally:
+                    if host.sock is not None:
+                        host.sock.close()
+                    try:
+                        sock_path.unlink()
+                    except FileNotFoundError:
+                        pass
+                if attempt < retries:
+                    await asyncio.sleep(5)
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
