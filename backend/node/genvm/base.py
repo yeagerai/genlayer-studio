@@ -370,7 +370,7 @@ async def _run_genvm_host(
     tmpdir = Path(tempfile.mkdtemp())
     try:
         retries = 1
-        timeout = 1.0  # seconds
+        timeout = 30.0  # seconds
 
         for attempt in range(retries + 1):
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock_listener:
