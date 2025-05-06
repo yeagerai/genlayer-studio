@@ -8,7 +8,7 @@ from tests.integration.contract_examples.mocks.call_contract_function import (
 from tests.common.response import assert_dict_struct
 
 
-def test_log_indexer():
+def test_log_indexer(setup_validators):
     # Deploy Contract
     factory = get_contract_factory("LogIndexer")
     contract = factory.deploy(args=[])

@@ -2,7 +2,7 @@ from gltest import get_contract_factory, create_account
 from gltest.assertions import tx_execution_succeeded
 
 
-def test_multi_read_erc20():
+def test_multi_read_erc20(setup_validators):
     """
     This test verifies the functionality of a multi-read ERC20 contract. It deploys two separate ERC20 token contracts
     (referred to as 'doge' and 'shiba') and a multi-read ERC20 contract. The test aims to:

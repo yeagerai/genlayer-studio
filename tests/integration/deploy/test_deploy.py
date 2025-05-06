@@ -2,7 +2,7 @@ from gltest import get_contract_factory
 from gltest.assertions import tx_execution_succeeded
 
 
-def test_deploy():
+def test_deploy(setup_validators):
     factory = get_contract_factory("Contract")
     contract = factory.deploy(args=[])
 

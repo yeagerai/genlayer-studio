@@ -3,7 +3,7 @@ from gltest import get_contract_factory
 from gltest.assertions import tx_execution_succeeded
 
 
-def test_football_prediction_market():
+def test_football_prediction_market(setup_validators):
     # Deploy Contract
     factory = get_contract_factory("PredictionMarket")
     contract = factory.deploy(args=["2024-06-26", "Georgia", "Portugal"])

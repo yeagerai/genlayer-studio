@@ -14,7 +14,7 @@ INITIAL_STATE_USER_B = "user_b_initial_state"
 UPDATED_STATE_USER_B = "user_b_updated_state"
 
 
-def test_user_storage():
+def test_user_storage(setup_validators):
     # Account Setup
     from_account_a = default_account
     from_account_b = create_account()

@@ -3,7 +3,7 @@ from gltest import get_contract_factory
 from gltest.assertions import tx_execution_succeeded
 
 
-def test_wizard_of_coin():
+def test_wizard_of_coin(setup_validators):
     factory = get_contract_factory("WizardOfCoin")
     contract = factory.deploy(args=[True])
 

@@ -2,7 +2,7 @@ from gltest import get_contract_factory, create_account
 from gltest.assertions import tx_execution_succeeded
 
 
-def test_multi_tenant_storage():
+def test_multi_tenant_storage(setup_validators):
     """
     This test verifies the functionality of a multi-tenant storage contract. It deploys two separate storage contracts
     and a multi-tenant storage contract that manages them. The test aims to:

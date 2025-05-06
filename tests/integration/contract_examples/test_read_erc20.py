@@ -1,7 +1,7 @@
 from gltest import get_contract_factory, default_account
 
 
-def test_read_erc20():
+def test_read_erc20(setup_validators):
     """
     Tests that recursive contract calls work by:
     1. creating an LLM ERC20 contract

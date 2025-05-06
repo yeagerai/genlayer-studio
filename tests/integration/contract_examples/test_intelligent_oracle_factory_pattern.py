@@ -18,7 +18,7 @@ def wait_for_contract_deployment(intelligent_oracle_contract, max_retries=10, de
     return False
 
 
-def test_intelligent_oracle_factory_pattern():
+def test_intelligent_oracle_factory_pattern(setup_validators):
     # Get the intelligent oracle factory
     intelligent_oracle_factory = get_contract_factory("IntelligentOracle")
 
