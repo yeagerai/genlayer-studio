@@ -4,7 +4,20 @@ WORKDIR /app
 COPY ./frontend/package*.json .
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY ./frontend .
-COPY ./examples src/assets/examples
+# First copy examples to a temporary location
+COPY ./examples /tmp/examples
+# Create the target directory and process .gpy files while preserving directory structure
+RUN mkdir -p src/assets/examples && \
+    if [ -d /tmp/examples ]; then \
+        find /tmp/examples -type f -name "*.gpy" -exec sh -c ' \
+            target="src/assets/examples/$(dirname "{}" | sed "s|/tmp/examples/||")"; \
+            mkdir -p "$target"; \
+            cp "{}" "$target/$(basename "{}" .gpy).py"; \
+        ' \;; \
+    fi
+# Clean up the temporary examples directory
+RUN rm -rf /tmp/examples
+
 COPY ./.env ./.env
 COPY ../backend/node/create_nodes/providers_schema.json /app/src/assets/schemas/providers_schema.json
 
