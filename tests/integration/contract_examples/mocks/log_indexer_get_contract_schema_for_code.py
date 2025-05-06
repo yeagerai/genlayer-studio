@@ -7,6 +7,7 @@ log_indexer_contract_schema = {
             "add_log": {
                 "kwparams": {},
                 "params": [["log", "string"], ["log_id", "int"]],
+                "payable": False,
                 "readonly": False,
                 "ret": "null",
             },
@@ -19,12 +20,14 @@ log_indexer_contract_schema = {
             "remove_log": {
                 "kwparams": {},
                 "params": [["id", "int"]],
+                "payable": False,
                 "readonly": False,
                 "ret": "null",
             },
             "update_log": {
                 "kwparams": {},
                 "params": [["log_id", "int"], ["log", "string"]],
+                "payable": False,
                 "readonly": False,
                 "ret": "null",
             },

@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from eth_account import Account
 from eth_abi import encode
 from web3 import Web3
+import base64
 
 from tests.common.transactions import sign_transaction, encode_transaction_data
 
@@ -256,9 +257,7 @@ def decode_base64(encoded_str):
 def decode_contract_state(contract_state):
     decoded_state = {}
     for key, value in contract_state.items():
-        decoded_state[decode_base64(key)] = {
-            decode_base64(k): decode_base64(v) for k, v in value.items()
-        }
+        decoded_state[decode_base64(key)] = decode_base64(value)
     return decoded_state
 
 

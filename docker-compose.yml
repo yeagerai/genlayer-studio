@@ -52,10 +52,8 @@ services:
       # TODO: remove this in production
       - PYTHONUNBUFFERED=1
       - RPCDEBUGPORT=${RPCDEBUGPORT}
-      - WEBREQUESTPORT=${WEBREQUESTPORT}
-      - WEBREQUESTHOST=${WEBREQUESTHOST}
       - WEBDRIVERHOST=${WEBDRIVERHOST}
-      - WEBREQUESTPROTOCOL=${WEBREQUESTPROTOCOL}
+      - WEBDRIVERPORT=${WEBDRIVERPORT}
     ports:
       - "${RPCPORT}:${RPCPORT}"
       - "${RPCDEBUGPORT}:${RPCDEBUGPORT}"
@@ -67,13 +65,13 @@ services:
     depends_on:
       database-migration:
         condition: service_completed_successfully
-      webrequest:
-        condition: service_healthy
       webdriver:
         condition: service_healthy
       hardhat:
         condition: service_healthy
         required: false
+      ollama:
+        condition: service_started
     expose:
       - "${RPCPORT}"
     healthcheck:
@@ -98,43 +96,15 @@ services:
       traefik.http.routers.jsonrpc.entrypoints: websecure
       traefik.http.routers.jsonrpc.tls: true
 
-  webrequest:
-    build:
-      context: ./
-      dockerfile: ./docker/Dockerfile.webrequest
-    volumes:
-      - ./.env:/app/webrequest/.env
-      - ./webrequest:/app/webrequest
-    environment:
-      - FLASK_SERVER_PORT=${WEBREQUESTPORT}
-      - WEBDRIVERPORT=${WEBDRIVERPORT}
-      # TODO: remove this in production
-      - PYTHONUNBUFFERED=1
-    depends_on:
-      ollama:
-        condition: service_started
-    expose:
-      - "${WEBREQUESTPORT}:${WEBREQUESTPORT}"
-    restart: always
-    security_opt:
-      - "no-new-privileges=true"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   webdriver:
-    build:
-      context: ./
-      dockerfile: ./docker/Dockerfile.webdriver
+    image: yeagerai/genlayer-genvm-webdriver:0.0.2
     shm_size: 2gb
-    volumes:
-      - ./.env:/wd/.env
+    healthcheck:
+      test: 'true'
     environment:
-      - WEBDRIVERPORT=${WEBDRIVERPORT}
+      - PORT=${WEBDRIVERPORT:-4444}
     expose:
-      - "${WEBDRIVERPORT}:${WEBDRIVERPORT}"
+      - "${WEBDRIVERPORT:-4444}"
     restart: always
     security_opt:
       - "no-new-privileges=true"
@@ -192,14 +162,8 @@ services:
       dockerfile: docker/Dockerfile.database-migration
     environment:
       - DB_URL=postgresql://${DBUSER}:${DBUSER}@postgres/${DBNAME}
-      - WEBREQUESTPORT=${WEBREQUESTPORT}
-      - WEBREQUESTHOST=${WEBREQUESTHOST}
-      - WEBDRIVERHOST=${WEBDRIVERHOST}
-      - WEBREQUESTPROTOCOL=${WEBREQUESTPROTOCOL}
     depends_on:
       postgres:
-        condition: service_healthy
-      webrequest:
         condition: service_healthy
 
   hardhat:
