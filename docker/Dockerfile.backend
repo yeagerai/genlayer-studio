@@ -2,7 +2,7 @@ FROM ubuntu:24.04 AS base
 
 ARG TARGETPLATFORM
 
-ARG GENVM_TAG=v0.0.16
+ARG GENVM_TAG=v0.0.17
 
 ARG path=/app
 WORKDIR $path
@@ -73,9 +73,9 @@ RUN \
     rm /genvm/share/lib/genvm/runners/py-genlayer-std/test.tar && \
     rm src/genlayer/std/__pycache__/eq_principles.* && \
     mv src/genlayer/std/eq_principles.py src/genlayer/std/eq_principles-old.py && \
-    head -n 103 src/genlayer/std/eq_principles-old.py > src/genlayer/std/eq_principles.py && \
-    printf '\t\t\tlambda buf: json.loads(str(buf, "utf-8")),\n' >> src/genlayer/std/eq_principles.py && \
-    tail -n +105 src/genlayer/std/eq_principles-old.py >> src/genlayer/std/eq_principles.py && \
+    head -n 111 src/genlayer/std/eq_principles-old.py > src/genlayer/std/eq_principles.py && \
+    printf '\t\t\t_decode_nondet,\n' >> src/genlayer/std/eq_principles.py && \
+    tail -n +113 src/genlayer/std/eq_principles-old.py >> src/genlayer/std/eq_principles.py && \
     find * -type f -print0 | xargs -0 tar --format ustar -cvf /genvm/share/lib/genvm/runners/py-genlayer-std/test.tar && \
     cd "$path" && \
     rm -rf /tmp/a && \

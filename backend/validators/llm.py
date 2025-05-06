@@ -95,14 +95,15 @@ class LLMModule:
     async def restart(self):
         await self.stop()
 
-        exe_path = Path(os.environ["GENVM_BIN"]).joinpath("genvm-module-llm")
+        exe_path = Path(os.environ["GENVM_BIN"]).joinpath("genvm-modules")
 
         self._process = await asyncio.subprocess.create_subprocess_exec(
             exe_path,
+            "llm",
             "--config",
             self._config.new_path,
-            "run",
             "--allow-empty-backends",
+            "--die-with-parent",
             stdin=None,
             stdout=sys.stdout,
             stderr=sys.stderr,
@@ -124,19 +125,24 @@ class LLMModule:
                     "host": url,
                     "provider": id,
                     "key": "${ENV[" + key_env + "]}",
-                    "models": [provider.model],
+                    "models": {
+                        provider.model: {
+                            "supports_json": True,
+                            "supports_image": False,
+                        }
+                    },
                 }
 
         await self.restart()
 
     async def provider_available(self, provider_kind: str, model: str) -> bool:
-        exe_path = Path(os.environ["GENVM_BIN"]).joinpath("genvm-module-llm")
+        exe_path = Path(os.environ["GENVM_BIN"]).joinpath("genvm-modules")
 
         url, id, key_env = provider_to_url_and_id_and_key(provider_kind)
 
         proc = await asyncio.subprocess.create_subprocess_exec(
             exe_path,
-            "check",
+            "llm-check",
             "--provider",
             id,
             "--host",
@@ -145,11 +151,18 @@ class LLMModule:
             model,
             "--key",
             "${ENV[" + key_env + "]}",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
         )
 
+        stdout, _ = await proc.communicate()
         return_code = await proc.wait()
 
+        stdout = stdout.decode("utf-8")
+
         if return_code != 0:
-            print(f"failed provider_kind={provider_kind} model={model}")
+            print(
+                f"provider not available provider_kind={provider_kind} model={model} stdout={stdout!r}"
+            )
 
         return return_code == 0

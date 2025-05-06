@@ -275,5 +275,7 @@ class ConsensusService:
             return receipt
 
         except Exception as e:
-            print(f"[CONSENSUS_SERVICE]: Error emitting {event_name}: {str(e)}")
+            print(
+                f"[CONSENSUS_SERVICE]: Error emitting {event_name}: {str(e)}\n\tevent_name={event_name} account={account} args={args}"
+            )
             return None

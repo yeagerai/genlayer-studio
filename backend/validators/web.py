@@ -47,12 +47,14 @@ class WebModule:
     async def restart(self):
         await self.stop()
 
-        exe_path = Path(os.environ["GENVM_BIN"]).joinpath("genvm-module-web")
+        exe_path = Path(os.environ["GENVM_BIN"]).joinpath("genvm-modules")
 
         self._process = await asyncio.subprocess.create_subprocess_exec(
             exe_path,
+            "web",
             "--config",
             self._config.new_path,
+            "--die-with-parent",
             stdin=None,
             stdout=sys.stdout,
             stderr=sys.stderr,
