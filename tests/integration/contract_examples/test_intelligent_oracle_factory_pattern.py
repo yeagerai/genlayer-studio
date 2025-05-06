@@ -79,9 +79,7 @@ def test_intelligent_oracle_factory_pattern():
         new_market_address = registered_addresses[-1]
 
         # Build a contract object
-        market_contract = intelligent_oracle_factory.build_contract(
-            new_market_address
-        )
+        market_contract = intelligent_oracle_factory.build_contract(new_market_address)
         created_market_contracts.append(market_contract)
 
         # Wait for the new market contract to be deployed
