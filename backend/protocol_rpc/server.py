@@ -25,6 +25,7 @@ from backend.database_handler.validators_registry import (
     ModifiableValidatorsRegistry,
 )
 from backend.database_handler.accounts_manager import AccountsManager
+from backend.database_handler.snapshot_manager import SnapshotManager
 from backend.consensus.base import ConsensusAlgorithm, contract_processor_factory
 from backend.database_handler.models import Base, TransactionStatus
 from backend.rollup.consensus_service import ConsensusService
@@ -65,6 +66,7 @@ async def create_app():
     msg_handler = MessageHandler(socketio, config=GlobalConfiguration())
     transactions_processor = TransactionsProcessor(sqlalchemy_db.session)
     accounts_manager = AccountsManager(sqlalchemy_db.session)
+    snapshot_manager = SnapshotManager(sqlalchemy_db.session)
     validators_registry = ValidatorsRegistry(sqlalchemy_db.session)
     with app.app_context():
         llm_provider_registry = LLMProviderRegistry(sqlalchemy_db.session)
@@ -99,6 +101,7 @@ async def create_app():
         msg_handler,
         sqlalchemy_db.session,
         accounts_manager,
+        snapshot_manager,
         transactions_processor,
         validators_registry,
         consensus,
@@ -121,6 +124,7 @@ load_dotenv()
     msg_handler,
     request_session,
     accounts_manager,
+    snapshot_manager,
     transactions_processor,
     validators_registry,
     consensus,
@@ -136,6 +140,7 @@ register_all_rpc_endpoints(
     msg_handler,
     request_session,
     accounts_manager,
+    snapshot_manager,
     transactions_processor,
     validators_registry,
     validators_manager,
