@@ -28,6 +28,10 @@ def has_success_status(result: dict) -> bool:
     return "error" not in result
 
 
+def has_successful_execution(result: dict) -> bool:
+    return result["consensus_data"]["leader_receipt"]["execution_result"] == "SUCCESS"
+
+
 def has_message(result: dict) -> bool:
     return "message" in result
 
