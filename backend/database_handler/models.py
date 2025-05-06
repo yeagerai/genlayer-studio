@@ -13,7 +13,8 @@ from sqlalchemy import (
     func,
     text,
     ForeignKey,
-    Text,
+    LargeBinary,
+    Sequence,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import (
@@ -172,4 +173,30 @@ class LLMProviderDBModel(Base):
         init=False,
         server_default=func.current_timestamp(),
         onupdate=func.current_timestamp(),
+    )
+
+
+class Snapshot(Base):
+    __tablename__ = "snapshots"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="snapshots_pkey"),
+        UniqueConstraint("snapshot_id", name="snapshots_snapshot_id_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, init=False)
+    snapshot_id: Mapped[int] = mapped_column(
+        Integer,
+        Sequence("snapshot_id_seq", start=1, increment=1),
+        unique=True,
+        nullable=False,
+        init=False,
+    )  # Incremental identifier
+    state_data: Mapped[bytes] = mapped_column(
+        LargeBinary
+    )  # Stores compressed state data as bytes
+    transaction_data: Mapped[bytes] = mapped_column(
+        LargeBinary
+    )  # Stores compressed transaction data as bytes
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(True), server_default=func.current_timestamp(), init=False
     )

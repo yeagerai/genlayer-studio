@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Iterable
+from eth_account import Account
 
 import pytest
 from sqlalchemy.orm import Session
@@ -14,7 +15,6 @@ def validators_registry(session: Session) -> Iterable[ValidatorsRegistry]:
 
 
 def test_validators_registry(validators_registry: ValidatorsRegistry):
-    validator_address = "0xabcdef"
 
     stake = 1
     provider = "ollama"
@@ -29,11 +29,14 @@ def test_validators_registry(validators_registry: ValidatorsRegistry):
         plugin=plugin,
         plugin_config=plugin_config,
     )
+    validator_account = Account.create()
     validator = Validator(
-        address=validator_address,
+        address=validator_account.address,
+        private_key=validator_account.key,
         stake=stake,
         llmprovider=llm_provider,
     )
+    validator_address = validator.address
 
     # Create
     actual_validator = validators_registry.create_validator(validator)
