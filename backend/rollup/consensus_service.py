@@ -218,7 +218,7 @@ class ConsensusService:
             )
             return None
 
-        if "private_key" in account:
+        if account.get("private_key") is not None:
             account_address = account["address"]
             account_private_key = account["private_key"]
         else:

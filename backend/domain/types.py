@@ -56,6 +56,7 @@ class Validator:
             plugin_config=d["plugin_config"],
         )
         ret.id = d.get("id", None)
+        ret.private_key = d.get("private_key", None)
 
         return ret
 

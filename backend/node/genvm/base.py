@@ -387,29 +387,35 @@ async def _run_genvm_host(
     tmpdir = Path(tempfile.mkdtemp())
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock_listener:
-            timeout = 30 # seconds
+            timeout = 30  # seconds
 
             sock_listener.setblocking(False)
             sock_path = tmpdir.joinpath("sock")
             sock_listener.bind(str(sock_path))
             sock_listener.listen(1)
 
-            new_args = [
+            new_args: list[str | Path] = [
                 get_genvm_path(),
-                "run",
-                "--host",
-                f"unix://{sock_path}",
-                "--print=none",
             ]
-
             if config_path is not None:
                 new_args.extend(["--config", config_path])
+            new_args.extend(
+                [
+                    "run",
+                    "--host",
+                    f"unix://{sock_path}",
+                    "--print=none",
+                ]
+            )
+
             new_args.extend(args)
 
             host: _Host = host_supplier(sock_listener)  # _Host(sock_listener)
             try:
                 return host.provide_result(
-                    await genvmhost.run_host_and_program(host, new_args, deadline=timeout)
+                    await genvmhost.run_host_and_program(
+                        host, new_args, deadline=timeout
+                    )
                 )
             finally:
                 if host.sock is not None:

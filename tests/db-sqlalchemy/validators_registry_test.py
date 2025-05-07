@@ -5,7 +5,10 @@ from eth_account import Account
 import pytest
 from sqlalchemy.orm import Session
 
-from backend.database_handler.validators_registry import ValidatorsRegistry, ModifiableValidatorsRegistry
+from backend.database_handler.validators_registry import (
+    ValidatorsRegistry,
+    ModifiableValidatorsRegistry,
+)
 from backend.domain.types import LLMProvider, Validator
 
 

@@ -282,10 +282,20 @@ async def main():
         convert_future_to_event(),
     ]
 
+    def taskify(f):
+        async def inner():
+            try:
+                return await f
+            except BaseException as e:
+                import traceback
+
+                traceback.print_exc()
+                raise
+
+        return asyncio.tasks.create_task(inner())
+
     try:
-        await asyncio.wait(
-            [asyncio.tasks.create_task(f) for f in futures], return_when="ALL_COMPLETED"
-        )
+        await asyncio.wait([taskify(f) for f in futures], return_when="ALL_COMPLETED")
     finally:
         print("starting validators manager termination")
         await validators_manager.terminate()
