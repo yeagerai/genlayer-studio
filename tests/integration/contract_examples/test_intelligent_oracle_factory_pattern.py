@@ -1,50 +1,32 @@
 import time
-from pathlib import Path
-from tests.common.request import (
-    deploy_intelligent_contract,
-    write_intelligent_contract,
-    call_contract_method,
-)
-from tests.common.response import (
-    has_success_status,
-    has_successful_execution,
-)
+
+from gltest import get_contract_factory
+from gltest.assertions import tx_execution_succeeded
 
 
-cur_dir = Path(__file__).parent
-
-
-def wait_for_contract_deployment(
-    contract_address, from_account, max_retries=10, delay=5
-):
+def wait_for_contract_deployment(intelligent_oracle_contract, max_retries=10, delay=5):
     """
-    Wait for contract to be fully deployed by attempting to call a method.
+    Wait for intelligent oracle contract to be fully deployed by attempting to call a method.
     This is used to check if the triggered deployment did deploy the contract.
     """
     for _ in range(max_retries):
         try:
-            call_contract_method(contract_address, from_account, "get_dict", [])
+            intelligent_oracle_contract.get_dict(args=[])
             return True  # If successful, contract is deployed
         except Exception:
             time.sleep(delay)
     return False
 
 
-def test_intelligent_oracle_factory_pattern(setup_validators, from_account):
-    # Read the contract files first
-    with open(cur_dir.joinpath("intelligent_oracle.py"), "rt") as f:
-        intelligent_oracle_code = f.read()
-
-    with open(cur_dir.joinpath("intelligent_oracle_factory.py"), "rt") as f:
-        registry_code = f.read()
+def test_intelligent_oracle_factory_pattern(setup_validators):
+    # Get the intelligent oracle factory
+    intelligent_oracle_factory = get_contract_factory("IntelligentOracle")
 
     # Deploy the Registry contract with the IntelligentOracle code
-    registry_address, transaction_response_deploy = deploy_intelligent_contract(
-        from_account, registry_code, [intelligent_oracle_code]
+    registry_factory = get_contract_factory("Registry")
+    registry_contract = registry_factory.deploy(
+        args=[intelligent_oracle_factory.contract_code]
     )
-
-    assert has_success_status(transaction_response_deploy)
-    assert has_successful_execution(transaction_response_deploy)
 
     markets_data = [
         {
@@ -74,15 +56,12 @@ def test_intelligent_oracle_factory_pattern(setup_validators, from_account):
             "evidence_urls": "https://www.bbc.com/news/election/2024/us/results",
         },
     ]
-    created_market_addresses = []
+    created_market_contracts = []
 
     # Create markets through factory
     for market_data in markets_data:
-        create_result = write_intelligent_contract(
-            from_account,
-            registry_address,
-            "create_new_prediction_market",
-            [
+        create_result = registry_contract.create_new_prediction_market(
+            args=[
                 market_data["prediction_market_id"],
                 market_data["title"],
                 market_data["description"],
@@ -93,29 +72,27 @@ def test_intelligent_oracle_factory_pattern(setup_validators, from_account):
                 market_data["earliest_resolution_date"],
             ],
         )
-        assert has_success_status(create_result)
-        assert has_successful_execution(create_result)
+        assert tx_execution_succeeded(create_result)
 
         # Get the latest contract address from factory
-        registered_addresses = call_contract_method(
-            registry_address, from_account, "get_contract_addresses", []
-        )
+        registered_addresses = registry_contract.get_contract_addresses(args=[])
         new_market_address = registered_addresses[-1]
-        created_market_addresses.append(new_market_address)
+
+        # Build a contract object
+        market_contract = intelligent_oracle_factory.build_contract(new_market_address)
+        created_market_contracts.append(market_contract)
 
         # Wait for the new market contract to be deployed
         assert wait_for_contract_deployment(
-            new_market_address, from_account
+            market_contract
         ), f"Market contract deployment timeout for {market_data['prediction_market_id']}"
 
     # Verify all markets were registered
     assert len(registered_addresses) == len(markets_data)
 
     # Verify each market's state
-    for i, market_address in enumerate(created_market_addresses):
-        market_state = call_contract_method(
-            market_address, from_account, "get_dict", []
-        )
+    for i, market_contract in enumerate(created_market_contracts):
+        market_state = market_contract.get_dict(args=[])
         expected_data = markets_data[i]
 
         # Verify key market properties
@@ -138,19 +115,13 @@ def test_intelligent_oracle_factory_pattern(setup_validators, from_account):
         )
 
     # Resolve markets
-    for i, market_address in enumerate(created_market_addresses):
-        resolve_result = write_intelligent_contract(
-            from_account,
-            market_address,
-            "resolve",
-            [markets_data[i]["evidence_urls"]],
+    for i, market_contract in enumerate(created_market_contracts):
+        resolve_result = market_contract.resolve(
+            args=[markets_data[i]["evidence_urls"]],
         )
-        assert has_success_status(resolve_result)
-        assert has_successful_execution(resolve_result)
+        assert tx_execution_succeeded(resolve_result)
 
         # Verify market was resolved and has the correct outcome
-        market_state = call_contract_method(
-            market_address, from_account, "get_dict", []
-        )
+        market_state = market_contract.get_dict(args=[])
         assert market_state["status"] == "Resolved"
         assert market_state["outcome"] == markets_data[i]["outcome"]

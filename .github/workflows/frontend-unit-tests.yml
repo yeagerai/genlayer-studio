@@ -19,7 +19,9 @@ jobs:
         with:
           node-version: 20
       - name: Copy examples to assets
-        run: cp -r examples frontend/src/assets/examples
+        run: |
+          cp -r examples frontend/src/assets/examples
+          find frontend/src/assets/examples -name "*.gpy" -exec sh -c 'mv "$1" "${1%.gpy}.py"' _ {} \;
         working-directory: .
 
       - run: npm ci

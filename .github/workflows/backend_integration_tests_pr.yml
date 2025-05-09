@@ -102,7 +102,7 @@ jobs:
           pip install -r requirements.test.txt
 
       - name: Run tests
-        run: pytest tests/integration/ -svv
+        run: gltest --contracts-dir . tests/integration/ -svv
 
       - name: Dump Docker Compose logs
         run: docker compose logs

@@ -1,14 +1,7 @@
-import json
-import os
-
-from tests.common.request import (
-    call_contract_method,
-    deploy_intelligent_contract,
-)
-from tests.common.response import has_success_status
+from gltest import get_contract_factory, default_account
 
 
-def test_read_erc20(setup_validators, from_account):
+def test_read_erc20(setup_validators):
     """
     Tests that recursive contract calls work by:
     1. creating an LLM ERC20 contract
@@ -19,41 +12,26 @@ def test_read_erc20(setup_validators, from_account):
     It's like a linked list, but with contracts.
     """
     TOKEN_TOTAL_SUPPLY = 1000
-    current_directory = os.path.dirname(os.path.abspath(__file__))
-    contract_file = os.path.join(current_directory, "read_erc20.py")
 
     # LLM ERC20
-    contract_code = open("examples/contracts/llm_erc20.py", "r").read()
+    llm_erc20_factory = get_contract_factory("LlmErc20")
 
     # Deploy Contract
-    last_contract_address, transaction_response_deploy = deploy_intelligent_contract(
-        from_account,
-        contract_code,
-        [TOKEN_TOTAL_SUPPLY],
-    )
-    assert has_success_status(transaction_response_deploy)
+    llm_erc20_contract = llm_erc20_factory.deploy(args=[TOKEN_TOTAL_SUPPLY])
+    last_contract_address = llm_erc20_contract.address
 
     # Read ERC20
-    contract_code = open(contract_file, "r").read()
+    read_erc20_factory = get_contract_factory("read_erc20")
 
     for i in range(5):
         print(f"Deploying contract, iteration {i}")
 
         # deploy contract
-        last_contract_address, transaction_response_deploy = (
-            deploy_intelligent_contract(
-                from_account,
-                contract_code,
-                [last_contract_address],
-            )
-        )
-        assert has_success_status(transaction_response_deploy)
+        read_erc20_contract = read_erc20_factory.deploy(args=[last_contract_address])
+        last_contract_address = read_erc20_contract.address
 
         # check balance
-        contract_state = call_contract_method(
-            last_contract_address,
-            from_account,
-            "get_balance_of",
-            [from_account.address],
+        contract_state = read_erc20_contract.get_balance_of(
+            args=[default_account.address]
         )
         assert contract_state == TOKEN_TOTAL_SUPPLY

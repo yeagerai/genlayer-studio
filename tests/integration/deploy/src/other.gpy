@@ -3,7 +3,7 @@
 from genlayer import *
 
 
-class Contract(gl.Contract):
+class Other(gl.Contract):
     data: str
 
     def __init__(self, data: str):
