@@ -49,22 +49,26 @@ class TransactionsProcessorMock:
         raise ValueError(f"Transaction with hash {transaction_hash} not found")
 
     def update_transaction_status(
-        self, transaction_hash: str, new_status: TransactionStatus
+        self,
+        transaction_hash: str,
+        new_status: TransactionStatus,
+        update_current_status_changes: bool = True,
     ):
         with self.status_update_lock:
             transaction = self.get_transaction_by_hash(transaction_hash)
             transaction["status"] = new_status.value
             self.updated_transaction_status_history[transaction_hash].append(new_status)
 
-            if "current_status_changes" in transaction["consensus_history"]:
-                transaction["consensus_history"]["current_status_changes"].append(
-                    new_status.value
-                )
-            else:
-                transaction["consensus_history"]["current_status_changes"] = [
-                    TransactionStatus.PENDING.value,
-                    new_status.value,
-                ]
+            if update_current_status_changes:
+                if "current_status_changes" in transaction["consensus_history"]:
+                    transaction["consensus_history"]["current_status_changes"].append(
+                        new_status.value
+                    )
+                else:
+                    transaction["consensus_history"]["current_status_changes"] = [
+                        TransactionStatus.PENDING.value,
+                        new_status.value,
+                    ]
 
             self.status_changed_event.set()
 
@@ -155,18 +159,23 @@ class TransactionsProcessorMock:
         consensus_round: str,
         leader_result: dict | None,
         validator_results: list,
+        extra_status_change: TransactionStatus | None = None,
     ):
         transaction = self.get_transaction_by_hash(transaction_hash)
+
+        status_changes_to_use = (
+            transaction["consensus_history"]["current_status_changes"]
+            if "current_status_changes" in transaction["consensus_history"]
+            else []
+        )
+        if extra_status_change:
+            status_changes_to_use.append(extra_status_change.value)
 
         current_consensus_results = {
             "consensus_round": consensus_round,
             "leader_result": leader_result.to_dict() if leader_result else None,
             "validator_results": [receipt.to_dict() for receipt in validator_results],
-            "status_changes": (
-                transaction["consensus_history"]["current_status_changes"]
-                if "current_status_changes" in transaction["consensus_history"]
-                else []
-            ),
+            "status_changes": status_changes_to_use,
         }
         if "consensus_results" in transaction["consensus_history"]:
             transaction["consensus_history"]["consensus_results"].append(
