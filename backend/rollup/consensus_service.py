@@ -218,7 +218,7 @@ class ConsensusService:
             )
             return None
 
-        if "private_key" in account:
+        if account.get("private_key") is not None:
             account_address = account["address"]
             account_private_key = account["private_key"]
         else:
@@ -275,5 +275,7 @@ class ConsensusService:
             return receipt
 
         except Exception as e:
-            print(f"[CONSENSUS_SERVICE]: Error emitting {event_name}: {str(e)}")
+            print(
+                f"[CONSENSUS_SERVICE]: Error emitting {event_name}: {str(e)}\n\tevent_name={event_name} account={account} args={args}"
+            )
             return None
