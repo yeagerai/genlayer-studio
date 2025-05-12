@@ -138,7 +138,9 @@ class SnapshotManager:
                 config_rotation_rounds=tx_info["config_rotation_rounds"],
                 appealed=tx_info["appealed"],
                 appeal_undetermined=tx_info["appeal_undetermined"],
-                timestamp_awaiting_finalization=tx_info["timestamp_awaiting_finalization"]
+                timestamp_awaiting_finalization=tx_info[
+                    "timestamp_awaiting_finalization"
+                ],
             )
             if tx_info["created_at"]:
                 new_tx.created_at = datetime.fromisoformat(tx_info["created_at"])
