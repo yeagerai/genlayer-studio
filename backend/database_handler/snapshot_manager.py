@@ -51,16 +51,12 @@ class SnapshotManager:
                 "input_data": tx.input_data,
                 "data": tx.data,
                 "consensus_data": tx.consensus_data,
+                "nonce": tx.nonce,
                 "value": tx.value,
                 "type": tx.type,
+                "gaslimit": tx.gaslimit,
                 "created_at": tx.created_at.isoformat() if tx.created_at else None,
                 "leader_only": tx.leader_only,
-                "appealed": tx.appealed,
-                "appeal_undetermined": tx.appeal_undetermined,
-                "triggered_by_hash": tx.triggered_by_hash,
-                # Add all required fields
-                "nonce": tx.nonce,
-                "gaslimit": tx.gaslimit,
                 "r": tx.r,
                 "s": tx.s,
                 "v": tx.v,
@@ -70,6 +66,12 @@ class SnapshotManager:
                 "appeal_processing_time": tx.appeal_processing_time,
                 "contract_snapshot": tx.contract_snapshot,
                 "config_rotation_rounds": tx.config_rotation_rounds,
+                "appealed": tx.appealed,
+                "appeal_undetermined": tx.appeal_undetermined,
+                "triggered_by_hash": tx.triggered_by_hash,
+                "appealed": tx.appealed,
+                "appeal_undetermined": tx.appeal_undetermined,
+                "timestamp_awaiting_finalization": tx.timestamp_awaiting_finalization,
             }
             for tx in transactions
         }
@@ -120,13 +122,11 @@ class SnapshotManager:
                 input_data=tx_info["input_data"],
                 data=tx_info["data"],
                 consensus_data=tx_info["consensus_data"],
+                nonce=tx_info["nonce"],
                 value=tx_info["value"],
                 type=tx_info["type"],
-                leader_only=tx_info["leader_only"],
-                appealed=tx_info["appealed"],
-                appeal_undetermined=tx_info["appeal_undetermined"],
-                nonce=tx_info["nonce"],
                 gaslimit=tx_info["gaslimit"],
+                leader_only=tx_info["leader_only"],
                 r=tx_info["r"],
                 s=tx_info["s"],
                 v=tx_info["v"],
@@ -136,6 +136,9 @@ class SnapshotManager:
                 appeal_processing_time=tx_info["appeal_processing_time"],
                 contract_snapshot=tx_info["contract_snapshot"],
                 config_rotation_rounds=tx_info["config_rotation_rounds"],
+                appealed=tx_info["appealed"],
+                appeal_undetermined=tx_info["appeal_undetermined"],
+                timestamp_awaiting_finalization=tx_info["timestamp_awaiting_finalization"]
             )
             if tx_info["created_at"]:
                 new_tx.created_at = datetime.fromisoformat(tx_info["created_at"])
