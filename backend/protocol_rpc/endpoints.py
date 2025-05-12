@@ -304,13 +304,15 @@ def delete_all_validators(
 
 
 def get_all_validators(validators_registry: ValidatorsRegistry) -> list:
-    return validators_registry.get_all_validators()
+    return validators_registry.get_all_validators(include_private_key=False)
 
 
 def get_validator(
     validators_registry: ValidatorsRegistry, validator_address: str
 ) -> dict:
-    return validators_registry.get_validator(validator_address)
+    return validators_registry.get_validator(
+        validator_address=validator_address, include_private_key=False
+    )
 
 
 def count_validators(validators_registry: ValidatorsRegistry) -> int:
