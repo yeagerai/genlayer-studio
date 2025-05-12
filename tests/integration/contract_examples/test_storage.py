@@ -1,71 +1,32 @@
 # tests/e2e/test_storage.py
+from gltest import get_contract_factory
+from gltest.assertions import tx_execution_succeeded
 
-import eth_utils
-
-from tests.common.request import (
-    deploy_intelligent_contract,
-    write_intelligent_contract,
-    payload,
-    post_request_localhost,
-)
-from tests.integration.contract_examples.mocks.storage_get_contract_schema_for_code import (
-    storage_contract_schema,
-)
 from tests.integration.contract_examples.mocks.call_contract_function import (
     call_contract_function_response,
 )
-
 from tests.common.response import (
     assert_dict_struct,
-    assert_dict_exact,
-    has_success_status,
 )
-
-from tests.common.request import call_contract_method
-
-import json
 
 INITIAL_STATE = "a"
 UPDATED_STATE = "b"
 
 
-def test_storage(setup_validators, from_account):
-    # Get contract schema
-    contract_code = open("examples/contracts/storage.py", "r").read()
-    result_schema = post_request_localhost(
-        payload(
-            "gen_getContractSchemaForCode",
-            eth_utils.hexadecimal.encode_hex(contract_code),
-        )
-    ).json()
-    assert has_success_status(result_schema)
-    assert_dict_exact(result_schema, storage_contract_schema)
+def test_storage(setup_validators):
+    factory = get_contract_factory("Storage")
+    contract = factory.deploy(args=[INITIAL_STATE])
 
-    # Deploy Contract
-    contract_address, transaction_response_deploy = deploy_intelligent_contract(
-        from_account, contract_code, [INITIAL_STATE]
-    )
-
-    assert has_success_status(transaction_response_deploy)
-
-    # Get Initial State
-    contract_state_1 = call_contract_method(
-        contract_address, from_account, "get_storage", []
-    )
+    # Get initial state
+    contract_state_1 = contract.get_storage(args=[])
     assert contract_state_1 == INITIAL_STATE
 
     # Update State
-    transaction_response_call_1 = write_intelligent_contract(
-        from_account, contract_address, "update_storage", [UPDATED_STATE]
-    )
-
-    assert has_success_status(transaction_response_call_1)
-    print("transaction_response_call_1", transaction_response_call_1)
+    transaction_response_call_1 = contract.update_storage(args=[UPDATED_STATE])
+    assert tx_execution_succeeded(transaction_response_call_1)
     # Assert response format
     assert_dict_struct(transaction_response_call_1, call_contract_function_response)
 
     # Get Updated State
-    contract_state_2 = call_contract_method(
-        contract_address, from_account, "get_storage", []
-    )
+    contract_state_2 = contract.get_storage(args=[])
     assert contract_state_2 == UPDATED_STATE
