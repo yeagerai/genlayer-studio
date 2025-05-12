@@ -66,9 +66,7 @@ class SnapshotManager:
                 "v": tx.v,
                 "appeal_failed": tx.appeal_failed,
                 "consensus_history": tx.consensus_history,
-                "timestamp_appeal": (
-                    tx.timestamp_appeal.isoformat() if tx.timestamp_appeal else None
-                ),
+                "timestamp_appeal": tx.timestamp_appeal,
                 "appeal_processing_time": tx.appeal_processing_time,
                 "contract_snapshot": tx.contract_snapshot,
                 "config_rotation_rounds": tx.config_rotation_rounds,
@@ -134,11 +132,7 @@ class SnapshotManager:
                 v=tx_info["v"],
                 appeal_failed=tx_info["appeal_failed"],
                 consensus_history=tx_info["consensus_history"],
-                timestamp_appeal=(
-                    datetime.fromisoformat(tx_info["timestamp_appeal"])
-                    if tx_info["timestamp_appeal"]
-                    else None
-                ),
+                timestamp_appeal=tx_info["timestamp_appeal"],
                 appeal_processing_time=tx_info["appeal_processing_time"],
                 contract_snapshot=tx_info["contract_snapshot"],
                 config_rotation_rounds=tx_info["config_rotation_rounds"],
