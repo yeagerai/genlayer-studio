@@ -71,7 +71,9 @@ def test_validators_registry(validators_registry: ValidatorsRegistry):
 
     assert validators_registry.count_validators() == 1
 
-    assert validators_registry.get_validator(validator_address) == actual_validator
+    assert (
+        validators_registry.get_validator(validator_address, False) == actual_validator
+    )
 
     assert actual_validator["stake"] == new_stake
     assert actual_validator["provider"] == new_provider
