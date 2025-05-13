@@ -35,27 +35,8 @@ RUN \
     chromium --version ; \
     true
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    gnupg \
-    curl \
-#     unzip \
-#     jq \
-#     openjdk-17-jre-headless \
-#     fonts-open-sans \
-#     mesa-vulkan-drivers \
-    && rm -rf /var/lib/apt/lists/*
-
-# Add Google Chrome repository
-RUN curl -fsSL https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /usr/share/keyrings/google-chrome.gpg \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
-
-# Install Google Chrome
-RUN apt-get update && apt-get install -y google-chrome-stable && rm -rf /var/lib/apt/lists/*
-
-# Install ChromeDriver matching Chrome version
-ADD --checksum=sha256:d9b388d8dc609f89332662a824899a0ed702a26c8dfd824e9a24a4e5fa44a197 \
-    https://storage.googleapis.com/chrome-for-testing-public/136.0.7103.49/linux64/chromedriver-linux64.zip \
+ADD --checksum=sha256:64e1f8bf5bbb94983dff82874b79f45039e5463323e8912d38b83a1277f9e272 \
+https://storage.googleapis.com/chrome-for-testing-public/135.0.7049.95/linux64/chromedriver-linux64.zip \
     /download/chrome-driver.zip
 
 ADD --checksum=sha256:aa3bd6e9820a359a54da0cf06836ad42a7555ee13b5235ff60228f637db9bb57 \
