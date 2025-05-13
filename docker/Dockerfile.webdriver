@@ -35,8 +35,8 @@ RUN \
     chromium --version ; \
     true
 
-ADD --checksum=sha256:b820be8f77e9b03eda7c68ee85263f58109b631f8e12e6e5d4fb580aeb1578dc \
-    https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.35/linux64/chromedriver-linux64.zip \
+ADD --checksum=sha256:d9b388d8dc609f89332662a824899a0ed702a26c8dfd824e9a24a4e5fa44a197 \
+https://storage.googleapis.com/chrome-for-testing-public/136.0.7103.49/linux64/chromedriver-linux64.zip \
     /download/chrome-driver.zip
 
 ADD --checksum=sha256:aa3bd6e9820a359a54da0cf06836ad42a7555ee13b5235ff60228f637db9bb57 \

@@ -70,7 +70,6 @@ class TransactionsProcessor:
                 transaction.hash
                 for transaction in transaction_data.triggered_transactions
             ],
-            "ghost_contract_address": transaction_data.ghost_contract_address,
             "appealed": transaction_data.appealed,
             "timestamp_awaiting_finalization": transaction_data.timestamp_awaiting_finalization,
             "appeal_failed": transaction_data.appeal_failed,
@@ -196,8 +195,6 @@ class TransactionsProcessor:
                 from_address, to_address, data, value, type, current_nonce
             )
 
-        ghost_contract_address = None
-
         new_transaction = Transactions(
             hash=transaction_hash,
             from_address=from_address,
@@ -220,7 +217,6 @@ class TransactionsProcessor:
                 if triggered_by_hash
                 else None
             ),
-            ghost_contract_address=ghost_contract_address,
             appealed=False,
             timestamp_awaiting_finalization=None,
             appeal_failed=0,
@@ -257,6 +253,9 @@ class TransactionsProcessor:
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.status = new_status
+
+        if not transaction.consensus_history:
+            transaction.consensus_history = {}
 
         if "current_status_changes" in transaction.consensus_history:
             transaction.consensus_history["current_status_changes"].append(
@@ -503,14 +502,6 @@ class TransactionsProcessor:
         transaction.contract_snapshot = contract_snapshot
         self.session.commit()
 
-    def get_transaction_contract_snapshot(
-        self, transaction_hash: str
-    ) -> ContractSnapshot | None:
-        transaction = (
-            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
-        )
-        return ContractSnapshot.from_dict(transaction.contract_snapshot)
-
     def transactions_in_process_by_contract(self) -> list[dict]:
         transactions = (
             self.session.query(Transactions)
@@ -534,19 +525,23 @@ class TransactionsProcessor:
             self._parse_transaction_data(transaction) for transaction in transactions
         ]
 
-    def previous_transaction_with_status(
-        self, transaction_hash: str, status: TransactionStatus
+    def get_previous_transaction(
+        self, transaction_hash: str, status: TransactionStatus | None = None
     ) -> dict | None:
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
+
+        filters = [
+            Transactions.created_at < transaction.created_at,
+            Transactions.to_address == transaction.to_address,
+        ]
+        if status is not None:
+            filters.append(Transactions.status == status)
+
         closest_transaction = (
             self.session.query(Transactions)
-            .filter(
-                Transactions.created_at < transaction.created_at,
-                Transactions.to_address == transaction.to_address,
-                Transactions.status == status,
-            )
+            .filter(*filters)
             .order_by(desc(Transactions.created_at))
             .first()
         )

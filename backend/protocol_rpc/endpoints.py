@@ -47,6 +47,8 @@ from flask_jsonrpc.exceptions import JSONRPCError
 import base64
 import os
 from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
+from backend.database_handler.snapshot_manager import SnapshotManager
+from datetime import datetime
 
 
 ####### WRAPPER TO BLOCK ENDPOINTS FOR HOSTED ENVIRONMENT #######
@@ -302,13 +304,15 @@ def delete_all_validators(
 
 
 def get_all_validators(validators_registry: ValidatorsRegistry) -> list:
-    return validators_registry.get_all_validators()
+    return validators_registry.get_all_validators(include_private_key=False)
 
 
 def get_validator(
     validators_registry: ValidatorsRegistry, validator_address: str
 ) -> dict:
-    return validators_registry.get_validator(validator_address)
+    return validators_registry.get_validator(
+        validator_address=validator_address, include_private_key=False
+    )
 
 
 def count_validators(validators_registry: ValidatorsRegistry) -> int:
@@ -382,6 +386,46 @@ def get_contract(consensus_service: ConsensusService, contract_name: str) -> dic
         "abi": contract["abi"],
         "bytecode": contract["bytecode"],
     }
+
+
+def create_snapshot(
+    snapshot_manager: SnapshotManager,
+) -> int:
+    """Create a new snapshot of the current state and transactions.
+
+    Returns:
+        int: The snapshot ID
+    """
+    snapshot = snapshot_manager.create_snapshot()
+    return snapshot.snapshot_id
+
+
+def restore_snapshot(
+    snapshot_manager: SnapshotManager,
+    snapshot_id: int,
+) -> bool:
+    """Restore the database state from a snapshot.
+
+    Args:
+        snapshot_id: ID of the snapshot to restore
+
+    Returns:
+        bool: True if the snapshot was restored, False otherwise
+    """
+    reverted = snapshot_manager.restore_snapshot(snapshot_id)
+    return reverted
+
+
+def delete_all_snapshots(
+    snapshot_manager: SnapshotManager,
+) -> dict:
+    """Delete all snapshots from the database.
+
+    Returns:
+        dict: Information about the deletion result
+    """
+    deleted_count = snapshot_manager.delete_all_snapshots()
+    return {"deleted_count": deleted_count}
 
 
 ####### GEN ENDPOINTS #######
@@ -818,6 +862,7 @@ def register_all_rpc_endpoints(
     msg_handler: MessageHandler,
     request_session: Session,
     accounts_manager: AccountsManager,
+    snapshot_manager: SnapshotManager,
     transactions_processor: TransactionsProcessor,
     validators_registry: ValidatorsRegistry,
     llm_provider_registry: LLMProviderRegistry,
@@ -928,6 +973,18 @@ def register_all_rpc_endpoints(
     register_rpc_endpoint(
         partial(get_contract, consensus_service),
         method_name="sim_getConsensusContract",
+    )
+    register_rpc_endpoint(
+        partial(create_snapshot, snapshot_manager),
+        method_name="sim_createSnapshot",
+    )
+    register_rpc_endpoint(
+        partial(restore_snapshot, snapshot_manager),
+        method_name="sim_restoreSnapshot",
+    )
+    register_rpc_endpoint(
+        partial(delete_all_snapshots, snapshot_manager),
+        method_name="sim_deleteAllSnapshots",
     )
 
     # Gen methods
