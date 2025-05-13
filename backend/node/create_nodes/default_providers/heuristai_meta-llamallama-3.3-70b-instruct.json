@@ -1,7 +1,7 @@
 {
   "provider": "heuristai",
   "plugin": "openai",
-  "model": "meta-llama/llama-3-70b-instruct",
+  "model": "meta-llama/llama-3.3-70b-instruct",
   "config": {
     "temperature": 0.75,
     "max_tokens": 500

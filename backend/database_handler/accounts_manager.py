@@ -32,6 +32,9 @@ class AccountsManager:
 
     def create_new_account_with_address(self, address: str) -> Account:
         # Check if account already exists
+        if not is_address(address):
+            raise ValueError(f"Invalid address: {address}")
+
         existing_account = (
             self.session.query(CurrentState).filter(CurrentState.id == address).first()
         )

@@ -1,7 +1,7 @@
 {
   "provider": "anthropic",
   "plugin": "anthropic",
-  "model": "claude-3-sonnet-20240229",
+  "model": "claude-3-7-sonnet-20250219",
   "config": {
     "temperature": 0.75,
     "max_tokens": 500,

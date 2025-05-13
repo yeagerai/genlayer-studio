@@ -24,9 +24,50 @@ RUN mkdir -p /app/deployments/hardhat && \
     chmod -R 777 /app
 
 ENV PATH="/app/node_modules/.bin:${PATH}"
+ENV HARDHAT_NETWORK=hardhat
+
+# Add setup script to handle symlinks for volume simplification
+RUN echo '#!/bin/sh' > /app/setup_symlinks.sh && \
+    echo 'if [ -d "/app/hardhat_src" ]; then' >> /app/setup_symlinks.sh && \
+    echo '  echo "Setting up symbolic links from /app/hardhat_src to /app directories"' >> /app/setup_symlinks.sh && \
+    echo '  # Ensure base directories exist' >> /app/setup_symlinks.sh && \
+    echo '  mkdir -p /app/contracts /app/scripts /app/test /app/deploy' >> /app/setup_symlinks.sh && \
+    echo '' >> /app/setup_symlinks.sh && \
+    echo '  # Create symbolic links for each directory/file' >> /app/setup_symlinks.sh && \
+    echo '  if [ -d "/app/hardhat_src/contracts" ]; then' >> /app/setup_symlinks.sh && \
+    echo '    rm -rf /app/contracts/*' >> /app/setup_symlinks.sh && \
+    echo '    cp -r /app/hardhat_src/contracts/* /app/contracts/' >> /app/setup_symlinks.sh && \
+    echo '  fi' >> /app/setup_symlinks.sh && \
+    echo '' >> /app/setup_symlinks.sh && \
+    echo '  if [ -d "/app/hardhat_src/scripts" ]; then' >> /app/setup_symlinks.sh && \
+    echo '    rm -rf /app/scripts/*' >> /app/setup_symlinks.sh && \
+    echo '    cp -r /app/hardhat_src/scripts/* /app/scripts/' >> /app/setup_symlinks.sh && \
+    echo '  fi' >> /app/setup_symlinks.sh && \
+    echo '' >> /app/setup_symlinks.sh && \
+    echo '  if [ -d "/app/hardhat_src/test" ]; then' >> /app/setup_symlinks.sh && \
+    echo '    rm -rf /app/test/*' >> /app/setup_symlinks.sh && \
+    echo '    cp -r /app/hardhat_src/test/* /app/test/' >> /app/setup_symlinks.sh && \
+    echo '  fi' >> /app/setup_symlinks.sh && \
+    echo '' >> /app/setup_symlinks.sh && \
+    echo '  if [ -d "/app/hardhat_src/deploy" ]; then' >> /app/setup_symlinks.sh && \
+    echo '    rm -rf /app/deploy/*' >> /app/setup_symlinks.sh && \
+    echo '    cp -r /app/hardhat_src/deploy/* /app/deploy/' >> /app/setup_symlinks.sh && \
+    echo '  fi' >> /app/setup_symlinks.sh && \
+    echo '' >> /app/setup_symlinks.sh && \
+    echo '  if [ -f "/app/hardhat_src/hardhat.config.js" ]; then' >> /app/setup_symlinks.sh && \
+    echo '    cp -f /app/hardhat_src/hardhat.config.js /app/hardhat.config.js' >> /app/setup_symlinks.sh && \
+    echo '  fi' >> /app/setup_symlinks.sh && \
+    echo '' >> /app/setup_symlinks.sh && \
+    echo '  # Set permissions' >> /app/setup_symlinks.sh && \
+    echo '  chmod -R 777 /app/contracts /app/scripts /app/test /app/deploy /app/hardhat.config.js' >> /app/setup_symlinks.sh && \
+    echo 'else' >> /app/setup_symlinks.sh && \
+    echo '  echo "Warning: /app/hardhat_src not found, skipping symlink setup"' >> /app/setup_symlinks.sh && \
+    echo 'fi' >> /app/setup_symlinks.sh && \
+    chmod +x /app/setup_symlinks.sh
 
 # Add the start script with snapshot functionality
 RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo '/app/setup_symlinks.sh' >> /app/start.sh && \
     echo 'echo "[$(date +"%Y-%m-%d %H:%M:%S")] Starting Hardhat node initialization..."' >> /app/start.sh && \
     echo 'if [ -f "/app/snapshots/latest.json" ]; then' >> /app/start.sh && \
     echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Found existing snapshot, restoring state..."' >> /app/start.sh && \
@@ -62,17 +103,22 @@ RUN echo '#!/bin/sh' > /app/start.sh && \
     echo '  echo "[$(date +"%Y-%m-%d %H:%M:%S")] Creating initial snapshot..."' >> /app/start.sh && \
     echo '  npx hardhat run scripts/snapshot.js --network genlayer_network' >> /app/start.sh && \
     echo 'fi' >> /app/start.sh && \
-    echo '/app/snapshot.sh &' >> /app/start.sh && \
     echo 'wait' >> /app/start.sh && \
     chmod +x /app/start.sh
 
-# Add the automatic snapshot script
-RUN echo '#!/bin/sh' > /app/snapshot.sh && \
-    echo 'while true; do' >> /app/snapshot.sh && \
-    echo '  npx hardhat run scripts/snapshot.js --network genlayer_network' >> /app/snapshot.sh && \
-    echo '  sleep 5' >> /app/snapshot.sh && \
-    echo 'done' >> /app/snapshot.sh && \
-    chmod +x /app/snapshot.sh
+# Add a healthcheck script
+RUN echo '#!/bin/sh' > /app/healthcheck.sh && \
+    echo 'curl -X POST -H "Content-Type: application/json" --fail http://localhost:8545 -d "{\"jsonrpc\":\"2.0\",\"method\":\"net_version\",\"params\":[],\"id\":1}" && \
+if [ -d "/app/deployments/genlayer_network" ]; then \
+    if [ -f "/app/deployments/genlayer_network/ConsensusMain.json" ]; then \
+        exit 0; \
+    fi; \
+fi; \
+exit 1;' >> /app/healthcheck.sh && \
+    chmod +x /app/healthcheck.sh
+
+# Add healthcheck
+HEALTHCHECK --interval=60s --timeout=30s --start-period=60s --retries=5 CMD ["/app/healthcheck.sh"]
 
 EXPOSE 8545
 
