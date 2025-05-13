@@ -227,7 +227,11 @@ function prettifyTxData(x: any): any {
       <TransactionStatusBadge
         :class="[
           'px-[4px] py-[1px] text-[9px]',
-          transaction.status === 'FINALIZED' ? '!bg-green-500' : '',
+          leaderReceipt.execution_result === 'ERROR'
+            ? '!bg-red-500'
+            : transaction.status === 'FINALIZED'
+              ? '!bg-green-500'
+              : '',
         ]"
       >
         {{ transaction.status }}
@@ -280,7 +284,11 @@ function prettifyTxData(x: any): any {
             <TransactionStatusBadge
               :class="[
                 'px-[4px] py-[1px] text-[9px]',
-                transaction.status === 'FINALIZED' ? '!bg-green-500' : '',
+                leaderReceipt.execution_result === 'ERROR'
+                  ? '!bg-red-500'
+                  : transaction.status === 'FINALIZED'
+                    ? '!bg-green-500'
+                    : '',
               ]"
             >
               {{ transaction.status }}
