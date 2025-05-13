@@ -348,6 +348,7 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
             }
         }
     )
+    check_contract_state(contract_db, transaction.to_address, {}, {})
 
     def get_vote():
         """
@@ -371,7 +372,6 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
     )
 
     try:
-        check_contract_state(contract_db, transaction.to_address, {}, {})
         assert_transaction_status_match(
             transactions_processor, transaction, [TransactionStatus.ACCEPTED.value]
         )
@@ -1233,6 +1233,7 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
             }
         }
     )
+    check_contract_state(contract_db, transaction.to_address, {}, {})
 
     def get_vote():
         """
@@ -1268,7 +1269,6 @@ async def test_exec_undetermined_appeal(consensus_algorithm):
     )
 
     try:
-        check_contract_state(contract_db, transaction.to_address, {}, {})
         assert_transaction_status_match(
             transactions_processor, transaction, [TransactionStatus.UNDETERMINED.value]
         )
@@ -1492,6 +1492,7 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
             }
         }
     )
+    check_contract_state(contract_db, transaction_1.to_address, {}, {})
 
     consensus_algorithm.finality_window_time = 60
 
@@ -1523,7 +1524,6 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
 
     try:
         contract_address = transaction_1.to_address
-        check_contract_state(contract_db, contract_address, {}, {})
 
         assert_transaction_status_match(
             transactions_processor, transaction_1, [TransactionStatus.ACCEPTED.value]
@@ -1629,6 +1629,7 @@ async def test_exec_leader_appeal_succes_with_rollback_second_tx(consensus_algor
             }
         }
     )
+    check_contract_state(contract_db, transaction_1.to_address, {}, {})
     consensus_algorithm.finality_window_time = 60
 
     def get_vote():
@@ -1656,7 +1657,6 @@ async def test_exec_leader_appeal_succes_with_rollback_second_tx(consensus_algor
 
     try:
         contract_address = transaction_1.to_address
-        check_contract_state(contract_db, contract_address, {}, {})
 
         assert_transaction_status_match(
             transactions_processor,
