@@ -407,12 +407,6 @@ async def gen_call(
         else None
     )
 
-    print("bla type", type)
-    print("bla data", data)
-    print("bla to_address", to_address)
-    print("bla from_address", from_address)
-    print("bla transaction_hash_variant", transaction_hash_variant)
-
     if from_address is None:
         return base64.b64encode(b"\x00' * 31 + b'\x01").decode(
             "ascii"
@@ -456,17 +450,14 @@ async def gen_call(
         leader_receipt=None,
         msg_handler=msg_handler.with_client_session(get_client_session_id()),
     )
-    print("bla node", node)
 
     if type == "read":
         decoded_data = transactions_parser.decode_method_call_data(data)
-        print("bla decoded_data", decoded_data)
         receipt = await node.get_contract_data(
             from_address="0x" + "00" * 20,
             calldata=decoded_data.calldata,
             state_status=state_status,
         )
-        print("bla receipt", receipt)
     elif type == "write":
         decoded_data = transactions_parser.decode_method_send_data(data)
         receipt = await node.run_contract(
@@ -489,7 +480,7 @@ async def gen_call(
             message="running contract failed", data={"receipt": receipt.to_dict()}
         )
 
-    return eth_utils.hexadecimal.encode_hex(receipt.result[1:])
+    return eth_utils.hexadecimal.encode_hex(receipt.result[1:])[2:]
 
 
 ####### ETH ENDPOINTS #######
