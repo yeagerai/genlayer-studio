@@ -27,12 +27,14 @@ class _SnapshotView(genvmbase.StateProxy):
         snapshot: ContractSnapshot,
         snapshot_factory: typing.Callable[[str], ContractSnapshot],
         readonly: bool,
+        state_status: str | None = None,
     ):
         self.contract_address = Address(snapshot.contract_address)
         self.snapshot = snapshot
         self.snapshot_factory = snapshot_factory
         self.cached = {}
         self.readonly = readonly
+        self.state_status = state_status if state_status else "accepted"
 
     def _get_snapshot(self, addr: Address) -> ContractSnapshot:
         if addr == self.contract_address:
@@ -52,7 +54,7 @@ class _SnapshotView(genvmbase.StateProxy):
     ) -> bytes:
         snap = self._get_snapshot(account)
         slot_id = base64.b64encode(slot).decode("ascii")
-        for_slot = snap.encoded_state.setdefault(slot_id, "")
+        for_slot = snap.states[self.state_status].setdefault(slot_id, "")
         data = bytearray(base64.b64decode(for_slot))
         data.extend(b"\x00" * (index + le - len(data)))
         return data[index : index + le]
@@ -69,12 +71,12 @@ class _SnapshotView(genvmbase.StateProxy):
         assert not self.readonly
         snap = self._get_snapshot(account)
         slot_id = base64.b64encode(slot).decode("ascii")
-        for_slot = snap.encoded_state.setdefault(slot_id, "")
+        for_slot = snap.states[self.state_status].setdefault(slot_id, "")
         data = bytearray(base64.b64decode(for_slot))
         mem = memoryview(got)
         data.extend(b"\x00" * (index + len(mem) - len(data)))
         data[index : index + len(mem)] = mem
-        snap.encoded_state[slot_id] = base64.b64encode(data).decode("utf-8")
+        snap.states[self.state_status][slot_id] = base64.b64encode(data).decode("utf-8")
 
     def get_balance(self, addr: Address) -> int:
         snap = self._get_snapshot(addr)
@@ -159,7 +161,7 @@ class Node:
         from_address: str,
         code_to_deploy: bytes,
         calldata: bytes,
-        transaction_hash: str,
+        transaction_hash: str | None = None,
         transaction_created_at: str | None = None,
     ) -> Receipt:
         assert self.contract_snapshot is not None
@@ -179,7 +181,7 @@ class Node:
         self,
         from_address: str,
         calldata: bytes,
-        transaction_hash: str,
+        transaction_hash: str | None = None,
         transaction_created_at: str | None = None,
     ) -> Receipt:
         return await self._run_genvm(
@@ -195,6 +197,7 @@ class Node:
         self,
         from_address: str,
         calldata: bytes,
+        state_status: str | None = None,
     ) -> Receipt:
         return await self._run_genvm(
             from_address,
@@ -202,6 +205,7 @@ class Node:
             readonly=True,
             is_init=False,
             transaction_datetime=datetime.datetime.now().astimezone(datetime.UTC),
+            state_status=state_status,
         )
 
     async def _execution_finished(
@@ -262,6 +266,7 @@ class Node:
         is_init: bool,
         transaction_hash: str | None = None,
         transaction_datetime: datetime.datetime | None,
+        state_status: str | None = None,
     ) -> Receipt:
         genvm = self._create_genvm()
         leader_res: None | dict[int, bytes]
@@ -295,8 +300,13 @@ class Node:
             ]
         }
         snapshot_view = _SnapshotView(
-            self.contract_snapshot, self.contract_snapshot_factory, readonly
+            self.contract_snapshot,
+            self.contract_snapshot_factory,
+            readonly,
+            state_status,
         )
+
+        print("bla 1")
 
         result_exec_code: ExecutionResultStatus
         res = await genvm.run_contract(
@@ -311,6 +321,7 @@ class Node:
             date=transaction_datetime,
             chain_id=SIMULATOR_CHAIN_ID,
         )
+        print("bla 2")
         if res is None:
             res = genvmbase.ExecutionResult(
                 eq_outputs={},
@@ -323,14 +334,19 @@ class Node:
                     kind=genvmbase.ResultCode.CONTRACT_ERROR,
                 ),
             )
+        print("bla 3")
 
         await self._execution_finished(res, transaction_hash)
+
+        print("bla 4")
 
         result_exec_code = (
             ExecutionResultStatus.SUCCESS
             if isinstance(res.result, genvmbase.ExecutionReturn)
             else ExecutionResultStatus.ERROR
         )
+
+        print("bla 5")
 
         return self._set_vote(
             Receipt(
@@ -343,7 +359,7 @@ class Node:
                 pending_transactions=res.pending_transactions,
                 vote=None,
                 execution_result=result_exec_code,
-                contract_state=self.contract_snapshot.encoded_state,
+                contract_state=self.contract_snapshot.states["accepted"],
                 calldata=calldata,
                 mode=self.validator_mode,
                 node_config=self.validator.to_dict(),

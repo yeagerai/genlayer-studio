@@ -389,6 +389,109 @@ async def get_contract_schema_for_code(
     return json.loads(schema)
 
 
+async def gen_call(
+    session: Session,
+    accounts_manager: AccountsManager,
+    msg_handler: MessageHandler,
+    transactions_parser: TransactionParser,
+    validators_registry: ValidatorsRegistry,
+    params: dict,
+) -> str:
+    type = params["type"]
+    data = params["data"]
+    to_address = params["to"]
+    from_address = params["from"] if "from" in params else None
+    transaction_hash_variant = (
+        params["transaction_hash_variant"]
+        if "transaction_hash_variant" in params
+        else None
+    )
+
+    print("bla type", type)
+    print("bla data", data)
+    print("bla to_address", to_address)
+    print("bla from_address", from_address)
+    print("bla transaction_hash_variant", transaction_hash_variant)
+
+    if from_address is None:
+        return base64.b64encode(b"\x00' * 31 + b'\x01").decode(
+            "ascii"
+        )  # Return '1' as a uint256
+
+    if from_address and not accounts_manager.is_valid_address(from_address):
+        raise InvalidAddressError(from_address)
+
+    if not accounts_manager.is_valid_address(to_address):
+        raise InvalidAddressError(to_address)
+
+    if transaction_hash_variant == "latest-final":
+        state_status = "finalized"
+    else:
+        state_status = "accepted"
+
+    # Get a validator
+    validators = get_all_validators(validators_registry)
+    if validators:
+        validator = validators[0]
+    else:
+        raise JSONRPCError(f"No validators exist to execute the gen_call")
+
+    # Create validator node
+    node = Node(
+        contract_snapshot=ContractSnapshot(to_address, session),
+        contract_snapshot_factory=partial(ContractSnapshot, session=session),
+        validator_mode=ExecutionMode.LEADER,
+        validator=Validator(
+            id=validator["id"],
+            address=validator["address"],
+            stake=validator["stake"],
+            llmprovider=LLMProvider(
+                provider=validator["provider"],
+                model=validator["model"],
+                config=validator["config"],
+                plugin=validator["plugin"],
+                plugin_config=validator["plugin_config"],
+            ),
+        ),
+        leader_receipt=None,
+        msg_handler=msg_handler.with_client_session(get_client_session_id()),
+    )
+    print("bla node", node)
+
+    if type == "read":
+        decoded_data = transactions_parser.decode_method_call_data(data)
+        print("bla decoded_data", decoded_data)
+        receipt = await node.get_contract_data(
+            from_address="0x" + "00" * 20,
+            calldata=decoded_data.calldata,
+            state_status=state_status,
+        )
+        print("bla receipt", receipt)
+    elif type == "write":
+        decoded_data = transactions_parser.decode_method_send_data(data)
+        receipt = await node.run_contract(
+            from_address=from_address,
+            calldata=decoded_data.calldata,
+        )
+    elif type == "deploy":
+        decoded_data = transactions_parser.decode_deployment_data(data)
+        receipt = await node.deploy_contract(
+            from_address=from_address,
+            code_to_deploy=decoded_data.contract_code,
+            calldata=decoded_data.calldata,
+        )
+    else:
+        raise JSONRPCError(f"Invalid type: {type}")
+
+    # Return the result of the write method
+    if receipt.execution_result != ExecutionResultStatus.SUCCESS:
+        raise JSONRPCError(
+            message="running contract failed", data={"receipt": receipt.to_dict()}
+        )
+
+    return eth_utils.hexadecimal.encode_hex(receipt.result[1:])
+
+
 ####### ETH ENDPOINTS #######
 def get_balance(
     accounts_manager: AccountsManager, account_address: str, block_tag: str = "latest"
@@ -413,7 +516,7 @@ def get_transaction_by_hash(
     return transactions_processor.get_transaction_by_hash(transaction_hash)
 
 
-async def call(
+async def eth_call(
     session: Session,
     accounts_manager: AccountsManager,
     msg_handler: MessageHandler,
@@ -897,6 +1000,17 @@ def register_all_rpc_endpoints(
         method_name="gen_getContractSchemaForCode",
     )
     register_rpc_endpoint(
+        partial(
+            gen_call,
+            request_session,
+            accounts_manager,
+            msg_handler,
+            transactions_parser,
+            validators_registry,
+        ),
+        method_name="gen_call",
+    )
+    register_rpc_endpoint(
         partial(get_balance, accounts_manager),
         method_name="eth_getBalance",
     )
@@ -906,7 +1020,11 @@ def register_all_rpc_endpoints(
     )
     register_rpc_endpoint(
         partial(
-            call, request_session, accounts_manager, msg_handler, transactions_parser
+            eth_call,
+            request_session,
+            accounts_manager,
+            msg_handler,
+            transactions_parser,
         ),
         method_name="eth_call",
     )
