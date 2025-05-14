@@ -754,6 +754,7 @@ def get_contract(consensus_service: ConsensusService, contract_name: str) -> dic
     }
 
 
+@check_forbidden_method_in_hosted_studio
 def create_snapshot(
     snapshot_manager: SnapshotManager,
 ) -> int:
@@ -766,6 +767,7 @@ def create_snapshot(
     return snapshot.snapshot_id
 
 
+@check_forbidden_method_in_hosted_studio
 def restore_snapshot(
     snapshot_manager: SnapshotManager,
     snapshot_id: int,
@@ -782,6 +784,7 @@ def restore_snapshot(
     return reverted
 
 
+@check_forbidden_method_in_hosted_studio
 def delete_all_snapshots(
     snapshot_manager: SnapshotManager,
 ) -> dict:
