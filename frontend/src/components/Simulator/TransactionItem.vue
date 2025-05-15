@@ -191,9 +191,9 @@ function prettifyTxData(x: any): any {
       <Loader
         :size="15"
         v-if="
-          transaction.status !== 'FINALIZED' &&
-          transaction.status !== 'ACCEPTED' &&
-          transaction.status !== 'UNDETERMINED'
+          transaction.statusName !== 'FINALIZED' &&
+          transaction.statusName !== 'ACCEPTED' &&
+          transaction.statusName !== 'UNDETERMINED'
         "
       />
 
@@ -201,8 +201,8 @@ function prettifyTxData(x: any): any {
         <Btn
           v-if="
             transaction.data.leader_only == false &&
-            (transaction.status == 'ACCEPTED' ||
-              transaction.status == 'UNDETERMINED') &&
+            (transaction.statusName == 'ACCEPTED' ||
+              transaction.statusName == 'UNDETERMINED') &&
             Date.now() / 1000 -
               transaction.data.timestamp_awaiting_finalization -
               transaction.data.appeal_processing_time <=
@@ -227,10 +227,10 @@ function prettifyTxData(x: any): any {
       <TransactionStatusBadge
         :class="[
           'px-[4px] py-[1px] text-[9px]',
-          transaction.status === 'FINALIZED' ? '!bg-green-500' : '',
+          transaction.statusName === 'FINALIZED' ? '!bg-green-500' : '',
         ]"
       >
-        {{ transaction.status }}
+        {{ transaction.statusName }}
       </TransactionStatusBadge>
     </div>
 
@@ -272,18 +272,18 @@ function prettifyTxData(x: any): any {
             <Loader
               :size="15"
               v-if="
-                transaction.status !== 'FINALIZED' &&
-                transaction.status !== 'ACCEPTED' &&
-                transaction.status !== 'UNDETERMINED'
+                transaction.statusName !== 'FINALIZED' &&
+                transaction.statusName !== 'ACCEPTED' &&
+                transaction.statusName !== 'UNDETERMINED'
               "
             />
             <TransactionStatusBadge
               :class="[
                 'px-[4px] py-[1px] text-[9px]',
-                transaction.status === 'FINALIZED' ? '!bg-green-500' : '',
+                transaction.statusName === 'FINALIZED' ? '!bg-green-500' : '',
               ]"
             >
-              {{ transaction.status }}
+              {{ transaction.statusName }}
             </TransactionStatusBadge>
           </p>
         </div>
