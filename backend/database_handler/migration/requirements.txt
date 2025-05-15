@@ -1,4 +1,4 @@
-SQLAlchemy==2.0.40
+SQLAlchemy==2.0.41
 alembic==1.15.2
 psycopg2-binary==2.9.10
 rlp
