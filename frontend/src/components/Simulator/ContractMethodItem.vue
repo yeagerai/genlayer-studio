@@ -21,7 +21,8 @@ const props = defineProps<{
 
 const isExpanded = ref(false);
 const isCalling = ref(false);
-const responseMessage = ref();
+const responseMessageAccepted = ref('');
+const responseMessageFinalized = ref('');
 
 const calldataArguments = ref<ArgData>({ args: [], kwargs: {} });
 
@@ -47,20 +48,18 @@ const formatResponseIfNeeded = (response: string): string => {
 };
 
 const handleCallReadMethod = async () => {
+  responseMessageAccepted.value = '';
+  responseMessageFinalized.value = '';
   isCalling.value = true;
 
   try {
-    const result = await callReadMethod(
-      props.name,
-      unfoldArgsData(calldataArguments.value),
-    );
+    const [acceptedMsg, finalizedMsg] = await Promise.all([
+      callReadMethod(props.name, unfoldArgsData(calldataArguments.value), 'latest-nonfinal'),
+      callReadMethod(props.name, unfoldArgsData(calldataArguments.value), 'latest-final'),
+    ]);
 
-    if (result !== undefined) {
-      const resultString = abi.calldata.toString(result);
-      responseMessage.value = formatResponseIfNeeded(resultString);
-    } else {
-      responseMessage.value = '<genlayer.client is undefined>';
-    }
+    responseMessageAccepted.value = acceptedMsg !== undefined ? formatResponseIfNeeded(abi.calldata.toString(acceptedMsg)) : '<genlayer.client is undefined>';
+    responseMessageFinalized.value = finalizedMsg !== undefined ? formatResponseIfNeeded(abi.calldata.toString(finalizedMsg)) : '<genlayer.client is undefined>';
 
     trackEvent('called_read_method', {
       contract_name: contract.value?.name || '',
@@ -163,13 +162,21 @@ const handleCallWriteMethod = async () => {
           >
         </div>
 
-        <div v-if="responseMessage" class="w-full break-all text-sm">
+        <div
+          v-if="responseMessageAccepted || responseMessageFinalized"
+          class="w-full break-all text-sm"
+        >
           <div class="mb-1 text-xs font-medium">Response:</div>
           <div
             :data-testid="`method-response-${name}`"
             class="w-full whitespace-pre-wrap rounded bg-white p-1 font-mono text-xs dark:bg-slate-600"
           >
-            {{ responseMessage }}
+            <div v-if="responseMessageAccepted">
+              •Accepted = {{ responseMessageAccepted }}
+            </div>
+            <div v-if="responseMessageFinalized">
+              •Finalized = {{ responseMessageFinalized }}
+            </div>
           </div>
         </div>
       </div>

@@ -184,12 +184,14 @@ export function useContractQueries() {
       args: CalldataEncodable[];
       kwargs: { [key: string]: CalldataEncodable };
     },
+    transactionHashVariant: string
   ) {
     try {
       const result = await genlayerClient.value?.readContract({
         address: address.value as Address,
         functionName: method,
         args: args.args,
+        transactionHashVariant: transactionHashVariant
       });
 
       return result;
