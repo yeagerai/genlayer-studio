@@ -31,24 +31,29 @@ class ContractProcessor:
         """
         Update the accepted and/or finalized state of the contract in the database.
         """
-        contract = self.session.query(CurrentState).filter_by(id=contract_address).one()
+        contract = (
+            self.session.query(CurrentState)
+            .filter_by(id=contract_address)
+            .one_or_none()
+        )
 
-        new_state = {
-            "accepted": (
-                accepted_state
-                if accepted_state is not None
-                else contract.data["state"]["accepted"]
-            ),
-            "finalized": (
-                finalized_state
-                if finalized_state is not None
-                else contract.data["state"]["finalized"]
-            ),
-        }
-        new_contract_data = {
-            "code": contract.data["code"],
-            "state": new_state,
-        }
+        if contract:
+            new_state = {
+                "accepted": (
+                    accepted_state
+                    if accepted_state is not None
+                    else contract.data["state"]["accepted"]
+                ),
+                "finalized": (
+                    finalized_state
+                    if finalized_state is not None
+                    else contract.data["state"]["finalized"]
+                ),
+            }
+            new_contract_data = {
+                "code": contract.data["code"],
+                "state": new_state,
+            }
 
-        contract.data = new_contract_data
-        self.session.commit()
+            contract.data = new_contract_data
+            self.session.commit()

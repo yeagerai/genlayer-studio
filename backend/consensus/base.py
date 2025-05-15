@@ -12,6 +12,8 @@ from abc import ABC, abstractmethod
 import threading
 import random
 from copy import deepcopy
+import json
+import base64
 
 from sqlalchemy.orm import Session
 from backend.consensus.vrf import get_validators_for_transaction
@@ -245,12 +247,19 @@ class TransactionContext:
         self.involved_validators: list[dict] = []
         self.remaining_validators: list = []
         self.num_validators: int = 0
-        self.contract_snapshot_supplier: Callable[[], ContractSnapshot] | None = None
         self.votes: dict = {}
         self.validator_nodes: list = []
         self.validation_results: list = []
         self.rotation_count: int = 0
         self.consensus_service = consensus_service
+
+        if self.transaction.type != TransactionType.SEND:
+            if self.transaction.contract_snapshot:
+                self.contract_snapshot = self.transaction.contract_snapshot
+            else:
+                self.contract_snapshot = self.contract_snapshot_factory(
+                    self.transaction.to_address
+                )
 
 
 class ConsensusAlgorithm:
@@ -582,13 +591,30 @@ class ConsensusAlgorithm:
             consensus_service=self.consensus_service,
         )
 
-        # Begin state transitions starting from PendingState
-        state = PendingState()
-        while True:
-            next_state = await state.handle(context)
-            if next_state is None:
-                break
-            state = next_state
+        previous_transaction = transactions_processor.get_previous_transaction(
+            transaction.hash,
+        )
+
+        if (
+            (previous_transaction is None)
+            or (previous_transaction["appealed"] == True)
+            or (previous_transaction["appeal_undetermined"] == True)
+            or (
+                previous_transaction["status"]
+                in [
+                    TransactionStatus.ACCEPTED.value,
+                    TransactionStatus.UNDETERMINED.value,
+                    TransactionStatus.FINALIZED.value,
+                ]
+            )
+        ):
+            # Begin state transitions starting from PendingState
+            state = PendingState()
+            while True:
+                next_state = await state.handle(context)
+                if next_state is None:
+                    break
+                state = next_state
 
     @staticmethod
     def dispatch_transaction_status_update(
@@ -1088,12 +1114,6 @@ class ConsensusAlgorithm:
             )
             transaction.appeal_undetermined = True
 
-            context.contract_snapshot_supplier = (
-                lambda: context.contract_snapshot_factory(
-                    context.transaction.to_address
-                )
-            )
-
             # Begin state transitions starting from PendingState
             state = PendingState()
             while True:
@@ -1198,11 +1218,6 @@ class ConsensusAlgorithm:
             # Set up the context for the committing state
             context.num_validators = len(context.remaining_validators)
             context.votes = {}
-            context.contract_snapshot_supplier = (
-                lambda: context.contract_snapshot_factory(
-                    context.transaction.to_address
-                )
-            )
 
             # Send events in rollup to communicate the appeal is started
             context.consensus_service.emit_transaction_event(
@@ -1694,21 +1709,11 @@ class ProposingState(TransactionState):
                 + [v["address"] for v in context.remaining_validators],
             )
 
-        # Create a contract snapshot for the transaction if not exists
-        if context.transaction.contract_snapshot:
-            contract_snapshot = deepcopy(context.transaction.contract_snapshot)
-        else:
-            contract_snapshot_supplier = lambda: context.contract_snapshot_factory(
-                context.transaction.to_address
-            )
-            context.contract_snapshot_supplier = contract_snapshot_supplier
-            contract_snapshot = contract_snapshot_supplier()
-
         # Create a leader node for executing the transaction
         leader_node = context.node_factory(
             leader,
             ExecutionMode.LEADER,
-            contract_snapshot,
+            deepcopy(context.contract_snapshot),
             None,
             context.msg_handler,
             context.contract_snapshot_factory,
@@ -1769,11 +1774,7 @@ class CommittingState(TransactionState):
             context.node_factory(
                 validator,
                 ExecutionMode.VALIDATOR,
-                (
-                    deepcopy(context.transaction.contract_snapshot)
-                    if context.transaction.contract_snapshot
-                    else context.contract_snapshot_supplier()
-                ),
+                deepcopy(context.contract_snapshot),
                 context.consensus_data.leader_receipt,
                 context.msg_handler,
                 context.contract_snapshot_factory,
@@ -2109,13 +2110,6 @@ class AcceptedState(TransactionState):
             context.validation_results,
         )
 
-        # Send events in rollup to communicate the transaction is accepted
-        context.consensus_service.emit_transaction_event(
-            "emitTransactionAccepted",
-            context.consensus_data.leader_receipt.node_config,
-            context.transaction.hash,
-        )
-
         # Send a message indicating consensus was reached
         context.msg_handler.send_message(
             LogEvent(
@@ -2136,13 +2130,10 @@ class AcceptedState(TransactionState):
 
         # Do not deploy or update the contract if validator appeal failed
         if not context.transaction.appealed:
-            # Get the contract snapshot for the transaction's target address
-            leaders_contract_snapshot = context.contract_snapshot_supplier()
-
             # Set the contract snapshot for the transaction for a future rollback
             if not context.transaction.contract_snapshot:
                 context.transactions_processor.set_transaction_contract_snapshot(
-                    context.transaction.hash, leaders_contract_snapshot.to_dict()
+                    context.transaction.hash, context.contract_snapshot.to_dict()
                 )
 
             # Do not deploy or update the contract if the execution failed
@@ -2179,12 +2170,30 @@ class AcceptedState(TransactionState):
                         accepted_state=leader_receipt.contract_state,
                     )
 
-                _emit_transactions(
-                    context, leader_receipt.pending_transactions, "accepted"
+                internal_messages_data, insert_transactions_data = _get_messages_data(
+                    context,
+                    leader_receipt.pending_transactions,
+                    "accepted",
                 )
+
+                rollup_receipt = context.consensus_service.emit_transaction_event(
+                    "emitTransactionAccepted",
+                    context.consensus_data.leader_receipt.node_config,
+                    context.transaction.hash,
+                    internal_messages_data,
+                )
+
+                _emit_messages(context, insert_transactions_data, rollup_receipt)
 
         else:
             context.transaction.appealed = False
+
+            context.consensus_service.emit_transaction_event(
+                "emitTransactionAccepted",
+                context.consensus_data.leader_receipt.node_config,
+                context.transaction.hash,
+                [],
+            )
 
         # Set the transaction appeal undetermined status to false and return appeal status
         if context.transaction.appeal_undetermined:
@@ -2250,7 +2259,7 @@ class UndeterminedState(TransactionState):
         # Save the contract snapshot for potential future appeals
         if not context.transaction.contract_snapshot:
             context.transactions_processor.set_transaction_contract_snapshot(
-                context.transaction.hash, context.contract_snapshot_supplier().to_dict()
+                context.transaction.hash, context.contract_snapshot.to_dict()
             )
 
         # Set the transaction result with the current consensus data
@@ -2318,27 +2327,39 @@ class FinalizingState(TransactionState):
             context.msg_handler,
         )
 
-        # Send events in rollup to communicate the transaction is finalized
-        context.consensus_service.emit_transaction_event(
-            "emitTransactionFinalized",
-            leader_receipt.node_config,
-            context.transaction.hash,
-        )
-
         if context.transaction.status != TransactionStatus.UNDETERMINED:
             # Insert pending transactions generated by contract-to-contract calls
-            _emit_transactions(
+            internal_messages_data, insert_transactions_data = _get_messages_data(
                 context,
                 context.transaction.consensus_data.leader_receipt.pending_transactions,
                 "finalized",
             )
 
+            rollup_receipt = context.consensus_service.emit_transaction_event(
+                "emitTransactionFinalized",
+                leader_receipt.node_config,
+                context.transaction.hash,
+                internal_messages_data,
+            )
 
-def _emit_transactions(
+            _emit_messages(context, insert_transactions_data, rollup_receipt)
+        else:
+            # Send events in rollup to communicate the transaction is finalized
+            context.consensus_service.emit_transaction_event(
+                "emitTransactionFinalized",
+                leader_receipt.node_config,
+                context.transaction.hash,
+                [],
+            )
+
+
+def _get_messages_data(
     context: TransactionContext,
     pending_transactions: Iterable[PendingTransaction],
     on: Literal["accepted", "finalized"],
 ):
+    insert_transactions_data = []
+    internal_messages_data = []
     for pending_transaction in filter(lambda t: t.on == on, pending_transactions):
         nonce = context.transactions_processor.get_transaction_count(
             context.transaction.to_address
@@ -2380,13 +2401,49 @@ def _emit_transactions(
             data = {
                 "calldata": pending_transaction.calldata,
             }
+
+        insert_transactions_data.append(
+            [pending_transaction.address, data, transaction_type.value, nonce]
+        )
+
+        serializable_data = data.copy()
+        if "contract_code" in serializable_data:
+            serializable_data["contract_code"] = serializable_data[
+                "contract_code"
+            ].decode()
+        # Encode binary calldata as base64 instead of trying to decode as UTF-8
+        serializable_data["calldata"] = base64.b64encode(
+            serializable_data["calldata"]
+        ).decode("utf-8")
+
+        internal_messages_data.append(
+            {
+                "sender": context.transaction.to_address,
+                "recipient": pending_transaction.address,
+                "data": json.dumps(serializable_data).encode(),
+            }
+        )
+
+    return internal_messages_data, insert_transactions_data
+
+
+def _emit_messages(
+    context: TransactionContext,
+    insert_transactions_data: list,
+    receipt: dict,
+):
+    for i, insert_transaction_data in enumerate(insert_transactions_data):
+        transaction_hash = (
+            receipt["tx_ids_hex"][i] if receipt and "tx_ids_hex" in receipt else None
+        )
         context.transactions_processor.insert_transaction(
             context.transaction.to_address,  # new calls are done by the contract
-            pending_transaction.address,
-            data,
+            insert_transaction_data[0],
+            insert_transaction_data[1],
             value=0,  # we only handle EOA transfers at the moment, so no value gets transferred
-            type=transaction_type.value,
-            nonce=nonce,
+            type=insert_transaction_data[2],
+            nonce=insert_transaction_data[3],
             leader_only=context.transaction.leader_only,  # Cascade
             triggered_by_hash=context.transaction.hash,
+            transaction_hash=transaction_hash,
         )
