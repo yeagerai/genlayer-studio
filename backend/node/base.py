@@ -306,8 +306,6 @@ class Node:
             state_status,
         )
 
-        print("bla 1")
-
         result_exec_code: ExecutionResultStatus
         res = await genvm.run_contract(
             snapshot_view,
@@ -321,7 +319,7 @@ class Node:
             date=transaction_datetime,
             chain_id=SIMULATOR_CHAIN_ID,
         )
-        print("bla 2")
+
         if res is None:
             res = genvmbase.ExecutionResult(
                 eq_outputs={},
@@ -334,19 +332,14 @@ class Node:
                     kind=genvmbase.ResultCode.CONTRACT_ERROR,
                 ),
             )
-        print("bla 3")
 
         await self._execution_finished(res, transaction_hash)
-
-        print("bla 4")
 
         result_exec_code = (
             ExecutionResultStatus.SUCCESS
             if isinstance(res.result, genvmbase.ExecutionReturn)
             else ExecutionResultStatus.ERROR
         )
-
-        print("bla 5")
 
         return self._set_vote(
             Receipt(
