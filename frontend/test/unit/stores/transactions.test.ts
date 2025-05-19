@@ -91,7 +91,10 @@ describe('useTransactionsStore', () => {
   it('should get a transaction by hash using genlayer', async () => {
     const transactionHash =
       '0x1234567890123456789012345678901234567890' as TransactionHash;
-    const transactionData = { id: transactionHash, statusName: TransactionStatus.PENDING };
+    const transactionData = {
+      id: transactionHash,
+      statusName: TransactionStatus.PENDING,
+    };
     mockGenlayerClient.getTransaction.mockResolvedValue(transactionData);
 
     const result = await transactionsStore.getTransaction(transactionHash);

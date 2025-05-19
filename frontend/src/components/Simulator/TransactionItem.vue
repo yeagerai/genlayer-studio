@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import type { TransactionItem } from '@/types';
 import TransactionStatusBadge from '@/components/Simulator/TransactionStatusBadge.vue';
 import { useTimeAgo } from '@vueuse/core';
@@ -9,7 +9,6 @@ import { useUIStore, useNodeStore, useTransactionsStore } from '@/stores';
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/vue/16/solid';
 import CopyTextButton from '../global/CopyTextButton.vue';
 import { FilterIcon, GavelIcon, UserPen, UserSearch } from 'lucide-vue-next';
-import { abi } from 'genlayer-js';
 import {
   resultToUserFriendlyJson,
   b64ToArray,

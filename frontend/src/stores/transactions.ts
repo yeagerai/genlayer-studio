@@ -11,7 +11,6 @@ export const useTransactionsStore = defineStore('transactionsStore', () => {
   const genlayerClient = genlayer.client?.value;
   const webSocketClient = useWebSocketClient();
   const transactions = ref<TransactionItem[]>([]);
-  const contractsStore = useContractsStore();
   const subscriptions = new Set();
   const db = useDb();
   const rpcClient = useRpcClient();
