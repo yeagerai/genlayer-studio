@@ -122,7 +122,6 @@ def contract_snapshot_factory(
         ret.contract_code = transaction.data["contract_code"]
         ret.balance = transaction.value or 0
         ret.states = {"accepted": {}, "finalized": {}}
-        ret.encoded_state = ret.states["accepted"]
         return ret
 
     # Return a ContractSnapshot instance for an existing contract
@@ -1247,7 +1246,7 @@ class ConsensusAlgorithm:
                     # Get the previous state of the contract
                     if context.transaction.contract_snapshot:
                         previous_contact_state = (
-                            context.transaction.contract_snapshot.encoded_state
+                            context.transaction.contract_snapshot.states["accepted"]
                         )
                     else:
                         previous_contact_state = {}
