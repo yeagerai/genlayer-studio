@@ -758,8 +758,29 @@ def get_transaction_receipt(
 
     transaction = transactions_processor.get_transaction_by_hash(transaction_hash)
 
-    if not transaction:
-        return None
+    event_signature = "NewTransaction(bytes32,address,address)"
+    event_signature_hash = eth_utils.keccak(text=event_signature).hex()
+
+    logs = [
+        {
+            "address": transaction.get("to_address"),
+            "topics": [
+                f"0x{event_signature_hash}",
+                transaction_hash,
+                "0x000000000000000000000000"
+                + transaction.get("to_address").replace("0x", ""),
+                "0x000000000000000000000000"
+                + transaction.get("from_address").replace("0x", ""),
+            ],
+            "data": "0x",
+            "blockNumber": 0,
+            "transactionHash": transaction_hash,
+            "transactionIndex": 0,
+            "blockHash": transaction_hash,
+            "logIndex": 0,
+            "removed": False,
+        }
+    ]
 
     receipt = {
         "transactionHash": transaction_hash,
@@ -775,7 +796,7 @@ def get_transaction_receipt(
             if transaction.get("contract_address")
             else None
         ),
-        "logs": transaction.get("logs", []),
+        "logs": logs,
         "logsBloom": "0x" + "00" * 256,
         "status": hex(1 if transaction.get("status", True) else 0),
     }

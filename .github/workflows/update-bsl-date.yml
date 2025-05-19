@@ -23,12 +23,12 @@ jobs:
         run: |
           # Get current date in format "YYYY-MM-DD"
           CURRENT_DATE=$(date +%Y-%m-%d)
-          
+
           # Find BSL license files and update the date
           find . -name "LICENSE" -o -name "LICENSE.txt" | while read file; do
             if grep -q "License" "$file"; then
               echo "Updating license date in $file"
-              
+
               # Replace the date with current date
               # This pattern assumes a date in YYYY-MM-DD format
               # Adjust the regex pattern if your date format is different
