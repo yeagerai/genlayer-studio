@@ -113,6 +113,7 @@ services:
     depends_on:
       ollama:
         condition: service_started
+        required: false
     expose:
       - "${WEBREQUESTPORT}:${WEBREQUESTPORT}"
     restart: always
@@ -145,6 +146,7 @@ services:
         max-file: "3"
 
   ollama:
+    profiles: ["ollama"]
     image: ollama/ollama:0.6.5
     ports:
       - 11434:11434
