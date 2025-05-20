@@ -74,23 +74,12 @@ class LLMProviderRegistry:
         providers = self.session.query(LLMProviderDBModel).all()
         result = []
 
-        # database migration depends on this file but this import fails there
-        # from backend.llms import get_llm_plugin
-
         for provider in providers:
             domain_provider = _to_domain(provider)
             provider_dict = domain_provider.__dict__
 
             provider_dict["is_available"] = True
             provider_dict["is_model_available"] = True
-            # plugin = await get_llm_plugin(
-            #    domain_provider.plugin, domain_provider.plugin_config
-            # )
-
-            # provider_dict["is_available"] = await plugin.is_available()
-            # provider_dict["is_model_available"] = await plugin.is_model_available(
-            #    domain_provider.model
-            # )
             provider_dict["is_default"] = provider.is_default
 
             result.append(provider_dict)

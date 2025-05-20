@@ -112,14 +112,13 @@ async def get_providers_and_models(
     llm_provider_registry: LLMProviderRegistry,
     validators_manager: validators.Manager,
 ) -> list[dict]:
-    unfiltered = await llm_provider_registry.get_all_dict()
-    return [
-        p
-        for p in unfiltered
-        if await validators_manager.llm_module.provider_available(
-            p["plugin"], p["model"]
-        )
-    ]
+    providers = await llm_provider_registry.get_all_dict()
+    for provider in providers:
+        if await validators_manager.llm_module.provider_available(provider["plugin"], provider["model"]):
+            provider["is_available"] = True
+        else:
+            provider["is_available"] = False
+    return providers
 
 
 @check_forbidden_method_in_hosted_studio
