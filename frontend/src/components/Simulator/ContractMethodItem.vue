@@ -180,17 +180,26 @@ const handleCallWriteMethod = async () => {
           v-if="responseMessageAccepted || responseMessageFinalized"
           class="w-full break-all text-sm"
         >
-          <div class="mb-1 text-xs font-medium">Response:</div>
+          <div v-if="responseMessageAccepted" class="mb-1 text-xs font-medium">
+            Response Accepted:
+          </div>
           <div
             :data-testid="`method-response-${name}`"
             class="w-full whitespace-pre-wrap rounded bg-white p-1 font-mono text-xs dark:bg-slate-600"
           >
-            <div v-if="responseMessageAccepted">
-              •Accepted = {{ responseMessageAccepted }}
-            </div>
-            <div v-if="responseMessageFinalized">
-              •Finalized = {{ responseMessageFinalized }}
-            </div>
+            {{ responseMessageAccepted }}
+          </div>
+          <div
+            v-if="responseMessageFinalized"
+            class="mb-1 mt-4 text-xs font-medium"
+          >
+            Response Finalized:
+          </div>
+          <div
+            :data-testid="`method-response-${name}`"
+            class="w-full whitespace-pre-wrap rounded bg-white p-1 font-mono text-xs dark:bg-slate-600"
+          >
+            {{ responseMessageFinalized }}
           </div>
         </div>
       </div>
