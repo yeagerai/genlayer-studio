@@ -114,7 +114,9 @@ async def get_providers_and_models(
 ) -> list[dict]:
     providers = await llm_provider_registry.get_all_dict()
     for provider in providers:
-        if await validators_manager.llm_module.provider_available(provider["plugin"], provider["model"]):
+        if await validators_manager.llm_module.provider_available(
+            provider["plugin"], provider["model"]
+        ):
             provider["is_available"] = True
         else:
             provider["is_available"] = False

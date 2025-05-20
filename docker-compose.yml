@@ -72,6 +72,7 @@ services:
         required: false
       ollama:
         condition: service_started
+        required: false
     expose:
       - "${RPCPORT}"
     healthcheck:
