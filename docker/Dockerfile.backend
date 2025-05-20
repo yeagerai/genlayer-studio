@@ -2,7 +2,7 @@ FROM ubuntu:24.04 AS base
 
 ARG TARGETPLATFORM
 
-ARG GENVM_TAG=v0.0.15
+ARG GENVM_TAG=v0.0.18
 
 ARG path=/app
 WORKDIR $path
@@ -36,24 +36,34 @@ ENV HUGGINGFACE_HUB_CACHE /home/backend-user/.cache/huggingface
 
 ENV RUST_BACKTRACE=1
 
+ADD \
+    https://github.com/yeagerai/genvm/releases/download/$GENVM_TAG/genvm-linux-amd64.zip \
+    /genvm/genvm-linux-amd64.zip
+
+ADD \
+    https://github.com/yeagerai/genvm/releases/download/$GENVM_TAG/genvm-linux-arm64.zip \
+    /genvm/genvm-linux-arm64.zip
+
+ADD \
+    https://github.com/yeagerai/genvm/releases/download/$GENVM_TAG/genvm-runners.zip \
+    /genvm/genvm-runners.zip
+
 RUN cd /genvm \
     && if [[ "$TARGETPLATFORM" == "linux/amd64" ]] ; \
-       then \
-           EXECUTOR_URL="https://github.com/yeagerai/genvm/releases/download/$GENVM_TAG/genvm-linux-amd64.zip" ; \
-       elif [[ "$TARGETPLATFORM" == "linux/arm64" ]] ; \
-       then \
-           EXECUTOR_URL="https://github.com/yeagerai/genvm/releases/download/$GENVM_TAG/genvm-linux-arm64.zip" ; \
-       else echo "Sorry, $TARGETPLATFORM is not supported yet" ; exit 1 ; \
-       fi \
-    && curl -L --fail-with-body -H 'Accept: application/octet-stream' -o executor.zip "$EXECUTOR_URL" \
-    && RUNNERS_URL="https://github.com/yeagerai/genvm/releases/download/$GENVM_TAG/genvm-runners.zip" \
-    && curl -L --fail-with-body -H 'Accept: application/octet-stream' -o runners.zip "$RUNNERS_URL" \
-    && unzip runners.zip && unzip executor.zip && rm runners.zip executor.zip \
+        then \
+            unzip genvm-linux-amd64.zip ; \
+        elif [[ "$TARGETPLATFORM" == "linux/arm64" ]] ; \
+        then \
+            unzip genvm-linux-arm64.zip ; \
+        else \
+            echo "Sorry, $TARGETPLATFORM is not supported yet" ; exit 1 ; \
+        fi \
+    && unzip genvm-runners.zip \
+    && rm *.zip \
     && ls -R . \
+    && su - backend-user -c '/genvm/bin/genvm precompile' \
     && cd "$path" \
     && true
-
-RUN su - backend-user -c '/genvm/bin/genvm precompile'
 
 COPY ../.env .
 COPY backend $path/backend

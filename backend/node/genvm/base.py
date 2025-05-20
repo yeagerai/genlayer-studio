@@ -25,6 +25,7 @@ from dataclasses import dataclass
 
 from backend.node.genvm.config import get_genvm_path
 from .origin.result_codes import *
+from .origin.host_fns import Errors
 
 
 @dataclass
@@ -96,9 +97,11 @@ class IGenVM(typing.Protocol):
         calldata_raw: bytes,
         is_init: bool = False,
         leader_results: None | dict[int, bytes],
-        config: str,
         date: datetime.datetime | None,
         chain_id: int,
+        host_data: typing.Any,
+        readonly: bool,
+        config_path: Path | None,
     ) -> ExecutionResult: ...
 
     async def get_contract_schema(self, contract_code: bytes) -> ExecutionResult: ...
@@ -143,12 +146,13 @@ class GenVMHost(IGenVM):
         from_address: Address,
         contract_address: Address,
         calldata_raw: bytes,
-        is_init: bool,
+        is_init: bool = False,
         readonly: bool,
         leader_results: None | dict[int, bytes],
-        config: str,
         date: datetime.datetime | None,
         chain_id: int,
+        host_data: typing.Any,
+        config_path: Path | None,
     ) -> ExecutionResult:
         message = {
             "is_init": is_init,
@@ -173,8 +177,15 @@ class GenVMHost(IGenVM):
                 state_proxy=state,
                 leader_results=leader_results,
             ),
-            ["--message", json.dumps(message), "--permissions", perms],
-            config,
+            [
+                "--message",
+                json.dumps(message),
+                "--permissions",
+                perms,
+                "--host-data",
+                json.dumps(host_data),
+            ],
+            config_path,
         )
 
     async def get_contract_schema(self, contract_code: bytes) -> ExecutionResult:
@@ -292,13 +303,13 @@ class _Host(genvmhost.IHost):
 
     async def get_leader_nondet_result(
         self, call_no: int, /
-    ) -> tuple[ResultCode, collections.abc.Buffer] | ResultCode:
+    ) -> tuple[ResultCode, collections.abc.Buffer] | Errors:
         leader_results = self._leader_results
         if leader_results is None:
-            return ResultCode.NONE
+            return Errors.I_AM_LEADER
         res = leader_results.get(call_no, None)
         if res is None:
-            return ResultCode.NO_LEADERS
+            return Errors.ABSENT
         leader_results_mem = memoryview(res)
         return (ResultCode(leader_results_mem[0]), leader_results_mem[1:])
 
@@ -350,7 +361,13 @@ class _Host(genvmhost.IHost):
             )
         )
 
-    async def eth_send(self, account: bytes, calldata: bytes, /) -> None:
+    async def eth_send(
+        self,
+        account: bytes,
+        calldata: bytes,
+        data: genvmhost.DefaultEthTransactionData,
+        /,
+    ) -> None:
         # FIXME(core-team): #748
         assert False
 
@@ -365,54 +382,43 @@ class _Host(genvmhost.IHost):
 async def _run_genvm_host(
     host_supplier: typing.Callable[[socket.socket], _Host],
     args: list[Path | str],
-    config: str | None,
+    config_path: Path | None,
 ) -> ExecutionResult:
     tmpdir = Path(tempfile.mkdtemp())
     try:
-        retries = 1
-        timeout = 300.0  # seconds
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock_listener:
+            timeout = 300  # seconds
 
-        for attempt in range(retries + 1):
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock_listener:
-                sock_listener.setblocking(False)
-                sock_path = tmpdir.joinpath(f"sock_{attempt}")
-                sock_listener.bind(str(sock_path))
-                sock_listener.listen(1)
+            sock_listener.setblocking(False)
+            sock_path = tmpdir.joinpath("sock")
+            sock_listener.bind(str(sock_path))
+            sock_listener.listen(1)
 
-                new_args = [
-                    get_genvm_path(),
+            new_args: list[str | Path] = [
+                get_genvm_path(),
+            ]
+            if config_path is not None:
+                new_args.extend(["--config", config_path])
+            new_args.extend(
+                [
                     "run",
                     "--host",
                     f"unix://{sock_path}",
                     "--print=none",
                 ]
+            )
 
-                if config is not None:
-                    conf_path = tmpdir.joinpath("conf.json")
-                    conf_path.write_text(config)
-                    new_args.extend(["--config", conf_path])
-                new_args.extend(args)
+            new_args.extend(args)
 
-                host: _Host = host_supplier(sock_listener)  # _Host(sock_listener)
-                try:
-                    return host.provide_result(
-                        await asyncio.wait_for(
-                            genvmhost.run_host_and_program(host, new_args),
-                            timeout=timeout,
-                        )
+            host: _Host = host_supplier(sock_listener)  # _Host(sock_listener)
+            try:
+                return host.provide_result(
+                    await genvmhost.run_host_and_program(
+                        host, new_args, deadline=timeout
                     )
-                except asyncio.TimeoutError:
-                    print(
-                        f"GenVM execution timed out after {timeout} seconds (attempt {attempt + 1}/{retries + 1})"
-                    )
-                finally:
-                    if host.sock is not None:
-                        host.sock.close()
-                    try:
-                        sock_path.unlink()
-                    except FileNotFoundError:
-                        pass
-                if attempt < retries:
-                    await asyncio.sleep(5)
+                )
+            finally:
+                if host.sock is not None:
+                    host.sock.close()
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)

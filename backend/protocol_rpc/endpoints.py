@@ -8,6 +8,8 @@ from flask_jsonrpc import JSONRPC
 from flask_jsonrpc.exceptions import JSONRPCError
 from sqlalchemy import Table
 from sqlalchemy.orm import Session
+import backend.node.genvm.origin.calldata as genvm_calldata
+import backend.validators as validators
 
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
@@ -18,13 +20,15 @@ from backend.node.create_nodes.providers import (
     get_default_provider_for,
     validate_provider,
 )
-from backend.llms import get_llm_plugin
 from backend.protocol_rpc.message_handler.base import (
     MessageHandler,
     get_client_session_id,
 )
 from backend.database_handler.accounts_manager import AccountsManager
-from backend.database_handler.validators_registry import ValidatorsRegistry
+from backend.database_handler.validators_registry import (
+    ValidatorsRegistry,
+    ModifiableValidatorsRegistry,
+)
 
 from backend.node.create_nodes.create_nodes import (
     random_validator_config,
@@ -49,6 +53,8 @@ import os
 from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
 from backend.database_handler.snapshot_manager import SnapshotManager
 from datetime import datetime
+
+from .aio import *
 
 
 ####### WRAPPER TO BLOCK ENDPOINTS FOR HOSTED ENVIRONMENT #######
@@ -104,8 +110,16 @@ def reset_defaults_llm_providers(llm_provider_registry: LLMProviderRegistry) -> 
 
 async def get_providers_and_models(
     llm_provider_registry: LLMProviderRegistry,
+    validators_manager: validators.Manager,
 ) -> list[dict]:
-    return await llm_provider_registry.get_all_dict()
+    unfiltered = await llm_provider_registry.get_all_dict()
+    return [
+        p
+        for p in unfiltered
+        if await validators_manager.llm_module.provider_available(
+            p["plugin"], p["model"]
+        )
+    ]
 
 
 @check_forbidden_method_in_hosted_studio
@@ -144,8 +158,8 @@ def delete_provider(llm_provider_registry: LLMProviderRegistry, id: int) -> None
     llm_provider_registry.delete(id)
 
 
-def create_validator(
-    validators_registry: ValidatorsRegistry,
+async def create_validator(
+    validators_registry: ModifiableValidatorsRegistry,
     accounts_manager: AccountsManager,
     stake: int,
     provider: str,
@@ -171,7 +185,7 @@ def create_validator(
 
     account = accounts_manager.create_new_account()
 
-    return validators_registry.create_validator(
+    return await validators_registry.create_validator(
         Validator(
             address=account.address,
             private_key=account.key,
@@ -183,9 +197,10 @@ def create_validator(
 
 @check_forbidden_method_in_hosted_studio
 async def create_random_validator(
-    validators_registry: ValidatorsRegistry,
+    validators_registry: ModifiableValidatorsRegistry,
     accounts_manager: AccountsManager,
     llm_provider_registry: LLMProviderRegistry,
+    validators_manager: validators.Manager,
     stake: int,
 ) -> dict:
     return (
@@ -193,6 +208,7 @@ async def create_random_validator(
             validators_registry,
             accounts_manager,
             llm_provider_registry,
+            validators_manager,
             1,
             stake,
             stake,
@@ -202,9 +218,10 @@ async def create_random_validator(
 
 @check_forbidden_method_in_hosted_studio
 async def create_random_validators(
-    validators_registry: ValidatorsRegistry,
+    validators_registry: ModifiableValidatorsRegistry,
     accounts_manager: AccountsManager,
     llm_provider_registry: LLMProviderRegistry,
+    validators_manager: validators.Manager,
     count: int,
     min_stake: int,
     max_stake: int,
@@ -214,9 +231,14 @@ async def create_random_validators(
     limit_providers = limit_providers or []
     limit_models = limit_models or []
 
+    async def check_plugin_is_available(plugin: LLMProvider) -> bool:
+        return await validators_manager.llm_module.provider_available(
+            plugin.provider, plugin.model
+        )
+
     details = await random_validator_config(
         llm_provider_registry.get_all,
-        get_llm_plugin,
+        check_plugin_is_available,
         limit_providers=set(limit_providers),
         limit_models=set(limit_models),
         amount=count,
@@ -227,7 +249,7 @@ async def create_random_validators(
         stake = random.randint(min_stake, max_stake)
         validator_account = accounts_manager.create_new_account()
 
-        validator = validators_registry.create_validator(
+        validator = await validators_registry.create_validator(
             Validator(
                 address=validator_account.address,
                 private_key=validator_account.key,
@@ -241,8 +263,8 @@ async def create_random_validators(
 
 
 @check_forbidden_method_in_hosted_studio
-def update_validator(
-    validators_registry: ValidatorsRegistry,
+async def update_validator(
+    validators_registry: ModifiableValidatorsRegistry,
     accounts_manager: AccountsManager,
     validator_address: str,
     stake: int,
@@ -278,12 +300,12 @@ def update_validator(
         stake=stake,
         llmprovider=llm_provider,
     )
-    return validators_registry.update_validator(validator)
+    return await validators_registry.update_validator(validator)
 
 
 @check_forbidden_method_in_hosted_studio
-def delete_validator(
-    validators_registry: ValidatorsRegistry,
+async def delete_validator(
+    validators_registry: ModifiableValidatorsRegistry,
     accounts_manager: AccountsManager,
     validator_address: str,
 ) -> str:
@@ -291,15 +313,15 @@ def delete_validator(
     # if not accounts_manager.is_valid_address(validator_address):
     #     raise InvalidAddressError(validator_address)
 
-    validators_registry.delete_validator(validator_address)
+    await validators_registry.delete_validator(validator_address)
     return validator_address
 
 
 @check_forbidden_method_in_hosted_studio
-def delete_all_validators(
-    validators_registry: ValidatorsRegistry,
+async def delete_all_validators(
+    validators_registry: ModifiableValidatorsRegistry,
 ) -> list:
-    validators_registry.delete_all_validators()
+    await validators_registry.delete_all_validators()
     return validators_registry.get_all_validators()
 
 
@@ -512,6 +534,7 @@ async def eth_call(
     accounts_manager: AccountsManager,
     msg_handler: MessageHandler,
     transactions_parser: TransactionParser,
+    validators_manager: validators.Manager,
     params: dict,
     block_tag: str = "latest",
 ) -> str:
@@ -532,29 +555,25 @@ async def eth_call(
 
     decoded_data = transactions_parser.decode_method_call_data(data)
 
-    node = Node(  # Mock node just to get the data from the GenVM
-        contract_snapshot=ContractSnapshot(to_address, session),
-        contract_snapshot_factory=partial(ContractSnapshot, session=session),
-        validator_mode=ExecutionMode.LEADER,
-        validator=Validator(
-            address="",
-            stake=0,
-            llmprovider=LLMProvider(
-                provider="",
-                model="",
-                config={},
-                plugin="",
-                plugin_config={},
-            ),
-        ),
-        leader_receipt=None,
-        msg_handler=msg_handler.with_client_session(get_client_session_id()),
-    )
+    async with validators_manager.snapshot() as snapshot:
+        if len(snapshot.nodes) == 0:
+            raise Exception("no suitable validators")
+        as_validator = snapshot.nodes[0].validator
+        node = Node(  # Mock node just to get the data from the GenVM
+            contract_snapshot=ContractSnapshot(to_address, session),
+            contract_snapshot_factory=partial(ContractSnapshot, session=session),
+            validator_mode=ExecutionMode.LEADER,
+            validator=as_validator,
+            leader_receipt=None,
+            msg_handler=msg_handler.with_client_session(get_client_session_id()),
+            validators_snapshot=snapshot,
+        )
 
-    receipt = await node.get_contract_data(
-        from_address="0x" + "00" * 20,
-        calldata=decoded_data.calldata,
-    )
+        receipt = await node.get_contract_data(
+            from_address=as_validator.address,
+            calldata=decoded_data.calldata,
+        )
+
     if receipt.execution_result != ExecutionResultStatus.SUCCESS:
         raise JSONRPCError(
             message="running contract failed", data={"receipt": receipt.to_dict()}
@@ -919,7 +938,8 @@ def register_all_rpc_endpoints(
     accounts_manager: AccountsManager,
     snapshot_manager: SnapshotManager,
     transactions_processor: TransactionsProcessor,
-    validators_registry: ValidatorsRegistry,
+    validators_registry: ModifiableValidatorsRegistry,
+    validators_manager: validators.Manager,
     llm_provider_registry: LLMProviderRegistry,
     consensus: ConsensusAlgorithm,
     consensus_service: ConsensusService,
@@ -937,7 +957,7 @@ def register_all_rpc_endpoints(
         method_name="sim_fundAccount",
     )
     register_rpc_endpoint(
-        partial(get_providers_and_models, llm_provider_registry),
+        partial(get_providers_and_models, llm_provider_registry, validators_manager),
         method_name="sim_getProvidersAndModels",
     )
     register_rpc_endpoint(
@@ -970,6 +990,7 @@ def register_all_rpc_endpoints(
             validators_registry,
             accounts_manager,
             llm_provider_registry,
+            validators_manager,
         ),
         method_name="sim_createRandomValidator",
     )
@@ -979,6 +1000,7 @@ def register_all_rpc_endpoints(
             validators_registry,
             accounts_manager,
             llm_provider_registry,
+            validators_manager,
         ),
         method_name="sim_createRandomValidators",
     )
@@ -1040,6 +1062,7 @@ def register_all_rpc_endpoints(
             accounts_manager,
             msg_handler,
             transactions_parser,
+            validators_manager,
         ),
         method_name="eth_call",
     )
