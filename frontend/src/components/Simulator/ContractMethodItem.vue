@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ContractMethod } from 'genlayer-js/types';
 import { abi } from 'genlayer-js';
+import { TransactionHashVariant } from 'genlayer-js/types';
 import { ref } from 'vue';
 import { Collapse } from 'vue-collapsed';
 import { notify } from '@kyvg/vue3-notification';
@@ -57,12 +58,12 @@ const handleCallReadMethod = async () => {
       callReadMethod(
         props.name,
         unfoldArgsData(calldataArguments.value),
-        'latest-nonfinal',
+        TransactionHashVariant.LATEST_NONFINAL,
       ),
       callReadMethod(
         props.name,
         unfoldArgsData(calldataArguments.value),
-        'latest-final',
+        TransactionHashVariant.LATEST_FINAL,
       ),
     ]);
 
