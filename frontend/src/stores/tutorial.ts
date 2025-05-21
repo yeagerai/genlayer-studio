@@ -3,7 +3,7 @@ import { useContractsStore } from './contracts';
 import { useNodeStore } from './node';
 import { useTransactionsStore } from './transactions';
 import { useMockContractData } from '@/hooks/useMockContractData';
-import contractBlob from '@/assets/examples/contracts/storage.gpy?raw';
+import contractBlob from '@/assets/examples/contracts/storage.py?raw';
 
 const { mockContractId, mockDeployedContract, mockDeploymentTx } =
   useMockContractData();
