@@ -14,6 +14,7 @@ import type {
   Address,
   TransactionHash,
   CalldataEncodable,
+  TransactionHashVariant,
 } from 'genlayer-js/types';
 import { TransactionStatus } from 'genlayer-js/types';
 
@@ -185,12 +186,14 @@ export function useContractQueries() {
       args: CalldataEncodable[];
       kwargs: { [key: string]: CalldataEncodable };
     },
+    transactionHashVariant: TransactionHashVariant,
   ) {
     try {
       const result = await genlayerClient.value?.readContract({
         address: address.value as Address,
         functionName: method,
         args: args.args,
+        transactionHashVariant,
       });
 
       return result;
