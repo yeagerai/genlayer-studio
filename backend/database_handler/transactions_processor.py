@@ -247,23 +247,30 @@ class TransactionsProcessor:
         return self._parse_transaction_data(transaction)
 
     def update_transaction_status(
-        self, transaction_hash: str, new_status: TransactionStatus
+        self,
+        transaction_hash: str,
+        new_status: TransactionStatus,
+        update_current_status_changes: bool = True,
     ):
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.status = new_status
 
-        if "current_status_changes" in transaction.consensus_history:
-            transaction.consensus_history["current_status_changes"].append(
-                new_status.value
-            )
-        else:
-            transaction.consensus_history["current_status_changes"] = [
-                TransactionStatus.PENDING.value,
-                new_status.value,
-            ]
-        flag_modified(transaction, "consensus_history")
+        if update_current_status_changes:
+            if not transaction.consensus_history:
+                transaction.consensus_history = {}
+
+            if "current_status_changes" in transaction.consensus_history:
+                transaction.consensus_history["current_status_changes"].append(
+                    new_status.value
+                )
+            else:
+                transaction.consensus_history["current_status_changes"] = [
+                    TransactionStatus.PENDING.value,
+                    new_status.value,
+                ]
+            flag_modified(transaction, "consensus_history")
 
         self.session.commit()
 
@@ -428,19 +435,25 @@ class TransactionsProcessor:
         consensus_round: str,
         leader_result: dict | None,
         validator_results: list,
+        extra_status_change: TransactionStatus | None = None,
     ):
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
+
+        status_changes_to_use = (
+            transaction.consensus_history["current_status_changes"]
+            if "current_status_changes" in transaction.consensus_history
+            else []
+        )
+        if extra_status_change:
+            status_changes_to_use.append(extra_status_change.value)
+
         current_consensus_results = {
             "consensus_round": consensus_round,
             "leader_result": leader_result.to_dict() if leader_result else None,
             "validator_results": [receipt.to_dict() for receipt in validator_results],
-            "status_changes": (
-                transaction.consensus_history["current_status_changes"]
-                if "current_status_changes" in transaction.consensus_history
-                else []
-            ),
+            "status_changes": status_changes_to_use,
         }
 
         if "consensus_results" in transaction.consensus_history:
@@ -499,14 +512,6 @@ class TransactionsProcessor:
         transaction.contract_snapshot = contract_snapshot
         self.session.commit()
 
-    def get_transaction_contract_snapshot(
-        self, transaction_hash: str
-    ) -> ContractSnapshot | None:
-        transaction = (
-            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
-        )
-        return ContractSnapshot.from_dict(transaction.contract_snapshot)
-
     def transactions_in_process_by_contract(self) -> list[dict]:
         transactions = (
             self.session.query(Transactions)
@@ -530,19 +535,23 @@ class TransactionsProcessor:
             self._parse_transaction_data(transaction) for transaction in transactions
         ]
 
-    def previous_transaction_with_status(
-        self, transaction_hash: str, status: TransactionStatus
+    def get_previous_transaction(
+        self, transaction_hash: str, status: TransactionStatus | None = None
     ) -> dict | None:
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
+
+        filters = [
+            Transactions.created_at < transaction.created_at,
+            Transactions.to_address == transaction.to_address,
+        ]
+        if status is not None:
+            filters.append(Transactions.status == status)
+
         closest_transaction = (
             self.session.query(Transactions)
-            .filter(
-                Transactions.created_at < transaction.created_at,
-                Transactions.to_address == transaction.to_address,
-                Transactions.status == status,
-            )
+            .filter(*filters)
             .order_by(desc(Transactions.created_at))
             .first()
         )

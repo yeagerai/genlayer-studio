@@ -48,6 +48,7 @@ import base64
 import os
 from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
 from backend.protocol_rpc.types import DecodedsubmitAppealDataArgs
+from backend.database_handler.snapshot_manager import SnapshotManager
 
 
 ####### WRAPPER TO BLOCK ENDPOINTS FOR HOSTED ENVIRONMENT #######
@@ -303,13 +304,15 @@ def delete_all_validators(
 
 
 def get_all_validators(validators_registry: ValidatorsRegistry) -> list:
-    return validators_registry.get_all_validators()
+    return validators_registry.get_all_validators(include_private_key=False)
 
 
 def get_validator(
     validators_registry: ValidatorsRegistry, validator_address: str
 ) -> dict:
-    return validators_registry.get_validator(validator_address)
+    return validators_registry.get_validator(
+        validator_address=validator_address, include_private_key=False
+    )
 
 
 def count_validators(validators_registry: ValidatorsRegistry) -> int:
@@ -386,6 +389,100 @@ async def get_contract_schema_for_code(
     return json.loads(schema)
 
 
+async def gen_call(
+    session: Session,
+    accounts_manager: AccountsManager,
+    msg_handler: MessageHandler,
+    transactions_parser: TransactionParser,
+    validators_registry: ValidatorsRegistry,
+    params: dict,
+) -> str:
+    type = params["type"]
+    data = params["data"]
+    to_address = params["to"]
+    from_address = params["from"] if "from" in params else None
+    transaction_hash_variant = (
+        params["transaction_hash_variant"]
+        if "transaction_hash_variant" in params
+        else None
+    )
+
+    if from_address is None:
+        return base64.b64encode(b"\x00' * 31 + b'\x01").decode(
+            "ascii"
+        )  # Return '1' as a uint256
+
+    if from_address and not accounts_manager.is_valid_address(from_address):
+        raise InvalidAddressError(from_address)
+
+    if not accounts_manager.is_valid_address(to_address):
+        raise InvalidAddressError(to_address)
+
+    if transaction_hash_variant == "latest-final":
+        state_status = "finalized"
+    else:
+        state_status = "accepted"
+
+    # Get a validator
+    validators = get_all_validators(validators_registry)
+    if validators:
+        validator = validators[0]
+    else:
+        raise JSONRPCError(f"No validators exist to execute the gen_call")
+
+    # Create validator node
+    node = Node(
+        contract_snapshot=ContractSnapshot(to_address, session),
+        contract_snapshot_factory=partial(ContractSnapshot, session=session),
+        validator_mode=ExecutionMode.LEADER,
+        validator=Validator(
+            id=validator["id"],
+            address=validator["address"],
+            stake=validator["stake"],
+            llmprovider=LLMProvider(
+                provider=validator["provider"],
+                model=validator["model"],
+                config=validator["config"],
+                plugin=validator["plugin"],
+                plugin_config=validator["plugin_config"],
+            ),
+        ),
+        leader_receipt=None,
+        msg_handler=msg_handler.with_client_session(get_client_session_id()),
+    )
+
+    if type == "read":
+        decoded_data = transactions_parser.decode_method_call_data(data)
+        receipt = await node.get_contract_data(
+            from_address="0x" + "00" * 20,
+            calldata=decoded_data.calldata,
+            state_status=state_status,
+        )
+    elif type == "write":
+        decoded_data = transactions_parser.decode_method_send_data(data)
+        receipt = await node.run_contract(
+            from_address=from_address,
+            calldata=decoded_data.calldata,
+        )
+    elif type == "deploy":
+        decoded_data = transactions_parser.decode_deployment_data(data)
+        receipt = await node.deploy_contract(
+            from_address=from_address,
+            code_to_deploy=decoded_data.contract_code,
+            calldata=decoded_data.calldata,
+        )
+    else:
+        raise JSONRPCError(f"Invalid type: {type}")
+
+    # Return the result of the write method
+    if receipt.execution_result != ExecutionResultStatus.SUCCESS:
+        raise JSONRPCError(
+            message="running contract failed", data={"receipt": receipt.to_dict()}
+        )
+
+    return eth_utils.hexadecimal.encode_hex(receipt.result[1:])[2:]
+
+
 ####### ETH ENDPOINTS #######
 def get_balance(
     accounts_manager: AccountsManager, account_address: str, block_tag: str = "latest"
@@ -410,7 +507,7 @@ def get_transaction_by_hash(
     return transactions_processor.get_transaction_by_hash(transaction_hash)
 
 
-async def call(
+async def eth_call(
     session: Session,
     accounts_manager: AccountsManager,
     msg_handler: MessageHandler,
@@ -668,8 +765,29 @@ def get_transaction_receipt(
 
     transaction = transactions_processor.get_transaction_by_hash(transaction_hash)
 
-    if not transaction:
-        return None
+    event_signature = "NewTransaction(bytes32,address,address)"
+    event_signature_hash = eth_utils.keccak(text=event_signature).hex()
+
+    logs = [
+        {
+            "address": transaction.get("to_address"),
+            "topics": [
+                f"0x{event_signature_hash}",
+                transaction_hash,
+                "0x000000000000000000000000"
+                + transaction.get("to_address").replace("0x", ""),
+                "0x000000000000000000000000"
+                + transaction.get("from_address").replace("0x", ""),
+            ],
+            "data": "0x",
+            "blockNumber": 0,
+            "transactionHash": transaction_hash,
+            "transactionIndex": 0,
+            "blockHash": transaction_hash,
+            "logIndex": 0,
+            "removed": False,
+        }
+    ]
 
     receipt = {
         "transactionHash": transaction_hash,
@@ -685,7 +803,7 @@ def get_transaction_receipt(
             if transaction.get("contract_address")
             else None
         ),
-        "logs": transaction.get("logs", []),
+        "logs": logs,
         "logsBloom": "0x" + "00" * 256,
         "status": hex(1 if transaction.get("status", True) else 0),
     }
@@ -758,11 +876,55 @@ def get_contract(consensus_service: ConsensusService, contract_name: str) -> dic
     }
 
 
+@check_forbidden_method_in_hosted_studio
+def create_snapshot(
+    snapshot_manager: SnapshotManager,
+) -> int:
+    """Create a new snapshot of the current state and transactions.
+
+    Returns:
+        int: The snapshot ID
+    """
+    snapshot = snapshot_manager.create_snapshot()
+    return snapshot.snapshot_id
+
+
+@check_forbidden_method_in_hosted_studio
+def restore_snapshot(
+    snapshot_manager: SnapshotManager,
+    snapshot_id: int,
+) -> bool:
+    """Restore the database state from a snapshot.
+
+    Args:
+        snapshot_id: ID of the snapshot to restore
+
+    Returns:
+        bool: True if the snapshot was restored, False otherwise
+    """
+    reverted = snapshot_manager.restore_snapshot(snapshot_id)
+    return reverted
+
+
+@check_forbidden_method_in_hosted_studio
+def delete_all_snapshots(
+    snapshot_manager: SnapshotManager,
+) -> dict:
+    """Delete all snapshots from the database.
+
+    Returns:
+        dict: Information about the deletion result
+    """
+    deleted_count = snapshot_manager.delete_all_snapshots()
+    return {"deleted_count": deleted_count}
+
+
 def register_all_rpc_endpoints(
     jsonrpc: JSONRPC,
     msg_handler: MessageHandler,
     request_session: Session,
     accounts_manager: AccountsManager,
+    snapshot_manager: SnapshotManager,
     transactions_processor: TransactionsProcessor,
     validators_registry: ValidatorsRegistry,
     llm_provider_registry: LLMProviderRegistry,
@@ -860,6 +1022,17 @@ def register_all_rpc_endpoints(
         method_name="gen_getContractSchemaForCode",
     )
     register_rpc_endpoint(
+        partial(
+            gen_call,
+            request_session,
+            accounts_manager,
+            msg_handler,
+            transactions_parser,
+            validators_registry,
+        ),
+        method_name="gen_call",
+    )
+    register_rpc_endpoint(
         partial(get_balance, accounts_manager),
         method_name="eth_getBalance",
     )
@@ -869,7 +1042,11 @@ def register_all_rpc_endpoints(
     )
     register_rpc_endpoint(
         partial(
-            call, request_session, accounts_manager, msg_handler, transactions_parser
+            eth_call,
+            request_session,
+            accounts_manager,
+            msg_handler,
+            transactions_parser,
         ),
         method_name="eth_call",
     )
@@ -923,4 +1100,16 @@ def register_all_rpc_endpoints(
     register_rpc_endpoint(
         partial(get_block_by_hash, transactions_processor),
         method_name="eth_getBlockByHash",
+    )
+    register_rpc_endpoint(
+        partial(create_snapshot, snapshot_manager),
+        method_name="sim_createSnapshot",
+    )
+    register_rpc_endpoint(
+        partial(restore_snapshot, snapshot_manager),
+        method_name="sim_restoreSnapshot",
+    )
+    register_rpc_endpoint(
+        partial(delete_all_snapshots, snapshot_manager),
+        method_name="sim_deleteAllSnapshots",
     )
