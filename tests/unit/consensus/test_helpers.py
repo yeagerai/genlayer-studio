@@ -261,7 +261,6 @@ class ContractSnapshotMock:
             self.contract_data = contract_account["data"]
             self.contract_code = self.contract_data["code"]
             self.states = self.contract_data["state"]
-            self.encoded_state = self.states["accepted"]
             self.contract_db = contract_db
 
     def __deepcopy__(self, memo):
@@ -272,7 +271,6 @@ class ContractSnapshotMock:
         new_instance.contract_data = deepcopy(self.contract_data, memo)
         new_instance.contract_code = self.contract_code
         new_instance.states = deepcopy(self.states, memo)
-        new_instance.encoded_state = deepcopy(self.encoded_state, memo)
         new_instance.contract_db = (
             None  # threading event that cannot be copied but not used by nodes
         )
@@ -284,7 +282,6 @@ class ContractSnapshotMock:
                 self.contract_address if self.contract_address else None
             ),
             "contract_code": self.contract_code if self.contract_code else None,
-            "encoded_state": self.encoded_state if self.encoded_state else {},
             "states": self.states if self.states else {"accepted": {}, "finalized": {}},
         }
 
@@ -294,7 +291,6 @@ class ContractSnapshotMock:
             instance = cls.__new__(cls)
             instance.contract_address = input.get("contract_address", None)
             instance.contract_code = input.get("contract_code", None)
-            instance.encoded_state = input.get("encoded_state", {})
             instance.states = input.get("states", {"accepted": {}, "finalized": {}})
             instance.contract_db = None
             return instance
