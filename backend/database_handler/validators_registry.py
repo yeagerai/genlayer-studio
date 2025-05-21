@@ -89,22 +89,6 @@ class ModifiableValidatorsRegistry(ValidatorsRegistry):
         self.session.query(Validators).delete()
 
 
-# def _to_domain(validator: Validators) -> Validator:
-#     return Validator(
-#         address=validator.address,
-#         stake=validator.stake,
-#         llmprovider=LLMProvider(
-#             provider=validator.provider,
-#             model=validator.model,
-#             config=validator.config,
-#             plugin=validator.plugin,
-#             plugin_config=validator.plugin_config,
-#             id=None,
-#         ),
-#         id=validator.id,
-#     )
-
-
 def _to_db_model(validator: Validator) -> Validators:
     return Validators(
         address=validator.address,

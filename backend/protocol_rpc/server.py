@@ -39,6 +39,9 @@ def get_db_name(database: str) -> str:
 
 
 async def create_app():
+    def create_session():
+        return Session(engine, expire_on_commit=False)
+
     # DataBase
     database_name_seed = "genlayer"
     db_uri = f"postgresql+psycopg2://{environ.get('DBUSER')}:{environ.get('DBPASSWORD')}@{environ.get('DBHOST')}/{get_db_name(database_name_seed)}"
@@ -74,7 +77,7 @@ async def create_app():
     consensus_service = ConsensusService()
     transactions_parser = TransactionParser(consensus_service)
 
-    initialize_validators_db_session = Session(engine, expire_on_commit=False)
+    initialize_validators_db_session = create_session()
     await initialize_validators(
         os.environ["VALIDATORS_CONFIG_JSON"],
         ModifiableValidatorsRegistry(initialize_validators_db_session),
@@ -82,14 +85,13 @@ async def create_app():
     )
     initialize_validators_db_session.commit()
 
-    validators_manager_db_session = Session(engine, expire_on_commit=False)
-    validators_manager = validators.Manager(validators_manager_db_session)
+    validators_manager = validators.Manager(create_session())
     await validators_manager.restart()
 
     validators_registry = validators_manager.registry
 
     consensus = ConsensusAlgorithm(
-        lambda: Session(engine, expire_on_commit=False),
+        create_session,
         msg_handler,
         consensus_service,
         validators_manager,

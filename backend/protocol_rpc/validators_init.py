@@ -1,10 +1,7 @@
 import json
 from dataclasses import dataclass
 from backend.database_handler.accounts_manager import AccountsManager
-from backend.database_handler.validators_registry import (
-    ValidatorsRegistry,
-    ModifiableValidatorsRegistry,
-)
+from backend.database_handler.validators_registry import ModifiableValidatorsRegistry
 
 
 @dataclass

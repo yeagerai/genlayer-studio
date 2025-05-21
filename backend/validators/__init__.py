@@ -3,7 +3,6 @@ __all__ = ("Manager", "with_lock")
 import typing
 import contextlib
 import dataclasses
-import json
 
 from copy import deepcopy
 from pathlib import Path
@@ -181,7 +180,7 @@ class Manager:
         try:
             yield
 
-            new_valdiators = await self._get_snap_from_registry()
-            await self._change_providers_from_snapshot(new_valdiators)
+            new_validators = await self._get_snap_from_registry()
+            await self._change_providers_from_snapshot(new_validators)
         finally:
             self.lock.writer.release()

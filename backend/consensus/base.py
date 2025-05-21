@@ -1480,7 +1480,7 @@ class TransactionState(ABC):
     @abstractmethod
     async def handle(
         self, context: TransactionContext
-    ) -> 'TransactionState | None | Literal["leader_appeal_success"]':
+    ) -> 'TransactionState | None | Literal["leader_appeal_success", "validator_appeal_success"]':
         """
         Handle the state transition.
 
