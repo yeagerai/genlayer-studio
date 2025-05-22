@@ -48,7 +48,7 @@ class ModifiableValidatorsRegistryInterceptor(vr.ModifiableValidatorsRegistry):
         new_validator: vr.Validator,
     ) -> dict:
         async with self._parent.do_write():
-            res = await super().create_validator(new_validator)
+            res = await super().update_validator(new_validator)
             self.session.commit()
             return res
 
@@ -108,8 +108,8 @@ class Manager:
         try:
             await self.web_module.restart()
 
-            new_valdiators = await self._get_snap_from_registry()
-            await self._change_providers_from_snapshot(new_valdiators)
+            new_validators = await self._get_snap_from_registry()
+            await self._change_providers_from_snapshot(new_validators)
         finally:
             self.lock.writer.release()
 

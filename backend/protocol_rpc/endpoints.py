@@ -417,9 +417,31 @@ async def gen_call(
     accounts_manager: AccountsManager,
     msg_handler: MessageHandler,
     transactions_parser: TransactionParser,
-    validators_registry: ValidatorsRegistry,
+    validators_manager: validators.Manager,
     params: dict,
 ) -> str:
+    async with validators_manager.snapshot() as snapshot:
+        if len(snapshot.nodes) == 0:
+            raise JSONRPCError(f"No validators exist to execute the gen_call")
+        validator = snapshot.nodes[0]
+        return await _gen_call_with_validator(
+            session,
+            accounts_manager,
+            msg_handler,
+            transactions_parser,
+            snapshot,
+            params,
+        )
+
+
+async def _gen_call_with_validator(
+    session: Session,
+    accounts_manager: AccountsManager,
+    msg_handler: MessageHandler,
+    transactions_parser: TransactionParser,
+    validators_snapshot: validators.Snapshot,
+    params: dict,
+):
     type = params["type"]
     data = params["data"]
     to_address = params["to"]
@@ -447,9 +469,8 @@ async def gen_call(
         state_status = "accepted"
 
     # Get a validator
-    validators = get_all_validators(validators_registry)
-    if validators:
-        validator = validators[0]
+    if len(validators_snapshot.nodes) > 0:
+        validator = validators_snapshot.nodes[0].validator
     else:
         raise JSONRPCError(f"No validators exist to execute the gen_call")
 
@@ -458,20 +479,10 @@ async def gen_call(
         contract_snapshot=ContractSnapshot(to_address, session),
         contract_snapshot_factory=partial(ContractSnapshot, session=session),
         validator_mode=ExecutionMode.LEADER,
-        validator=Validator(
-            id=validator["id"],
-            address=validator["address"],
-            stake=validator["stake"],
-            llmprovider=LLMProvider(
-                provider=validator["provider"],
-                model=validator["model"],
-                config=validator["config"],
-                plugin=validator["plugin"],
-                plugin_config=validator["plugin_config"],
-            ),
-        ),
+        validator=validator,
         leader_receipt=None,
         msg_handler=msg_handler.with_client_session(get_client_session_id()),
+        validators_snapshot=validators_snapshot,
     )
 
     if type == "read":
@@ -1044,7 +1055,7 @@ def register_all_rpc_endpoints(
             accounts_manager,
             msg_handler,
             transactions_parser,
-            validators_registry,
+            validators_manager,
         ),
         method_name="gen_call",
     )
