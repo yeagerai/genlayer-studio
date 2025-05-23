@@ -1,6 +1,6 @@
 {
   "provider": "xai",
-  "plugin": "openai",
+  "plugin": "openai-compatible",
   "model": "grok-2-1212",
   "config": {
     "temperature": 0.75,
@@ -8,6 +8,6 @@
   },
   "plugin_config": {
     "api_key_env_var": "XAI_API_KEY",
-    "api_url": "https://api.x.ai/v1"
+    "api_url": "https://api.x.ai"
   }
 }

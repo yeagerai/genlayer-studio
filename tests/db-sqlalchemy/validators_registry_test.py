@@ -5,17 +5,16 @@ from eth_account import Account
 import pytest
 from sqlalchemy.orm import Session
 
-from backend.database_handler.validators_registry import ValidatorsRegistry
+from backend.database_handler.validators_registry import ModifiableValidatorsRegistry
 from backend.domain.types import LLMProvider, Validator
 
 
 @pytest.fixture
-def validators_registry(session: Session) -> Iterable[ValidatorsRegistry]:
-    yield ValidatorsRegistry(session)
+def validators_registry(session: Session) -> Iterable[ModifiableValidatorsRegistry]:
+    yield ModifiableValidatorsRegistry(session)
 
 
-def test_validators_registry(validators_registry: ValidatorsRegistry):
-
+async def test_validators_registry(validators_registry: ModifiableValidatorsRegistry):
     stake = 1
     provider = "ollama"
     plugin = "ollama"
@@ -39,7 +38,7 @@ def test_validators_registry(validators_registry: ValidatorsRegistry):
     validator_address = validator.address
 
     # Create
-    actual_validator = validators_registry.create_validator(validator)
+    actual_validator = await validators_registry.create_validator(validator)
     assert validators_registry.count_validators() == 1
 
     assert actual_validator["stake"] == stake
@@ -67,7 +66,7 @@ def test_validators_registry(validators_registry: ValidatorsRegistry):
     validator.llmprovider.model = new_model
     validator.llmprovider.config = new_config
 
-    actual_validator = validators_registry.update_validator(validator)
+    actual_validator = await validators_registry.update_validator(validator)
 
     assert validators_registry.count_validators() == 1
 
@@ -83,7 +82,7 @@ def test_validators_registry(validators_registry: ValidatorsRegistry):
     assert actual_validator["created_at"] == created_at
 
     # Delete
-    validators_registry.delete_validator(validator_address)
+    await validators_registry.delete_validator(validator_address)
 
     assert len(validators_registry.get_all_validators()) == 0
     assert validators_registry.count_validators() == 0

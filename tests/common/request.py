@@ -189,9 +189,7 @@ def decode_base64(encoded_str):
 def decode_contract_state(contract_state):
     decoded_state = {}
     for key, value in contract_state.items():
-        decoded_state[decode_base64(key)] = {
-            decode_base64(k): decode_base64(v) for k, v in value.items()
-        }
+        decoded_state[decode_base64(key)] = decode_base64(value)
     return decoded_state
 
 

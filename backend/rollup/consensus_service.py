@@ -218,7 +218,7 @@ class ConsensusService:
             )
             return None
 
-        if "private_key" in account:
+        if account.get("private_key") is not None:
             account_address = account["address"]
             account_private_key = account["private_key"]
         else:
@@ -237,7 +237,7 @@ class ConsensusService:
             tx = event_function(*args).build_transaction(
                 {
                     "from": account_address,
-                    "gas": 5000000,
+                    "gas": 50000000,
                     "gasPrice": 0,
                     "nonce": self.web3.eth.get_transaction_count(account_address),
                 }
@@ -275,5 +275,7 @@ class ConsensusService:
             return receipt
 
         except Exception as e:
-            print(f"[CONSENSUS_SERVICE]: Error emitting {event_name}: {str(e)}")
+            print(
+                f"[CONSENSUS_SERVICE]: Error emitting {event_name}: {str(e)}\n\tevent_name={event_name} account={account} args={args}"
+            )
             return None

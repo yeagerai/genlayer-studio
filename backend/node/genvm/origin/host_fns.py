@@ -15,3 +15,10 @@ class Methods(IntEnum):
     ETH_CALL = 10
     ETH_SEND = 11
     GET_BALANCE = 12
+
+
+class Errors(IntEnum):
+    OK = 0
+    ABSENT = 1
+    FORBIDDEN = 2
+    I_AM_LEADER = 3
