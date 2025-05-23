@@ -164,9 +164,11 @@ class Manager:
         for i in snap.nodes:
             new_providers.append(
                 llm.SimulatorProvider(
-                    kind=i.validator.llmprovider.provider,
                     model=i.validator.llmprovider.model,
                     id=f"node-{i.validator.address}",
+                    url=i.validator.llmprovider.plugin_config["api_url"],
+                    plugin=i.validator.llmprovider.plugin,
+                    key_env=i.validator.llmprovider.plugin_config["api_key_env_var"],
                 )
             )
 

@@ -115,7 +115,10 @@ async def get_providers_and_models(
     providers = await llm_provider_registry.get_all_dict()
     for provider in providers:
         if await validators_manager.llm_module.provider_available(
-            provider["plugin"], provider["model"]
+            provider["model"],
+            provider["plugin_config"]["api_url"],
+            provider["plugin"],
+            provider["plugin_config"]["api_key_env_var"],
         ):
             provider["is_available"] = True
         else:
@@ -234,7 +237,10 @@ async def create_random_validators(
 
     async def check_plugin_is_available(plugin: LLMProvider) -> bool:
         return await validators_manager.llm_module.provider_available(
-            plugin.provider, plugin.model
+            plugin.model,
+            plugin.plugin_config["api_url"],
+            plugin.plugin,
+            plugin.plugin_config["api_key_env_var"],
         )
 
     details = await random_validator_config(

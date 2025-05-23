@@ -3,7 +3,6 @@ __all__ = (
     "SimulatorProvider",
 )
 
-import typing
 import asyncio
 import signal
 import os
@@ -22,33 +21,10 @@ from .base import *
 @dataclasses.dataclass
 class SimulatorProvider:
     id: str
-    kind: str
     model: str
-
-
-def provider_to_url_and_id_and_key(kind: str) -> tuple[str, str, str]:
-    match kind:
-        case "ollama":
-            return "http://ollama:11434", "ollama", "<no-key>"
-        case "openai":
-            return "https://api.openai.com", "openai-compatible", "OPENAIKEY"
-        case "heurist" | "heuristai":
-            return (
-                "https://llm-gateway.heurist.xyz",
-                "openai-compatible",
-                "HEURISTAIAPIKEY",
-            )
-        case "anthropic":
-            return "https://api.anthropic.com", "anthropic", "ANTHROPIC_API_KEY"
-        case "xai":
-            return "https://api.x.ai", "openai-compatible", "XAI_API_KEY"
-        case "google":
-            return (
-                "https://generativelanguage.googleapis.com",
-                "google",
-                "GEMINI_API_KEY",
-            )
-    raise ValueError(f"unknown llm kind `{kind}`")
+    url: str
+    plugin: str
+    key_env: str
 
 
 class LLMModule:
@@ -120,11 +96,10 @@ class LLMModule:
 
         with self._config.change() as conf:
             for provider in new_providers:
-                url, id, key_env = provider_to_url_and_id_and_key(provider.kind)
                 conf["backends"][provider.id] = {
-                    "host": url,
-                    "provider": id,
-                    "key": "${ENV[" + key_env + "]}",
+                    "host": provider.url,
+                    "provider": provider.plugin,
+                    "key": "${ENV[" + provider.key_env + "]}",
                     "models": {
                         provider.model: {
                             "supports_json": True,
@@ -135,16 +110,16 @@ class LLMModule:
 
         await self.restart()
 
-    async def provider_available(self, provider_kind: str, model: str) -> bool:
+    async def provider_available(
+        self, model: str, url: str, plugin: str, key_env: str
+    ) -> bool:
         exe_path = Path(os.environ["GENVM_BIN"]).joinpath("genvm-modules")
-
-        url, id, key_env = provider_to_url_and_id_and_key(provider_kind)
 
         proc = await asyncio.subprocess.create_subprocess_exec(
             exe_path,
             "llm-check",
             "--provider",
-            id,
+            plugin,
             "--host",
             url,
             "--model",
@@ -161,8 +136,6 @@ class LLMModule:
         stdout = stdout.decode("utf-8")
 
         if return_code != 0:
-            print(
-                f"provider not available provider_kind={provider_kind} model={model} stdout={stdout!r}"
-            )
+            print(f"provider not available model={model} stdout={stdout!r}")
 
         return return_code == 0
