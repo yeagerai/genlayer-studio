@@ -3,7 +3,7 @@ from gltest.assertions import tx_execution_succeeded
 
 
 def test_deploy(setup_validators):
-    factory = get_contract_factory("Contract")
+    factory = get_contract_factory("MultiFileContract")
     contract = factory.deploy(args=[])
 
     wait_response = contract.wait(args=[])
