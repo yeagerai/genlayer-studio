@@ -122,7 +122,6 @@ def contract_snapshot_factory(
         ret.contract_code = transaction.data["contract_code"]
         ret.balance = transaction.value or 0
         ret.states = {"accepted": {}, "finalized": {}}
-        ret.encoded_state = ret.states["accepted"]
         return ret
 
     # Return a ContractSnapshot instance for an existing contract
@@ -622,6 +621,7 @@ class ConsensusAlgorithm:
         transaction_hash: str,
         new_status: TransactionStatus,
         msg_handler: MessageHandler,
+        update_current_status_changes: bool = True,
     ):
         """
         Dispatch a transaction status update.
@@ -633,7 +633,11 @@ class ConsensusAlgorithm:
             msg_handler (MessageHandler): Handler for messaging.
         """
         # Update the transaction status in the transactions processor
-        transactions_processor.update_transaction_status(transaction_hash, new_status)
+        transactions_processor.update_transaction_status(
+            transaction_hash,
+            new_status,
+            update_current_status_changes,
+        )
 
         # Send a message indicating the transaction status update
         msg_handler.send_message(
@@ -1247,7 +1251,7 @@ class ConsensusAlgorithm:
                     # Get the previous state of the contract
                     if context.transaction.contract_snapshot:
                         previous_contact_state = (
-                            context.transaction.contract_snapshot.encoded_state
+                            context.transaction.contract_snapshot.states["accepted"]
                         )
                     else:
                         previous_contact_state = {}
@@ -2091,14 +2095,6 @@ class AcceptedState(TransactionState):
             context.transaction.hash, context.consensus_data.to_dict()
         )
 
-        # Update the transaction status to ACCEPTED
-        ConsensusAlgorithm.dispatch_transaction_status_update(
-            context.transactions_processor,
-            context.transaction.hash,
-            TransactionStatus.ACCEPTED,
-            context.msg_handler,
-        )
-
         context.transactions_processor.update_consensus_history(
             context.transaction.hash,
             consensus_round,
@@ -2108,6 +2104,16 @@ class AcceptedState(TransactionState):
                 else context.consensus_data.leader_receipt
             ),
             context.validation_results,
+            TransactionStatus.ACCEPTED,
+        )
+
+        # Update the transaction status to ACCEPTED
+        ConsensusAlgorithm.dispatch_transaction_status_update(
+            context.transactions_processor,
+            context.transaction.hash,
+            TransactionStatus.ACCEPTED,
+            context.msg_handler,
+            False,
         )
 
         # Send a message indicating consensus was reached
@@ -2274,19 +2280,21 @@ class UndeterminedState(TransactionState):
                 context.transaction.hash
             )
 
+        context.transactions_processor.update_consensus_history(
+            context.transaction.hash,
+            consensus_round,
+            context.consensus_data.leader_receipt,
+            context.consensus_data.validators,
+            TransactionStatus.UNDETERMINED,
+        )
+
         # Update the transaction status to undetermined
         ConsensusAlgorithm.dispatch_transaction_status_update(
             context.transactions_processor,
             context.transaction.hash,
             TransactionStatus.UNDETERMINED,
             context.msg_handler,
-        )
-
-        context.transactions_processor.update_consensus_history(
-            context.transaction.hash,
-            consensus_round,
-            context.consensus_data.leader_receipt,
-            context.consensus_data.validators,
+            False,
         )
 
         return None

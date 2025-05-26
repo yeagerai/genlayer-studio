@@ -247,26 +247,30 @@ class TransactionsProcessor:
         return self._parse_transaction_data(transaction)
 
     def update_transaction_status(
-        self, transaction_hash: str, new_status: TransactionStatus
+        self,
+        transaction_hash: str,
+        new_status: TransactionStatus,
+        update_current_status_changes: bool = True,
     ):
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
         transaction.status = new_status
 
-        if not transaction.consensus_history:
-            transaction.consensus_history = {}
+        if update_current_status_changes:
+            if not transaction.consensus_history:
+                transaction.consensus_history = {}
 
-        if "current_status_changes" in transaction.consensus_history:
-            transaction.consensus_history["current_status_changes"].append(
-                new_status.value
-            )
-        else:
-            transaction.consensus_history["current_status_changes"] = [
-                TransactionStatus.PENDING.value,
-                new_status.value,
-            ]
-        flag_modified(transaction, "consensus_history")
+            if "current_status_changes" in transaction.consensus_history:
+                transaction.consensus_history["current_status_changes"].append(
+                    new_status.value
+                )
+            else:
+                transaction.consensus_history["current_status_changes"] = [
+                    TransactionStatus.PENDING.value,
+                    new_status.value,
+                ]
+            flag_modified(transaction, "consensus_history")
 
         self.session.commit()
 
@@ -431,19 +435,25 @@ class TransactionsProcessor:
         consensus_round: str,
         leader_result: dict | None,
         validator_results: list,
+        extra_status_change: TransactionStatus | None = None,
     ):
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
+
+        status_changes_to_use = (
+            transaction.consensus_history["current_status_changes"]
+            if "current_status_changes" in transaction.consensus_history
+            else []
+        )
+        if extra_status_change:
+            status_changes_to_use.append(extra_status_change.value)
+
         current_consensus_results = {
             "consensus_round": consensus_round,
             "leader_result": leader_result.to_dict() if leader_result else None,
             "validator_results": [receipt.to_dict() for receipt in validator_results],
-            "status_changes": (
-                transaction.consensus_history["current_status_changes"]
-                if "current_status_changes" in transaction.consensus_history
-                else []
-            ),
+            "status_changes": status_changes_to_use,
         }
 
         if "consensus_results" in transaction.consensus_history:
