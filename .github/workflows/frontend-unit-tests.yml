@@ -19,7 +19,9 @@ jobs:
         with:
           node-version: 20
       - name: Copy examples to assets
-        run: cp -r examples frontend/src/assets/examples
+        run: |
+          cp -r examples frontend/src/assets/examples
+          find frontend/src/assets/examples -name "*.gpy" -exec sh -c 'mv "$1" "${1%.gpy}.py"' _ {} \;
         working-directory: .
 
       - run: npm ci
@@ -27,7 +29,7 @@ jobs:
 
       - name: Upload coverage reports to Codecov
 
-        uses: codecov/codecov-action@v5.3.1
+        uses: codecov/codecov-action@v5.4.2
         with:
           verbose: true
           token: ${{ secrets.codecov_token }}

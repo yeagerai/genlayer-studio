@@ -4,8 +4,8 @@ call_contract_function_response = {
     "consensus_data": {
         "leader_receipt": [
             {
-                "result": str,
-                "calldata": str,
+                "result": dict,
+                "calldata": dict,
                 "contract_state": dict,
                 "eq_outputs": dict,
                 "execution_result": str,
@@ -28,7 +28,7 @@ call_contract_function_response = {
     },
     "created_at": str,
     "data": {
-        "calldata": str,
+        "calldata": dict,
     },
     "from_address": str,
     "hash": str,
