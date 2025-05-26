@@ -46,7 +46,7 @@ const handleAddNewFile = () => {
 };
 
 const handleSaveNewFile = (name: string) => {
-  if (name && name.replace('.gpy', '') !== '') {
+  if (name && name.replace('.py', '') !== '') {
     const id = uuidv4();
     store.addContractFile({ id, name, content: '' });
     store.openFile(id);
@@ -75,7 +75,7 @@ const handleSaveNewFile = (name: string) => {
             <input
               type="file"
               @change="loadContentFromFile"
-              accept=".gpy,.py"
+              accept=".py,.py"
             />
             <Upload :size="16" />
           </label>
