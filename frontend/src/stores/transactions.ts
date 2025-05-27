@@ -86,7 +86,7 @@ export const useTransactionsStore = defineStore('transactionsStore', () => {
     await db.transactions.where('localContractId').equals(contractId).delete();
   }
 
-  async function setTransactionAppeal(tx_address: string) {
+  async function setTransactionAppeal(tx_address: `0x${string}`) {
     await genlayerClient.value?.appealTransaction({
       txId: tx_address,
     });

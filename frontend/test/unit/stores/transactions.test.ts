@@ -108,12 +108,12 @@ describe('useTransactionsStore', () => {
   it('should clear transactions for a specific contract', () => {
     const tx1 = {
       ...testTransaction,
-      hash: '0x1234567890123456789012345678901234567891',
+      hash: '0x1234567890123456789012345678901234567891' as TransactionHash,
       localContractId: 'contract-1',
     };
     const tx2 = {
       ...testTransaction,
-      hash: '0x1234567890123456789012345678901234567892',
+      hash: '0x1234567890123456789012345678901234567892' as TransactionHash,
       localContractId: 'contract-2',
     };
 
