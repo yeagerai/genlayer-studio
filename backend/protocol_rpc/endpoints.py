@@ -597,7 +597,19 @@ def send_raw_transaction(
     if isinstance(decoded_rollup_transaction.data, DecodedsubmitAppealDataArgs):
         tx_id = decoded_rollup_transaction.data.tx_id
         tx_id_hex = "0x" + tx_id.hex() if isinstance(tx_id, bytes) else tx_id
-        set_transaction_appeal(transactions_processor, msg_handler, tx_id_hex)
+        transactions_processor.set_transaction_appeal(tx_id_hex, True)
+        msg_handler.send_message(
+            log_event=LogEvent(
+                "transaction_appeal_updated",
+                EventType.INFO,
+                EventScope.CONSENSUS,
+                "Set transaction appealed",
+                {
+                    "hash": tx_id_hex,
+                },
+            ),
+            log_to_terminal=False,
+        )
         return tx_id_hex
     else:
         rollup_transaction_details = consensus_service.add_transaction(
@@ -679,26 +691,6 @@ def get_transactions_for_address(
 
     return transactions_processor.get_transactions_for_address(
         address, TransactionAddressFilter(filter)
-    )
-
-
-def set_transaction_appeal(
-    transactions_processor: TransactionsProcessor,
-    msg_handler: MessageHandler,
-    transaction_hash: str,
-) -> None:
-    transactions_processor.set_transaction_appeal(transaction_hash, True)
-    msg_handler.send_message(
-        log_event=LogEvent(
-            "transaction_appeal_updated",
-            EventType.INFO,
-            EventScope.CONSENSUS,
-            "Set transaction appealed",
-            {
-                "hash": transaction_hash,
-            },
-        ),
-        log_to_terminal=False,
     )
 
 
