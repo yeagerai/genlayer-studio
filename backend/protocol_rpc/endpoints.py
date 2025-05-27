@@ -47,8 +47,8 @@ from flask_jsonrpc.exceptions import JSONRPCError
 import base64
 import os
 from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
+from backend.protocol_rpc.types import DecodedsubmitAppealDataArgs
 from backend.database_handler.snapshot_manager import SnapshotManager
-from datetime import datetime
 
 
 ####### WRAPPER TO BLOCK ENDPOINTS FOR HOSTED ENVIRONMENT #######
@@ -564,6 +564,7 @@ async def eth_call(
 
 def send_raw_transaction(
     transactions_processor: TransactionsProcessor,
+    msg_handler: MessageHandler,
     accounts_manager: AccountsManager,
     transactions_parser: TransactionParser,
     consensus_service: ConsensusService,
@@ -593,72 +594,90 @@ def send_raw_transaction(
     if not transaction_signature_valid:
         raise InvalidTransactionError("Transaction signature verification failed")
 
-    rollup_transaction_details = consensus_service.add_transaction(
-        signed_rollup_transaction, from_address
-    )
-
-    to_address = decoded_rollup_transaction.to_address
-    nonce = decoded_rollup_transaction.nonce
-    value = decoded_rollup_transaction.value
-    genlayer_transaction = transactions_parser.get_genlayer_transaction(
-        decoded_rollup_transaction
-    )
-
-    transaction_data = {}
-    leader_only = False
-    if genlayer_transaction.type != TransactionType.SEND:
-        leader_only = genlayer_transaction.data.leader_only
-
-    if genlayer_transaction.type == TransactionType.DEPLOY_CONTRACT:
-        if value > 0:
-            raise InvalidTransactionError("Deploy Transaction can't send value")
-
-        if (
-            rollup_transaction_details is None
-            or not "recipient" in rollup_transaction_details
-        ):
-            new_account = accounts_manager.create_new_account()
-            new_contract_address = new_account.address
-        else:
-            new_contract_address = rollup_transaction_details["recipient"]
-            accounts_manager.create_new_account_with_address(new_contract_address)
-
-        transaction_data = {
-            "contract_address": new_contract_address,
-            "contract_code": genlayer_transaction.data.contract_code,
-            "calldata": genlayer_transaction.data.calldata,
-        }
-        to_address = new_contract_address
-    elif genlayer_transaction.type == TransactionType.RUN_CONTRACT:
-        # Contract Call
-        if not accounts_manager.is_valid_address(to_address):
-            raise InvalidAddressError(
-                to_address, f"Invalid address to_address: {to_address}"
-            )
-
-        to_address = genlayer_transaction.to_address
-        transaction_data = {"calldata": genlayer_transaction.data.calldata}
-
-    # Obtain transaction hash from new transaction event
-    if rollup_transaction_details and "tx_id_hex" in rollup_transaction_details:
-        transaction_hash = rollup_transaction_details["tx_id_hex"]
+    if isinstance(decoded_rollup_transaction.data, DecodedsubmitAppealDataArgs):
+        tx_id = decoded_rollup_transaction.data.tx_id
+        tx_id_hex = "0x" + tx_id.hex() if isinstance(tx_id, bytes) else tx_id
+        transactions_processor.set_transaction_appeal(tx_id_hex, True)
+        msg_handler.send_message(
+            log_event=LogEvent(
+                "transaction_appeal_updated",
+                EventType.INFO,
+                EventScope.CONSENSUS,
+                "Set transaction appealed",
+                {
+                    "hash": tx_id_hex,
+                },
+            ),
+            log_to_terminal=False,
+        )
+        return tx_id_hex
     else:
-        transaction_hash = None
+        rollup_transaction_details = consensus_service.add_transaction(
+            signed_rollup_transaction, from_address
+        )
 
-    # Insert transaction into the database
-    transaction_hash = transactions_processor.insert_transaction(
-        genlayer_transaction.from_address,
-        to_address,
-        transaction_data,
-        value,
-        genlayer_transaction.type.value,
-        nonce,
-        leader_only,
-        None,
-        transaction_hash,
-    )
+        to_address = decoded_rollup_transaction.to_address
+        nonce = decoded_rollup_transaction.nonce
+        value = decoded_rollup_transaction.value
+        genlayer_transaction = transactions_parser.get_genlayer_transaction(
+            decoded_rollup_transaction
+        )
 
-    return transaction_hash
+        transaction_data = {}
+        leader_only = False
+        if genlayer_transaction.type != TransactionType.SEND:
+            leader_only = genlayer_transaction.data.leader_only
+
+        if genlayer_transaction.type == TransactionType.DEPLOY_CONTRACT:
+            if value > 0:
+                raise InvalidTransactionError("Deploy Transaction can't send value")
+
+            if (
+                rollup_transaction_details is None
+                or not "recipient" in rollup_transaction_details
+            ):
+                new_account = accounts_manager.create_new_account()
+                new_contract_address = new_account.address
+            else:
+                new_contract_address = rollup_transaction_details["recipient"]
+                accounts_manager.create_new_account_with_address(new_contract_address)
+
+            transaction_data = {
+                "contract_address": new_contract_address,
+                "contract_code": genlayer_transaction.data.contract_code,
+                "calldata": genlayer_transaction.data.calldata,
+            }
+            to_address = new_contract_address
+        elif genlayer_transaction.type == TransactionType.RUN_CONTRACT:
+            # Contract Call
+            if not accounts_manager.is_valid_address(to_address):
+                raise InvalidAddressError(
+                    to_address, f"Invalid address to_address: {to_address}"
+                )
+
+            to_address = genlayer_transaction.to_address
+            transaction_data = {"calldata": genlayer_transaction.data.calldata}
+
+        # Obtain transaction hash from new transaction event
+        if rollup_transaction_details and "tx_id_hex" in rollup_transaction_details:
+            transaction_hash = rollup_transaction_details["tx_id_hex"]
+        else:
+            transaction_hash = None
+
+        # Insert transaction into the database
+        transaction_hash = transactions_processor.insert_transaction(
+            genlayer_transaction.from_address,
+            to_address,
+            transaction_data,
+            value,
+            genlayer_transaction.type.value,
+            nonce,
+            leader_only,
+            None,
+            transaction_hash,
+        )
+
+        return transaction_hash
 
 
 def get_transactions_for_address(
@@ -672,26 +691,6 @@ def get_transactions_for_address(
 
     return transactions_processor.get_transactions_for_address(
         address, TransactionAddressFilter(filter)
-    )
-
-
-def set_transaction_appeal(
-    transactions_processor: TransactionsProcessor,
-    msg_handler: MessageHandler,
-    transaction_hash: str,
-) -> None:
-    transactions_processor.set_transaction_appeal(transaction_hash, True)
-    msg_handler.send_message(
-        log_event=LogEvent(
-            "transaction_appeal_updated",
-            EventType.INFO,
-            EventScope.CONSENSUS,
-            "Set transaction appealed",
-            {
-                "hash": transaction_hash,
-            },
-        ),
-        log_to_terminal=False,
     )
 
 
@@ -1047,6 +1046,7 @@ def register_all_rpc_endpoints(
         partial(
             send_raw_transaction,
             transactions_processor,
+            msg_handler,
             accounts_manager,
             transactions_parser,
             consensus_service,
@@ -1060,10 +1060,6 @@ def register_all_rpc_endpoints(
     register_rpc_endpoint(
         partial(get_transactions_for_address, transactions_processor, accounts_manager),
         method_name="sim_getTransactionsForAddress",
-    )
-    register_rpc_endpoint(
-        partial(set_transaction_appeal, transactions_processor, msg_handler),
-        method_name="sim_appealTransaction",
     )
     register_rpc_endpoint(
         partial(set_finality_window_time, consensus),
