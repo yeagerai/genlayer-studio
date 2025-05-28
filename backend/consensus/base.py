@@ -2480,6 +2480,7 @@ def _emit_messages(
             type=insert_transaction_data[2],
             nonce=insert_transaction_data[3],
             leader_only=context.transaction.leader_only,  # Cascade
+            num_of_initial_validators=context.transaction.num_of_initial_validators,
             triggered_by_hash=context.transaction.hash,
             transaction_hash=transaction_hash,
         )

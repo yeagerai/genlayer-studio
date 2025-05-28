@@ -819,9 +819,9 @@ def send_raw_transaction(
             genlayer_transaction.type.value,
             nonce,
             leader_only,
-            genlayer_transaction.num_of_initial_validators,
             None,
             transaction_hash,
+            genlayer_transaction.num_of_initial_validators,
         )
 
         return transaction_hash

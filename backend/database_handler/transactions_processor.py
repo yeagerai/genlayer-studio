@@ -179,11 +179,11 @@ class TransactionsProcessor:
         type: int,
         nonce: int,
         leader_only: bool,
-        num_of_initial_validators: int,
         triggered_by_hash: (
             str | None
         ) = None,  # If filled, the transaction must be present in the database (committed)
         transaction_hash: str | None = None,
+        num_of_initial_validators: int | None = None,
     ) -> str:
         current_nonce = self.get_transaction_count(from_address)
 
