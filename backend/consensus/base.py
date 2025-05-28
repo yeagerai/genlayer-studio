@@ -1556,6 +1556,10 @@ class PendingState(TransactionState):
         Returns:
             TransactionState | None: The ProposingState or None if the transaction is already in process, when it is a transaction or when there are no validators.
         """
+        context.transactions_processor.reset_transaction_rotation_count(
+            context.transaction.hash
+        )
+
         # Transactions that are put back to pending are processed again, so we need to get the latest data of the transaction
         context.transaction = Transaction.from_dict(
             context.transactions_processor.get_transaction_by_hash(
@@ -1814,6 +1818,9 @@ class CommittingState(TransactionState):
                 validator["address"],
                 True if i == len(context.remaining_validators) - 1 else False,
             )
+        context.transactions_processor.set_transaction_timestamp_last_vote(
+            context.transaction.hash
+        )
 
         # Transition to the RevealingState
         return RevealingState()
@@ -1892,6 +1899,9 @@ class RevealingState(TransactionState):
                 last_vote,
                 result_vote,
             )
+        context.transactions_processor.set_transaction_timestamp_last_vote(
+            context.transaction.hash
+        )
 
         if context.transaction.appealed:
 
@@ -1998,6 +2008,9 @@ class RevealingState(TransactionState):
                     return UndeterminedState()
 
                 context.rotation_count += 1
+                context.transactions_processor.increase_transaction_rotation_count(
+                    context.transaction.hash
+                )
 
                 # Log the failure to reach consensus and transition to ProposingState
                 context.msg_handler.send_message(

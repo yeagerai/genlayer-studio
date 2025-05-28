@@ -40,7 +40,7 @@ from backend.database_handler.transactions_processor import (
     TransactionsProcessor,
 )
 from backend.node.base import Node, SIMULATOR_CHAIN_ID
-from backend.node.types import ExecutionMode, ExecutionResultStatus
+from backend.node.types import ExecutionMode, ExecutionResultStatus, Vote
 from backend.consensus.base import ConsensusAlgorithm
 
 from flask_jsonrpc.exceptions import JSONRPCError
@@ -49,6 +49,8 @@ import os
 from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
 from backend.protocol_rpc.types import DecodedsubmitAppealDataArgs
 from backend.database_handler.snapshot_manager import SnapshotManager
+from datetime import datetime
+import time
 
 
 ####### WRAPPER TO BLOCK ENDPOINTS FOR HOSTED ENVIRONMENT #######
@@ -504,7 +506,151 @@ def get_transaction_count(
 def get_transaction_by_hash(
     transactions_processor: TransactionsProcessor, transaction_hash: str
 ) -> dict | None:
-    return transactions_processor.get_transaction_by_hash(transaction_hash)
+    def vote_name_to_number(vote_name: str) -> int:
+        if vote_name == Vote.AGREE.value:
+            return 1
+        elif vote_name == Vote.DISAGREE.value:
+            return 2
+        else:
+            return 0
+
+    def votes_to_result(votes: list) -> str:
+        if len(votes) == 0:
+            return "5", "NO_MAJORITY"
+        elif (
+            len([vote for vote in votes if vote == Vote.AGREE.value]) > len(votes) // 2
+        ):
+            return "6", "MAJORITY_AGREE"
+        else:
+            return "7", "MAJORITY_DISAGREE"
+
+    transaction_data = transactions_processor.get_transaction_by_hash(transaction_hash)
+    transaction_data["current_timestamp"] = str(round(time.time()))
+    transaction_data["sender"] = transaction_data["from_address"]
+    transaction_data["recipient"] = transaction_data["to_address"]
+    transaction_data["num_of_initial_validators"] = str(
+        transaction_data["num_of_initial_validators"]
+    )
+    transaction_data["tx_slot"] = 0  # TODO: what is it?
+    transaction_data["created_timestamp"] = str(
+        int(datetime.fromisoformat(transaction_data["created_at"]).timestamp())
+    )
+    transaction_data["last_vote_timestamp"] = str(
+        transaction_data["last_vote_timestamp"]
+    )
+    transaction_data["random_seed"] = "0x" + "0" * 64
+    if (transaction_data["consensus_data"] is not None) and (
+        "votes" in transaction_data["consensus_data"]
+    ):
+        votes_temp = transaction_data["consensus_data"]["votes"].values()
+    else:
+        votes_temp = []
+    transaction_data["result"], transaction_data["result_name"] = votes_to_result(
+        votes_temp
+    )
+    transaction_data["tx_data"] = (
+        ""  # TODO: convert transaction_data["data"] to hex string
+    )
+    transaction_data["tx_receipt"] = ""  # TODO: how to make it?
+    transaction_data["messages"] = transaction_data[
+        "triggered_transactions"
+    ]  # TODO: what structure?
+    transaction_data["queue_type"] = "0"  # TODO
+    transaction_data["queue_position"] = "0"  # TODO
+    if "consensus_results" in transaction_data["consensus_history"]:
+        transaction_data["activator"] = transaction_data["consensus_history"][
+            "consensus_results"
+        ][0]["leader_result"]["node_config"][
+            "address"
+        ]  # TODO: at the moment we use the leader as activator
+    else:
+        transaction_data["activator"] = (
+            ""  # TODO: put it in db entry to have it ready at pending state
+        )
+
+    if (transaction_data["consensus_data"] is not None) and (
+        "leader_receipt" in transaction_data["consensus_data"]
+    ):
+        transaction_data["last_leader"] = transaction_data["consensus_data"][
+            "leader_receipt"
+        ]["node_config"]["address"]
+    else:
+        transaction_data["last_leader"] = ""
+    transaction_data["status"] = transaction_data["status"]
+    transaction_data["tx_id"] = transaction_data["hash"]
+    transaction_data["read_state_block_range"] = (
+        {"activation_block": "0", "processing_block": "0", "proposal_block": "0"},
+    )  # TODO: replace 0
+    if "consensus_results" in transaction_data["consensus_history"]:
+        transaction_data["num_of_rounds"] = str(
+            len(transaction_data["consensus_history"]["consensus_results"])
+        )
+    else:
+        transaction_data["num_of_rounds"] = "0"
+    validator_votes_name = []
+    validator_votes = []
+    validator_votes_hash = []
+    round_validators = []
+    if "consensus_results" in transaction_data["consensus_history"]:
+        round_number = str(
+            len(transaction_data["consensus_history"]["consensus_results"]) - 1
+        )
+        last_round = transaction_data["consensus_history"]["consensus_results"][-1]
+        if "leader_result" in last_round:
+            leader = last_round["leader_result"]
+            validator_votes_name.append(leader["vote"].upper())
+            validator_votes.append(vote_name_to_number(leader["vote"]))
+            validator_votes_hash.append("0x" + "0" * 64)  # TODO: replace 0
+            round_validators.append(leader["node_config"]["address"])
+
+        for validator in last_round["validator_results"]:
+            validator_votes_name.append(validator["vote"].upper())
+            validator_votes.append(vote_name_to_number(validator["vote"]))
+            validator_votes_hash.append("0x" + "0" * 64)  # TODO: replace 0
+            round_validators.append(validator["node_config"]["address"])
+    else:
+        round_number = "0"
+    last_round_result, _ = votes_to_result(validator_votes_name)
+    transaction_data["last_round"] = {
+        "round": round_number,
+        "leader_index": "0",  # TODO: what is it when it is a validator appeal round?
+        "votes_committed": str(len(validator_votes_name)),
+        "votes_revealed": str(len(validator_votes_name)),
+        "appeal_bond": "0",
+        "rotations_left": str(
+            transaction_data["config_rotation_rounds"]
+            - transaction_data["rotation_count"]
+        ),
+        "result": last_round_result,
+        "round_validators": round_validators,
+        "validator_votes_hash": validator_votes_hash,
+        "validator_votes": validator_votes,
+        "validator_votes_name": validator_votes_name,
+    }
+    if transaction_data["type"] == TransactionType.DEPLOY_CONTRACT.value:
+        transaction_data["tx_data_decoded"] = {
+            "leader_only": transaction_data["leader_only"],
+            "type": "deploy",
+        }
+        if "contract_code" in transaction_data["data"]:
+            transaction_data["tx_data_decoded"]["code"] = transaction_data["data"][
+                "contract_code"
+            ]
+        if "calldata" in transaction_data["data"]:
+            transaction_data["tx_data_decoded"]["constructor_args"] = transaction_data[
+                "data"
+            ][
+                "calldata"
+            ]  # TODO: decode
+        if "contract_address" in transaction_data["data"]:
+            transaction_data["tx_data_decoded"]["contract_address"] = transaction_data[
+                "data"
+            ]["contract_address"]
+    elif transaction_data["type"] == TransactionType.RUN_CONTRACT.value:
+        transaction_data["tx_data_decoded"] = {}  # TODO
+    elif transaction_data["type"] == TransactionType.SEND.value:
+        transaction_data["tx_data_decoded"] = {}  # TODO
+    return transaction_data
 
 
 async def eth_call(
@@ -673,6 +819,7 @@ def send_raw_transaction(
             genlayer_transaction.type.value,
             nonce,
             leader_only,
+            genlayer_transaction.num_of_initial_validators,
             None,
             transaction_hash,
         )

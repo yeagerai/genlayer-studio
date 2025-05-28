@@ -16,7 +16,7 @@ from web3 import Web3
 from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
 from sqlalchemy.orm.attributes import flag_modified
-from backend.domain.types import MAX_ROTATIONS
+from backend.domain.types import MAX_ROTATIONS, TransactionType
 from backend.rollup.consensus_service import ConsensusService
 
 
@@ -79,6 +79,9 @@ class TransactionsProcessor:
             "appeal_processing_time": transaction_data.appeal_processing_time,
             "contract_snapshot": transaction_data.contract_snapshot,
             "config_rotation_rounds": transaction_data.config_rotation_rounds,
+            "num_of_initial_validators": transaction_data.num_of_initial_validators,
+            "last_vote_timestamp": transaction_data.last_vote_timestamp,
+            "rotation_count": transaction_data.rotation_count,
         }
 
     @staticmethod
@@ -176,6 +179,7 @@ class TransactionsProcessor:
         type: int,
         nonce: int,
         leader_only: bool,
+        num_of_initial_validators: int,
         triggered_by_hash: (
             str | None
         ) = None,  # If filled, the transaction must be present in the database (committed)
@@ -226,6 +230,9 @@ class TransactionsProcessor:
             appeal_processing_time=0,
             contract_snapshot=None,
             config_rotation_rounds=MAX_ROTATIONS,
+            num_of_initial_validators=num_of_initial_validators,
+            last_vote_timestamp=None,
+            rotation_count=0,
         )
 
         self.session.add(new_transaction)
@@ -542,6 +549,9 @@ class TransactionsProcessor:
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
 
+        if transaction.type == TransactionType.DEPLOY_CONTRACT:
+            return None
+
         filters = [
             Transactions.created_at < transaction.created_at,
             Transactions.to_address == transaction.to_address,
@@ -561,3 +571,25 @@ class TransactionsProcessor:
             if closest_transaction
             else None
         )
+
+    def set_transaction_timestamp_last_vote(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.last_vote_timestamp = int(time.time())
+        self.session.commit()
+
+    def increase_transaction_rotation_count(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.rotation_count += 1
+        flag_modified(transaction, "rotation_count")
+        self.session.commit()
+
+    def reset_transaction_rotation_count(self, transaction_hash: str):
+        transaction = (
+            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+        )
+        transaction.rotation_count = 0
+        self.session.commit()
