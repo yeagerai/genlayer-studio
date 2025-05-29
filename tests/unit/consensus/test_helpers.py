@@ -4,9 +4,7 @@ from unittest.mock import AsyncMock, Mock, MagicMock
 import time
 import threading
 import pytest
-from backend.consensus.base import (
-    ConsensusAlgorithm,
-)
+from backend.consensus.base import ConsensusAlgorithm, DEFAULT_VALIDATORS_COUNT
 from backend.database_handler.transactions_processor import TransactionsProcessor
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.models import TransactionStatus
@@ -15,7 +13,6 @@ from backend.node.base import Node
 from backend.node.types import ExecutionMode, ExecutionResultStatus, Receipt, Vote
 from backend.protocol_rpc.message_handler.base import MessageHandler
 from typing import Optional
-from backend.rollup.consensus_service import ConsensusService
 from datetime import datetime
 from copy import deepcopy
 
@@ -392,6 +389,7 @@ def init_dummy_transaction(hash: str | None = None):
         status=TransactionStatus.PENDING,
         type=TransactionType.RUN_CONTRACT,
         created_at=datetime.fromtimestamp(time.time()),
+        num_of_initial_validators=DEFAULT_VALIDATORS_COUNT,
     )
 
 

@@ -1661,7 +1661,7 @@ class PendingState(TransactionState):
             else:
                 # Transaction was never executed, get the default number of validators for the transaction
                 context.involved_validators = get_validators_for_transaction(
-                    all_validators, DEFAULT_VALIDATORS_COUNT
+                    all_validators, context.transaction.num_of_initial_validators
                 )
 
         # Transition to the ProposingState

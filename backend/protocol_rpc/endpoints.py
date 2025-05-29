@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
 from backend.rollup.consensus_service import ConsensusService
-from backend.database_handler.models import Base
+from backend.database_handler.models import Base, TransactionStatus
 from backend.domain.types import LLMProvider, Validator, TransactionType
 from backend.node.create_nodes.providers import (
     get_default_provider_for,
@@ -51,6 +51,7 @@ from backend.protocol_rpc.types import DecodedsubmitAppealDataArgs
 from backend.database_handler.snapshot_manager import SnapshotManager
 from datetime import datetime
 import time
+from web3 import Web3
 
 
 ####### WRAPPER TO BLOCK ENDPOINTS FOR HOSTED ENVIRONMENT #######
@@ -524,6 +525,14 @@ def get_transaction_by_hash(
         else:
             return "7", "MAJORITY_DISAGREE"
 
+    def get_validator_vote_hash(
+        validator_address: str, vote_type: int, nonce: int
+    ) -> str:
+        vote_hash = Web3.solidity_keccak(
+            ["address", "uint8", "uint256"], [validator_address, vote_type, nonce]
+        ).hex()
+        return "0x" + vote_hash
+
     transaction_data = transactions_processor.get_transaction_by_hash(transaction_hash)
     transaction_data["current_timestamp"] = str(round(time.time()))
     transaction_data["sender"] = transaction_data["from_address"]
@@ -531,7 +540,7 @@ def get_transaction_by_hash(
     transaction_data["num_of_initial_validators"] = str(
         transaction_data["num_of_initial_validators"]
     )
-    transaction_data["tx_slot"] = 0  # TODO: what is it?
+    transaction_data["tx_slot"] = "0"
     transaction_data["created_timestamp"] = str(
         int(datetime.fromisoformat(transaction_data["created_at"]).timestamp())
     )
@@ -549,20 +558,40 @@ def get_transaction_by_hash(
         votes_temp
     )
     transaction_data["tx_data"] = (
-        ""  # TODO: convert transaction_data["data"] to hex string
+        ""  # TODO: convert transaction_data["data"] to hex string. It is the same encoding as in the explorer
     )
     transaction_data["tx_receipt"] = ""  # TODO: how to make it?
-    transaction_data["messages"] = transaction_data[
-        "triggered_transactions"
-    ]  # TODO: what structure?
-    transaction_data["queue_type"] = "0"  # TODO
+
+    messages = []
+    for message in transaction_data["triggered_transactions"]:
+        messages.append(
+            {
+                "messageType": "0",
+                "recipient": message["address"],
+                "value": message["value"],
+                "data": message["calldata"],  # TODO: or message["code"] or both?
+                "onAcceptance": message["on"] == "accepted",
+            }
+        )
+    transaction_data["messages"] = messages
+    if transaction_data["status"] in [
+        TransactionStatus.PENDING.value,
+        TransactionStatus.ACTIVATED.value,
+    ]:
+        transaction_data["queue_type"] = "1"
+    elif transaction_data["status"] == TransactionStatus.ACCEPTED.value:
+        transaction_data["queue_type"] = "2"
+    elif transaction_data["status"] == TransactionStatus.UNDETERMINED.value:
+        transaction_data["queue_type"] = "3"
+    else:
+        transaction_data["queue_type"] = "0"
     transaction_data["queue_position"] = "0"  # TODO
     if "consensus_results" in transaction_data["consensus_history"]:
         transaction_data["activator"] = transaction_data["consensus_history"][
             "consensus_results"
         ][0]["leader_result"]["node_config"][
             "address"
-        ]  # TODO: at the moment we use the leader as activator
+        ]  # TODO: at the moment we always use the leader as activator
     else:
         transaction_data["activator"] = (
             ""  # TODO: put it in db entry to have it ready at pending state
@@ -599,21 +628,33 @@ def get_transaction_by_hash(
         if "leader_result" in last_round:
             leader = last_round["leader_result"]
             validator_votes_name.append(leader["vote"].upper())
-            validator_votes.append(vote_name_to_number(leader["vote"]))
-            validator_votes_hash.append("0x" + "0" * 64)  # TODO: replace 0
-            round_validators.append(leader["node_config"]["address"])
+            vote_number = vote_name_to_number(leader["vote"])
+            validator_votes.append(vote_number)
+            leader_address = leader["node_config"]["address"]
+            validator_votes_hash.append(
+                get_validator_vote_hash(
+                    leader_address, vote_number, transaction_data["nonce"]
+                )
+            )
+            round_validators.append(leader_address)
 
         for validator in last_round["validator_results"]:
             validator_votes_name.append(validator["vote"].upper())
-            validator_votes.append(vote_name_to_number(validator["vote"]))
-            validator_votes_hash.append("0x" + "0" * 64)  # TODO: replace 0
-            round_validators.append(validator["node_config"]["address"])
+            vote_number = vote_name_to_number(validator["vote"])
+            validator_votes.append(vote_number)
+            validator_address = validator["node_config"]["address"]
+            validator_votes_hash.append(
+                get_validator_vote_hash(
+                    validator_address, vote_number, transaction_data["nonce"]
+                )
+            )
+            round_validators.append(validator_address)
     else:
         round_number = "0"
     last_round_result, _ = votes_to_result(validator_votes_name)
     transaction_data["last_round"] = {
         "round": round_number,
-        "leader_index": "0",  # TODO: what is it when it is a validator appeal round?
+        "leader_index": "0",
         "votes_committed": str(len(validator_votes_name)),
         "votes_revealed": str(len(validator_votes_name)),
         "appeal_bond": "0",
@@ -641,15 +682,11 @@ def get_transaction_by_hash(
                 "data"
             ][
                 "calldata"
-            ]  # TODO: decode
+            ]  # TODO: It is the same decoding as in the explorer
         if "contract_address" in transaction_data["data"]:
             transaction_data["tx_data_decoded"]["contract_address"] = transaction_data[
                 "data"
             ]["contract_address"]
-    elif transaction_data["type"] == TransactionType.RUN_CONTRACT.value:
-        transaction_data["tx_data_decoded"] = {}  # TODO
-    elif transaction_data["type"] == TransactionType.SEND.value:
-        transaction_data["tx_data_decoded"] = {}  # TODO
     return transaction_data
 
 

@@ -201,6 +201,7 @@ class TransactionParser:
                 from_address=rollup_transaction.from_address,
                 to_address=rollup_transaction.to_address,
                 data=None,
+                num_of_initial_validators=None,
             )
 
         sender = rollup_transaction.data.args.sender
