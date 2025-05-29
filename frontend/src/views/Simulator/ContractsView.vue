@@ -72,7 +72,7 @@ const handleSaveNewFile = (name: string) => {
 
         <GhostBtn class="!p-0" v-tooltip="'Add From File'">
           <label class="input-label p-1">
-            <input type="file" @change="loadContentFromFile" accept=".py,.py" />
+            <input type="file" @change="loadContentFromFile" accept=".py" />
             <Upload :size="16" />
           </label>
         </GhostBtn>
