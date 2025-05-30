@@ -52,6 +52,8 @@ from backend.database_handler.snapshot_manager import SnapshotManager
 from datetime import datetime
 import time
 from web3 import Web3
+import rlp
+import backend.node.genvm.origin.calldata as calldata
 
 
 ####### WRAPPER TO BLOCK ENDPOINTS FOR HOSTED ENVIRONMENT #######
@@ -504,36 +506,44 @@ def get_transaction_count(
     return transactions_processor.get_transaction_count(address)
 
 
+def vote_name_to_number(vote_name: str) -> int:
+    if vote_name == Vote.AGREE.value:
+        return 1
+    elif vote_name == Vote.DISAGREE.value:
+        return 2
+    else:
+        return 0
+
+
+def votes_to_result(votes: list) -> str:
+    if len(votes) == 0:
+        return "5", "NO_MAJORITY"
+    elif len([vote for vote in votes if vote == Vote.AGREE.value]) > len(votes) // 2:
+        return "6", "MAJORITY_AGREE"
+    else:
+        return "7", "MAJORITY_DISAGREE"
+
+
+def get_validator_vote_hash(validator_address: str, vote_type: int, nonce: int) -> str:
+    vote_hash = Web3.solidity_keccak(
+        ["address", "uint8", "uint256"], [validator_address, vote_type, nonce]
+    ).hex()
+    return "0x" + vote_hash
+
+
+def get_tx_execution_hash(leader_address: str, vote_type: int) -> str:
+    tx_execution_hash = Web3.solidity_keccak(
+        ["address", "uint8", "bytes32", "uint256"],
+        [leader_address, vote_type, b"", 4444],
+    ).hex()
+    return "0x" + tx_execution_hash
+
+
 def get_transaction_by_hash(
     transactions_processor: TransactionsProcessor, transaction_hash: str
 ) -> dict | None:
-    def vote_name_to_number(vote_name: str) -> int:
-        if vote_name == Vote.AGREE.value:
-            return 1
-        elif vote_name == Vote.DISAGREE.value:
-            return 2
-        else:
-            return 0
-
-    def votes_to_result(votes: list) -> str:
-        if len(votes) == 0:
-            return "5", "NO_MAJORITY"
-        elif (
-            len([vote for vote in votes if vote == Vote.AGREE.value]) > len(votes) // 2
-        ):
-            return "6", "MAJORITY_AGREE"
-        else:
-            return "7", "MAJORITY_DISAGREE"
-
-    def get_validator_vote_hash(
-        validator_address: str, vote_type: int, nonce: int
-    ) -> str:
-        vote_hash = Web3.solidity_keccak(
-            ["address", "uint8", "uint256"], [validator_address, vote_type, nonce]
-        ).hex()
-        return "0x" + vote_hash
-
     transaction_data = transactions_processor.get_transaction_by_hash(transaction_hash)
+
     transaction_data["current_timestamp"] = str(round(time.time()))
     transaction_data["sender"] = transaction_data["from_address"]
     transaction_data["recipient"] = transaction_data["to_address"]
@@ -548,6 +558,7 @@ def get_transaction_by_hash(
         transaction_data["last_vote_timestamp"]
     )
     transaction_data["random_seed"] = "0x" + "0" * 64
+
     if (transaction_data["consensus_data"] is not None) and (
         "votes" in transaction_data["consensus_data"]
     ):
@@ -557,10 +568,95 @@ def get_transaction_by_hash(
     transaction_data["result"], transaction_data["result_name"] = votes_to_result(
         votes_temp
     )
-    transaction_data["tx_data"] = (
-        ""  # TODO: convert transaction_data["data"] to hex string. It is the same encoding as in the explorer
+
+    to_encode = []
+    if "calldata" in transaction_data["data"]:
+        encoded_call_data = base64.b64decode(transaction_data["data"]["calldata"])
+        to_encode.append(encoded_call_data)
+        to_encode.append(b"\x00")
+    if "contract_code" in transaction_data["data"]:
+        contract_code_bytes = base64.b64decode(
+            transaction_data["data"]["contract_code"]
+        )
+        to_encode.insert(0, contract_code_bytes)
+    if len(to_encode) == 0:
+        transaction_data["tx_data"] = ""
+    else:
+        transaction_data["tx_data"] = Web3.to_hex(rlp.encode(to_encode))[2:]
+
+    if (
+        transaction_data["consensus_data"] is not None
+        and "leader_receipt" in transaction_data["consensus_data"]
+        and "node_config" in transaction_data["consensus_data"]["leader_receipt"]
+    ):
+        transaction_data["tx_execution_hash"] = get_tx_execution_hash(
+            transaction_data["consensus_data"]["leader_receipt"]["node_config"][
+                "address"
+            ],
+            vote_name_to_number(
+                transaction_data["consensus_data"]["leader_receipt"]["vote"]
+            ),
+        )
+    else:
+        transaction_data["tx_execution_hash"] = ""
+
+    kind = 0
+    if (
+        transaction_data["consensus_data"] is not None
+        and "leader_receipt" in transaction_data["consensus_data"]
+        and "result" in transaction_data["consensus_data"]["leader_receipt"]
+    ):
+        kind = base64.b64decode(
+            transaction_data["consensus_data"]["leader_receipt"]["result"]
+        )[0]
+
+    eq_output = []
+    if (
+        "consensus_history" in transaction_data
+        and "consensus_results" in transaction_data["consensus_history"]
+    ):
+        for consensus_round in transaction_data["consensus_history"][
+            "consensus_results"
+        ]:
+            if consensus_round["leader_result"] is not None:
+                eq_output.append(
+                    [
+                        len(eq_output),  # key
+                        [
+                            base64.b64decode(
+                                consensus_round["leader_result"]["result"]
+                            )[
+                                0
+                            ],  # kind
+                            "\x00",
+                        ],
+                    ]
+                )  # data
+    pending_transactions = []
+    for message in transaction_data["triggered_transactions"]:
+        pending_transactions.append(
+            [
+                message["address"],  # Account
+                message["calldata"],  # Calldata
+                message["value"],  # Value
+                message["on"],  # On
+                message["code"],  # Code
+                0,  # SaltNonce
+            ]
+        )
+    transaction_data["eq_blocks_outputs"] = Web3.to_hex(
+        rlp.encode(
+            [
+                [
+                    [kind, "\x00"],  # data
+                    pending_transactions,
+                    [],  # pending eth transactions
+                    bytes.fromhex(""),
+                ],  # storage proof
+                eq_output,
+            ]
+        )
     )
-    transaction_data["tx_receipt"] = ""  # TODO: how to make it?
 
     messages = []
     for message in transaction_data["triggered_transactions"]:
@@ -569,11 +665,12 @@ def get_transaction_by_hash(
                 "messageType": "0",
                 "recipient": message["address"],
                 "value": message["value"],
-                "data": message["calldata"],  # TODO: or message["code"] or both?
+                "data": message["calldata"],
                 "onAcceptance": message["on"] == "accepted",
             }
         )
     transaction_data["messages"] = messages
+
     if transaction_data["status"] in [
         TransactionStatus.PENDING.value,
         TransactionStatus.ACTIVATED.value,
@@ -585,17 +682,15 @@ def get_transaction_by_hash(
         transaction_data["queue_type"] = "3"
     else:
         transaction_data["queue_type"] = "0"
-    transaction_data["queue_position"] = "0"  # TODO
+
+    transaction_data["queue_position"] = "0"
+
     if "consensus_results" in transaction_data["consensus_history"]:
         transaction_data["activator"] = transaction_data["consensus_history"][
             "consensus_results"
-        ][0]["leader_result"]["node_config"][
-            "address"
-        ]  # TODO: at the moment we always use the leader as activator
+        ][0]["leader_result"]["node_config"]["address"]
     else:
-        transaction_data["activator"] = (
-            ""  # TODO: put it in db entry to have it ready at pending state
-        )
+        transaction_data["activator"] = ""
 
     if (transaction_data["consensus_data"] is not None) and (
         "leader_receipt" in transaction_data["consensus_data"]
@@ -605,17 +700,20 @@ def get_transaction_by_hash(
         ]["node_config"]["address"]
     else:
         transaction_data["last_leader"] = ""
+
     transaction_data["status"] = transaction_data["status"]
     transaction_data["tx_id"] = transaction_data["hash"]
     transaction_data["read_state_block_range"] = (
         {"activation_block": "0", "processing_block": "0", "proposal_block": "0"},
-    )  # TODO: replace 0
+    )
+
     if "consensus_results" in transaction_data["consensus_history"]:
         transaction_data["num_of_rounds"] = str(
             len(transaction_data["consensus_history"]["consensus_results"])
         )
     else:
         transaction_data["num_of_rounds"] = "0"
+
     validator_votes_name = []
     validator_votes = []
     validator_votes_hash = []
@@ -627,16 +725,17 @@ def get_transaction_by_hash(
         last_round = transaction_data["consensus_history"]["consensus_results"][-1]
         if "leader_result" in last_round:
             leader = last_round["leader_result"]
-            validator_votes_name.append(leader["vote"].upper())
-            vote_number = vote_name_to_number(leader["vote"])
-            validator_votes.append(vote_number)
-            leader_address = leader["node_config"]["address"]
-            validator_votes_hash.append(
-                get_validator_vote_hash(
-                    leader_address, vote_number, transaction_data["nonce"]
+            if leader is not None:
+                validator_votes_name.append(leader["vote"].upper())
+                vote_number = vote_name_to_number(leader["vote"])
+                validator_votes.append(vote_number)
+                leader_address = leader["node_config"]["address"]
+                validator_votes_hash.append(
+                    get_validator_vote_hash(
+                        leader_address, vote_number, transaction_data["nonce"]
+                    )
                 )
-            )
-            round_validators.append(leader_address)
+                round_validators.append(leader_address)
 
         for validator in last_round["validator_results"]:
             validator_votes_name.append(validator["vote"].upper())
@@ -668,25 +767,6 @@ def get_transaction_by_hash(
         "validator_votes": validator_votes,
         "validator_votes_name": validator_votes_name,
     }
-    if transaction_data["type"] == TransactionType.DEPLOY_CONTRACT.value:
-        transaction_data["tx_data_decoded"] = {
-            "leader_only": transaction_data["leader_only"],
-            "type": "deploy",
-        }
-        if "contract_code" in transaction_data["data"]:
-            transaction_data["tx_data_decoded"]["code"] = transaction_data["data"][
-                "contract_code"
-            ]
-        if "calldata" in transaction_data["data"]:
-            transaction_data["tx_data_decoded"]["constructor_args"] = transaction_data[
-                "data"
-            ][
-                "calldata"
-            ]  # TODO: It is the same decoding as in the explorer
-        if "contract_address" in transaction_data["data"]:
-            transaction_data["tx_data_decoded"]["contract_address"] = transaction_data[
-                "data"
-            ]["contract_address"]
     return transaction_data
 
 
