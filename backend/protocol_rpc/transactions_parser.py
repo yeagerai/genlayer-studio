@@ -201,17 +201,22 @@ class TransactionParser:
                 from_address=rollup_transaction.from_address,
                 to_address=rollup_transaction.to_address,
                 data=None,
+                num_of_initial_validators=None,
             )
 
         sender = rollup_transaction.data.args.sender
         recipient = rollup_transaction.data.args.recipient
         type = self._get_genlayer_transaction_type(recipient)
         data = self._get_genlayer_transaction_data(type, rollup_transaction.data.args)
+        num_of_initial_validators = (
+            rollup_transaction.data.args.num_of_initial_validators
+        )
 
         return DecodedGenlayerTransaction(
             from_address=sender,
             to_address=recipient,
             type=type,
+            num_of_initial_validators=num_of_initial_validators,
             data=DecodedGenlayerTransactionData(
                 contract_code=(
                     data.contract_code if hasattr(data, "contract_code") else None

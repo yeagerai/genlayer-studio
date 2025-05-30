@@ -88,3 +88,4 @@ class DecodedGenlayerTransaction:
     to_address: str
     data: DecodedGenlayerTransactionData
     type: TransactionType
+    num_of_initial_validators: int
