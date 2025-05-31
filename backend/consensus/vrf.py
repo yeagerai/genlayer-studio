@@ -9,7 +9,7 @@ def get_validators_for_transaction(
 ) -> list[dict]:
     """
     Returns subset of validators for a transaction.
-    The selelction and order is given by a random sampling based on the stake of the validators.
+    The selection and order is given by a random sampling based on the stake of the validators.
     """
     num_validators = min(num_validators, len(nodes))
 
