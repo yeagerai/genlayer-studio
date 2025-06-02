@@ -688,18 +688,15 @@ def get_transaction_by_hash(
     )
     transaction_data["messages"] = messages
 
-    if transaction_data["status"] in [
-        TransactionStatus.PENDING.value,
-        TransactionStatus.ACTIVATED.value,
-    ]:
-        transaction_data["queue_type"] = "1"
-    elif transaction_data["status"] == TransactionStatus.ACCEPTED.value:
-        transaction_data["queue_type"] = "2"
-    elif transaction_data["status"] == TransactionStatus.UNDETERMINED.value:
-        transaction_data["queue_type"] = "3"
-    else:
-        transaction_data["queue_type"] = "0"
-
+    status_to_queue_type = {
+        TransactionStatus.PENDING.value: "1",
+        TransactionStatus.ACTIVATED.value: "1",
+        TransactionStatus.ACCEPTED.value: "2",
+        TransactionStatus.UNDETERMINED.value: "3",
+    }
+    transaction_data["queue_type"] = status_to_queue_type.get(
+        transaction_data["status"], "0"
+    )
     transaction_data["queue_position"] = "0"
 
     if "consensus_results" in transaction_data["consensus_history"]:
