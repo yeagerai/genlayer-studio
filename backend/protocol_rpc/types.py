@@ -88,3 +88,4 @@ class DecodedGenlayerTransaction:
     to_address: str
     data: DecodedGenlayerTransactionData
     type: TransactionType
+    max_rotations: int
