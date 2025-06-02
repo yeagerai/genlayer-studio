@@ -14,7 +14,7 @@ import type { Address } from 'genlayer-js/types';
 
 const testContract = {
   id: '03bf999b-9b2f-48f1-b1e8-52becccc6e87',
-  name: 'test.gpy',
+  name: 'test.py',
   content: 'print("hello")',
   example: true,
 };
