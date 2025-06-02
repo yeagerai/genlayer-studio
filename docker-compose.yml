@@ -1,7 +1,7 @@
 services:
   traefik:
     profiles: ["studio"]
-    image: traefik:v3.2
+    image: traefik:v3.3
     ports:
       - "80:80"
       - "443:443"
@@ -113,6 +113,7 @@ services:
     depends_on:
       ollama:
         condition: service_started
+        required: false
     expose:
       - "${WEBREQUESTPORT}:${WEBREQUESTPORT}"
     restart: always
@@ -145,7 +146,8 @@ services:
         max-file: "3"
 
   ollama:
-    image: ollama/ollama:0.5.7
+    profiles: ["ollama"]
+    image: ollama/ollama:0.6.5
     ports:
       - 11434:11434
     volumes:
@@ -210,29 +212,12 @@ services:
     ports:
       - "${HARDHAT_PORT:-8545}:8545"
     volumes:
-      - ./hardhat/contracts:/app/contracts
-      - ./hardhat/scripts:/app/scripts
-      - ./hardhat/test:/app/test
-      - ./hardhat/hardhat.config.js:/app/hardhat.config.js
-      - ./hardhat/deploy:/app/deploy
+      - ./hardhat:/app/hardhat_src
       - hardhat_artifacts:/app/artifacts
       - hardhat_cache:/app/cache
       - hardhat_deployments:/app/deployments
-      - ignition_deployments:/app/ignition/deployments
       - hardhat_snapshots:/app/snapshots
-    environment:
-      - HARDHAT_NETWORK=hardhat
     restart: always
-    healthcheck:
-      test: |
-        /bin/sh -c '
-        curl -X POST -H "Content-Type: application/json" --fail http://localhost:8545 -d "{\"jsonrpc\":\"2.0\",\"method\":\"net_version\",\"params\":[],\"id\":1}" &&
-        test -f /app/deployments/genlayer_network/ConsensusMain.json
-        '
-      interval: 60s
-      timeout: 30s
-      retries: 5
-      start_period: 60s
     labels:
       traefik.enable: true
       traefik.http.routers.hardhat.rule: Host(`${SERVER_NAME}`) && PathPrefix(`/hardhat`)

@@ -21,6 +21,7 @@ from backend.protocol_rpc.types import (
     DecodedRollupTransactionDataArgs,
     DecodedGenlayerTransaction,
     DecodedGenlayerTransactionData,
+    DecodedsubmitAppealDataArgs,
     ZERO_ADDRESS,
 )
 
@@ -144,7 +145,11 @@ class TransactionParser:
                                         data=params["_txData"],
                                     ),
                                 )
-                            break
+                            elif decoded_data["function"] == "submitAppeal":
+                                params = decoded_data["params"]
+                                decoded_data = DecodedsubmitAppealDataArgs(
+                                    tx_id=params["_txId"],
+                                )
 
             return DecodedRollupTransaction(
                 from_address=sender,
@@ -245,7 +250,12 @@ class TransactionParser:
         )
 
     def decode_method_call_data(self, data: str) -> DecodedMethodCallData:
-        return DecodedMethodCallData(eth_utils.hexadecimal.decode_hex(data))
+        raw_bytes = eth_utils.hexadecimal.decode_hex(data)
+        # Check if we have the newer format with extra bytes
+        if len(raw_bytes) > 3 and raw_bytes[-1] == 0:
+            # Strip the first 2 bytes and the last null byte
+            raw_bytes = raw_bytes[2:-1]
+        return DecodedMethodCallData(raw_bytes)
 
     def decode_deployment_data(self, data: str) -> DecodedDeploymentData:
         data_bytes = HexBytes(data)

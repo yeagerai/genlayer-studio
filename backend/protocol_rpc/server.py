@@ -15,6 +15,7 @@ from backend.database_handler.llm_providers import LLMProviderRegistry
 from backend.protocol_rpc.configuration import GlobalConfiguration
 from backend.protocol_rpc.message_handler.base import MessageHandler
 from backend.protocol_rpc.endpoints import register_all_rpc_endpoints
+from backend.protocol_rpc.endpoint_generator import setup_eth_method_handler
 from backend.protocol_rpc.validators_init import initialize_validators
 from backend.protocol_rpc.transactions_parser import TransactionParser
 from dotenv import load_dotenv
@@ -22,6 +23,7 @@ from dotenv import load_dotenv
 from backend.database_handler.transactions_processor import TransactionsProcessor
 from backend.database_handler.validators_registry import ValidatorsRegistry
 from backend.database_handler.accounts_manager import AccountsManager
+from backend.database_handler.snapshot_manager import SnapshotManager
 from backend.consensus.base import ConsensusAlgorithm, contract_processor_factory
 from backend.database_handler.models import Base, TransactionStatus
 from backend.rollup.consensus_service import ConsensusService
@@ -55,13 +57,17 @@ def create_app():
     jsonrpc = JSONRPC(
         app, "/api", enable_web_browsable_api=True
     )  # check it out at http://localhost:4000/api/browse/#/
+    setup_eth_method_handler(jsonrpc)
     socketio = SocketIO(app, cors_allowed_origins="*")
     # Handlers
     msg_handler = MessageHandler(socketio, config=GlobalConfiguration())
     transactions_processor = TransactionsProcessor(sqlalchemy_db.session)
     accounts_manager = AccountsManager(sqlalchemy_db.session)
+    snapshot_manager = SnapshotManager(sqlalchemy_db.session)
     validators_registry = ValidatorsRegistry(sqlalchemy_db.session)
-    llm_provider_registry = LLMProviderRegistry(sqlalchemy_db.session)
+    with app.app_context():
+        llm_provider_registry = LLMProviderRegistry(sqlalchemy_db.session)
+        llm_provider_registry.update_defaults()
     consensus_service = ConsensusService()
     transactions_parser = TransactionParser(consensus_service)
     # Initialize validators from environment configuration in a thread
@@ -83,6 +89,7 @@ def create_app():
         msg_handler,
         sqlalchemy_db.session,
         accounts_manager,
+        snapshot_manager,
         transactions_processor,
         validators_registry,
         consensus,
@@ -101,6 +108,7 @@ load_dotenv()
     msg_handler,
     request_session,
     accounts_manager,
+    snapshot_manager,
     transactions_processor,
     validators_registry,
     consensus,
@@ -114,6 +122,7 @@ register_all_rpc_endpoints(
     msg_handler,
     request_session,
     accounts_manager,
+    snapshot_manager,
     transactions_processor,
     validators_registry,
     llm_provider_registry,
@@ -137,7 +146,7 @@ def shutdown_session(exception=None):
 def run_socketio():
     socketio.run(
         app,
-        debug=os.environ["VSCODEDEBUG"] == "false",
+        debug=os.environ.get("VSCODEDEBUG", "false") == "false",
         port=os.environ.get("RPCPORT"),
         host="0.0.0.0",
         allow_unsafe_werkzeug=True,
@@ -200,7 +209,7 @@ def restore_stuck_transactions():
 
         # Restore the contract state
         contract_processor = contract_processor_factory(request_session)
-        tx1_finalized = transactions_processor.previous_transaction_with_status(
+        tx1_finalized = transactions_processor.get_previous_transaction(
             tx2["hash"], TransactionStatus.FINALIZED
         )
         if tx1_finalized:
@@ -213,7 +222,7 @@ def restore_stuck_transactions():
                 finalized_state=previous_contact_state,
             )
         else:
-            tx1_accepted = transactions_processor.previous_transaction_with_status(
+            tx1_accepted = transactions_processor.get_previous_transaction(
                 tx2["hash"], TransactionStatus.ACCEPTED
             )
             if tx1_accepted:
@@ -227,7 +236,7 @@ def restore_stuck_transactions():
                 )
             else:
                 contract_processor.update_contract_state(
-                    contract_address=tx1_accepted["to_address"],
+                    contract_address=tx2["to_address"],
                     accepted_state={},
                     finalized_state={},
                 )

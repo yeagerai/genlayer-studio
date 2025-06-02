@@ -5,10 +5,11 @@ import { useContractsStore } from '@/stores/contracts';
 import { useRpcClient, useWebSocketClient } from '@/hooks';
 import { notify } from '@kyvg/vue3-notification';
 import { type ValidatorModel, type NodeLog } from '@/types';
+import type { Address } from 'genlayer-js/types';
 
 const testValidator1: ValidatorModel = {
   id: 1,
-  address: '0x123',
+  address: '0x123' as Address,
   stake: 100,
   provider: 'openai',
   model: 'gpt-4',
@@ -20,7 +21,7 @@ const testValidator1: ValidatorModel = {
 
 const testValidator2: ValidatorModel = {
   id: 2,
-  address: '0x321',
+  address: '0x321' as Address,
   stake: 200,
   provider: 'ollama',
   model: 'llama3',

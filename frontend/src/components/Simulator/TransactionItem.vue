@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import type { TransactionItem } from '@/types';
 import TransactionStatusBadge from '@/components/Simulator/TransactionStatusBadge.vue';
 import { useTimeAgo } from '@vueuse/core';
@@ -9,7 +9,6 @@ import { useUIStore, useNodeStore, useTransactionsStore } from '@/stores';
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/vue/16/solid';
 import CopyTextButton from '../global/CopyTextButton.vue';
 import { FilterIcon, GavelIcon, UserPen, UserSearch } from 'lucide-vue-next';
-import { abi } from 'genlayer-js';
 import {
   resultToUserFriendlyJson,
   b64ToArray,
@@ -47,6 +46,28 @@ const dateText = computed(() => {
 
 const leaderReceipt = computed(() => {
   return props.transaction?.data?.consensus_data?.leader_receipt;
+});
+
+const eqOutputs = computed(() => {
+  const outputs = leaderReceipt.value?.eq_outputs || {};
+  return Object.entries(outputs).map(([key, value]: [string, unknown]) => {
+    const decodedResult = resultToUserFriendlyJson(String(value));
+    const parsedValue = decodedResult?.payload?.readable ?? value;
+    try {
+      if (typeof parsedValue === 'string') {
+        return {
+          key,
+          value: JSON.parse(parsedValue),
+        };
+      }
+    } catch (e) {
+      console.error('Error parsing JSON:', e);
+    }
+    return {
+      key,
+      value: parsedValue,
+    };
+  });
 });
 
 const shortHash = computed(() => {
@@ -169,9 +190,9 @@ function prettifyTxData(x: any): any {
       <Loader
         :size="15"
         v-if="
-          transaction.status !== 'FINALIZED' &&
-          transaction.status !== 'ACCEPTED' &&
-          transaction.status !== 'UNDETERMINED'
+          transaction.statusName !== 'FINALIZED' &&
+          transaction.statusName !== 'ACCEPTED' &&
+          transaction.statusName !== 'UNDETERMINED'
         "
       />
 
@@ -179,8 +200,8 @@ function prettifyTxData(x: any): any {
         <Btn
           v-if="
             transaction.data.leader_only == false &&
-            (transaction.status == 'ACCEPTED' ||
-              transaction.status == 'UNDETERMINED') &&
+            (transaction.statusName == 'ACCEPTED' ||
+              transaction.statusName == 'UNDETERMINED') &&
             Date.now() / 1000 -
               transaction.data.timestamp_awaiting_finalization -
               transaction.data.appeal_processing_time <=
@@ -205,10 +226,10 @@ function prettifyTxData(x: any): any {
       <TransactionStatusBadge
         :class="[
           'px-[4px] py-[1px] text-[9px]',
-          transaction.status === 'FINALIZED' ? '!bg-green-500' : '',
+          transaction.statusName === 'FINALIZED' ? '!bg-green-500' : '',
         ]"
       >
-        {{ transaction.status }}
+        {{ transaction.statusName }}
       </TransactionStatusBadge>
     </div>
 
@@ -250,36 +271,21 @@ function prettifyTxData(x: any): any {
             <Loader
               :size="15"
               v-if="
-                transaction.status !== 'FINALIZED' &&
-                transaction.status !== 'ACCEPTED' &&
-                transaction.status !== 'UNDETERMINED'
+                transaction.statusName !== 'FINALIZED' &&
+                transaction.statusName !== 'ACCEPTED' &&
+                transaction.statusName !== 'UNDETERMINED'
               "
             />
             <TransactionStatusBadge
               :class="[
                 'px-[4px] py-[1px] text-[9px]',
-                transaction.status === 'FINALIZED' ? '!bg-green-500' : '',
+                transaction.statusName === 'FINALIZED' ? '!bg-green-500' : '',
               ]"
             >
-              {{ transaction.status }}
+              {{ transaction.statusName }}
             </TransactionStatusBadge>
           </p>
         </div>
-
-        <ModalSection v-if="transaction.data.data">
-          <template #title>Input</template>
-
-          <pre
-            v-if="transaction.data.data.calldata.readable"
-            class="overflow-hidden rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
-            >{{ transaction.data.data.calldata.readable }}</pre
-          >
-          <pre
-            v-if="!transaction.data.data.calldata.readable"
-            class="overflow-hidden rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
-            >{{ transaction.data.data.calldata.base64 }}</pre
-          >
-        </ModalSection>
 
         <ModalSection v-if="leaderReceipt">
           <template #title>
@@ -319,6 +325,46 @@ function prettifyTxData(x: any): any {
                 <span class="font-medium">Provider:</span>
                 {{ leaderReceipt.node_config.provider }}
               </div>
+            </div>
+          </div>
+        </ModalSection>
+
+        <ModalSection v-if="transaction.data.data">
+          <template #title>Input</template>
+
+          <pre
+            v-if="transaction.data.data.calldata.readable"
+            class="overflow-x-auto whitespace-pre rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+            >{{ transaction.data.data.calldata.readable }}</pre
+          >
+          <pre
+            v-if="!transaction.data.data.calldata.readable"
+            class="overflow-x-auto whitespace-pre rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+            >{{ transaction.data.data.calldata.base64 }}</pre
+          >
+        </ModalSection>
+
+        <ModalSection v-if="transaction.data.data">
+          <template #title>Output</template>
+          <div>
+            <pre
+              class="overflow-x-auto whitespace-pre rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+              >{{ transaction.data.result || 'None' }}</pre
+            >
+          </div>
+        </ModalSection>
+
+        <ModalSection v-if="eqOutputs.length > 0">
+          <template #title>Equivalence Principles Output</template>
+          <div class="flex flex-col gap-2">
+            <div v-for="(output, index) in eqOutputs" :key="index">
+              <div class="mb-1 text-xs font-medium">
+                Equivalence Principle #{{ output.key }}:
+              </div>
+              <pre
+                class="overflow-x-auto whitespace-pre rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+                >{{ output.value }}</pre
+              >
             </div>
           </div>
         </ModalSection>
@@ -414,7 +460,7 @@ function prettifyTxData(x: any): any {
           <template #title>Equivalence Principle Output</template>
 
           <pre
-            class="overflow-x-auto rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
+            class="overflow-x-auto whitespace-pre rounded bg-gray-200 p-1 text-xs text-gray-600 dark:bg-zinc-800 dark:text-gray-300"
             >{{ leaderReceipt?.eq_outputs?.leader }}</pre
           >
         </ModalSection>

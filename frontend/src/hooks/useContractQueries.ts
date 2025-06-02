@@ -14,7 +14,9 @@ import type {
   Address,
   TransactionHash,
   CalldataEncodable,
+  TransactionHashVariant,
 } from 'genlayer-js/types';
+import { TransactionStatus } from 'genlayer-js/types';
 
 const schema = ref<any>();
 
@@ -122,7 +124,7 @@ export function useContractQueries() {
         localContractId: contract.value?.id ?? '',
         hash: result as TransactionHash,
         type: 'deploy',
-        status: 'PENDING',
+        statusName: TransactionStatus.PENDING,
         data: {},
       };
 
@@ -174,7 +176,7 @@ export function useContractQueries() {
     }
 
     const result = await genlayerClient.value?.getContractSchema(
-      deployedContract.value?.address ?? '',
+      deployedContract.value?.address ?? '0x0',
     );
 
     return result;
@@ -186,12 +188,14 @@ export function useContractQueries() {
       args: CalldataEncodable[];
       kwargs: { [key: string]: CalldataEncodable };
     },
+    transactionHashVariant: TransactionHashVariant,
   ) {
     try {
       const result = await genlayerClient.value?.readContract({
         address: address.value as Address,
         functionName: method,
         args: args.args,
+        transactionHashVariant,
       });
 
       return result;
@@ -232,9 +236,9 @@ export function useContractQueries() {
       transactionsStore.addTransaction({
         contractAddress: address.value || '',
         localContractId: contract.value?.id || '',
-        hash: result,
+        hash: result as TransactionHash,
         type: 'method',
-        status: 'PENDING',
+        statusName: TransactionStatus.PENDING,
         data: {},
         decodedData: {
           functionName: method,
