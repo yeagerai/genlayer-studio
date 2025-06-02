@@ -648,8 +648,8 @@ def get_transaction_by_hash(
         ]:
             pending_transactions.append(
                 [
-                    message["address"],  # Account
-                    message["calldata"],  # Calldata
+                    message["address"] if "address" in message else "",  # Account
+                    message["calldata"] if "calldata" in message else "",  # Calldata
                     message["value"] if "value" in message else 0,  # Value
                     message["on"] if "on" in message else "finalized",  # On
                     message["code"] if "code" in message else "",  # Code
@@ -661,9 +661,9 @@ def get_transaction_by_hash(
             messages.append(
                 {
                     "messageType": "0",
-                    "recipient": message["address"],
+                    "recipient": message["address"] if "address" in message else "",
                     "value": message["value"] if "value" in message else 0,
-                    "data": message["calldata"],
+                    "data": message["calldata"] if "calldata" in message else "",
                     "onAcceptance": (
                         message["on"] == "accepted" if "on" in message else False
                     ),
