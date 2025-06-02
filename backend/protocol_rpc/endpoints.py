@@ -633,17 +633,42 @@ def get_transaction_by_hash(
                     ]
                 )  # data
     pending_transactions = []
-    for message in transaction_data["triggered_transactions"]:
-        pending_transactions.append(
-            [
-                message["address"],  # Account
-                message["calldata"],  # Calldata
-                message["value"],  # Value
-                message["on"],  # On
-                message["code"],  # Code
-                0,  # SaltNonce
-            ]
-        )
+    messages = []
+    if (
+        transaction_data["consensus_data"] is not None
+        and "leader_receipt" in transaction_data["consensus_data"]
+        and transaction_data["consensus_data"]["leader_receipt"] is not None
+        and "pending_transactions"
+        in transaction_data["consensus_data"]["leader_receipt"]
+        and transaction_data["consensus_data"]["leader_receipt"]["pending_transactions"]
+        is not None
+    ):
+        for message in transaction_data["consensus_data"]["leader_receipt"][
+            "pending_transactions"
+        ]:
+            pending_transactions.append(
+                [
+                    message["address"],  # Account
+                    message["calldata"],  # Calldata
+                    message["value"] if "value" in message else 0,  # Value
+                    message["on"] if "on" in message else "finalized",  # On
+                    message["code"] if "code" in message else "",  # Code
+                    (
+                        message["salt_nonce"] if "salt_nonce" in message else 0
+                    ),  # SaltNonce
+                ]
+            )
+            messages.append(
+                {
+                    "messageType": "0",
+                    "recipient": message["address"],
+                    "value": message["value"] if "value" in message else 0,
+                    "data": message["calldata"],
+                    "onAcceptance": (
+                        message["on"] == "accepted" if "on" in message else False
+                    ),
+                }
+            )
     transaction_data["eq_blocks_outputs"] = Web3.to_hex(
         rlp.encode(
             [
@@ -657,18 +682,6 @@ def get_transaction_by_hash(
             ]
         )
     )
-
-    messages = []
-    for message in transaction_data["triggered_transactions"]:
-        messages.append(
-            {
-                "messageType": "0",
-                "recipient": message["address"],
-                "value": message["value"],
-                "data": message["calldata"],
-                "onAcceptance": message["on"] == "accepted",
-            }
-        )
     transaction_data["messages"] = messages
 
     if transaction_data["status"] in [
