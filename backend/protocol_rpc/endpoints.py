@@ -570,15 +570,16 @@ def get_transaction_by_hash(
     )
 
     to_encode = []
-    if "calldata" in transaction_data["data"]:
-        encoded_call_data = base64.b64decode(transaction_data["data"]["calldata"])
-        to_encode.append(encoded_call_data)
-        to_encode.append(b"\x00")
-    if "contract_code" in transaction_data["data"]:
-        contract_code_bytes = base64.b64decode(
-            transaction_data["data"]["contract_code"]
-        )
-        to_encode.insert(0, contract_code_bytes)
+    if transaction_data["data"] is not None:
+        if "calldata" in transaction_data["data"]:
+            encoded_call_data = base64.b64decode(transaction_data["data"]["calldata"])
+            to_encode.append(encoded_call_data)
+            to_encode.append(b"\x00")
+        if "contract_code" in transaction_data["data"]:
+            contract_code_bytes = base64.b64decode(
+                transaction_data["data"]["contract_code"]
+            )
+            to_encode.insert(0, contract_code_bytes)
     if len(to_encode) == 0:
         transaction_data["tx_data"] = ""
     else:
