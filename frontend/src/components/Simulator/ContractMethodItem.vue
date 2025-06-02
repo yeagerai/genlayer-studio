@@ -18,6 +18,7 @@ const props = defineProps<{
   method: ContractMethod;
   methodType: 'read' | 'write';
   leaderOnly: boolean;
+  consensusMaxRotations?: number;
 }>();
 
 const isExpanded = ref(false);
@@ -98,6 +99,7 @@ const handleCallWriteMethod = async () => {
     await callWriteMethod({
       method: props.name,
       leaderOnly: props.leaderOnly,
+      consensusMaxRotations: props.consensusMaxRotations,
       args: unfoldArgsData({
         args: calldataArguments.value.args,
         kwargs: calldataArguments.value.kwargs,

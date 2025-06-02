@@ -16,7 +16,7 @@ from web3 import Web3
 from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
 from sqlalchemy.orm.attributes import flag_modified
-from backend.domain.types import MAX_ROTATIONS, TransactionType
+
 from backend.rollup.consensus_service import ConsensusService
 
 
@@ -179,6 +179,7 @@ class TransactionsProcessor:
         type: int,
         nonce: int,
         leader_only: bool,
+        config_rotation_rounds: int,
         triggered_by_hash: (
             str | None
         ) = None,  # If filled, the transaction must be present in the database (committed)
@@ -229,7 +230,7 @@ class TransactionsProcessor:
             timestamp_appeal=None,
             appeal_processing_time=0,
             contract_snapshot=None,
-            config_rotation_rounds=MAX_ROTATIONS,
+            config_rotation_rounds=config_rotation_rounds,
             num_of_initial_validators=num_of_initial_validators,
             last_vote_timestamp=None,
             rotation_count=0,

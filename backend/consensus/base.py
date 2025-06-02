@@ -2483,4 +2483,5 @@ def _emit_messages(
             num_of_initial_validators=context.transaction.num_of_initial_validators,
             triggered_by_hash=context.transaction.hash,
             transaction_hash=transaction_hash,
+            config_rotation_rounds=context.transaction.config_rotation_rounds,
         )
