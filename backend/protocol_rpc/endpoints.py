@@ -518,7 +518,10 @@ def vote_name_to_number(vote_name: str) -> int:
 def votes_to_result(votes: list) -> str:
     if len(votes) == 0:
         return "5", "NO_MAJORITY"
-    elif len([vote for vote in votes if vote == Vote.AGREE.value]) > len(votes) // 2:
+    elif (
+        len([vote for vote in votes if vote.lower() == Vote.AGREE.value])
+        > len(votes) // 2
+    ):
         return "6", "MAJORITY_AGREE"
     else:
         return "7", "MAJORITY_DISAGREE"
@@ -717,9 +720,11 @@ def get_transaction_by_hash(
 
     transaction_data["status"] = transaction_data["status"]
     transaction_data["tx_id"] = transaction_data["hash"]
-    transaction_data["read_state_block_range"] = (
-        {"activation_block": "0", "processing_block": "0", "proposal_block": "0"},
-    )
+    transaction_data["read_state_block_range"] = {
+        "activation_block": "0",
+        "processing_block": "0",
+        "proposal_block": "0",
+    }
 
     if "consensus_results" in transaction_data["consensus_history"]:
         transaction_data["num_of_rounds"] = str(
@@ -765,6 +770,7 @@ def get_transaction_by_hash(
     else:
         round_number = "0"
     last_round_result, _ = votes_to_result(validator_votes_name)
+
     transaction_data["last_round"] = {
         "round": round_number,
         "leader_index": "0",
