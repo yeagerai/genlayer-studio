@@ -81,8 +81,6 @@ class StateProxy(metaclass=abc.ABCMeta):
         /,
     ) -> None: ...
     @abc.abstractmethod
-    def get_code(self, addr: Address) -> bytes: ...
-    @abc.abstractmethod
     def get_balance(self, addr: Address) -> int: ...
 
 
@@ -110,14 +108,18 @@ class IGenVM(typing.Protocol):
 # state proxy that always fails and can give code only for address from a constructor
 # useful for get_schema
 class _StateProxyNone(StateProxy):
-    def __init__(self, my_address: Address, code: bytes):
+    data: dict[bytes, bytearray]
+
+    def __init__(self, my_address: Address):
         self.my_address = my_address
-        self.code = code
+        self.data = {}
 
     def storage_read(
         self, account: Address, slot: bytes, index: int, le: int, /
     ) -> bytes:
-        assert False
+        assert account == self.my_address
+        res = self.data.setdefault(slot, bytearray())
+        return res[index : index + le] + b"\x00" * (le - max(0, len(res) - index))
 
     def storage_write(
         self,
@@ -127,11 +129,11 @@ class _StateProxyNone(StateProxy):
         got: collections.abc.Buffer,
         /,
     ) -> None:
-        assert False
-
-    def get_code(self, addr: Address) -> bytes:
-        assert addr == self.my_address
-        return self.code
+        assert account == self.my_address
+        res = self.data.setdefault(slot, bytearray())
+        what = memoryview(got)
+        res.extend(b"\x00" * (index + len(what) - len(res)))
+        memoryview(res)[index : index + len(what)] = what
 
     def get_balance(self, addr: Address) -> int:
         return 0
@@ -184,6 +186,7 @@ class GenVMHost(IGenVM):
                 perms,
                 "--host-data",
                 json.dumps(host_data),
+                "--allow-latest",
             ],
             config_path,
         )
@@ -198,14 +201,21 @@ class GenVMHost(IGenVM):
             "value": None,
             "chain_id": "0",
         }
+        state_proxy = _StateProxyNone(Address(NO_ADDR))
+        genvmhost.save_code_callback(
+            state_proxy.my_address.as_bytes,
+            contract_code,
+            lambda addr, *rest: state_proxy.storage_write(Address(addr), *rest),
+        )
+        # state_proxy.storage_write()
         return await _run_genvm_host(
             functools.partial(
                 _Host,
                 calldata_bytes=calldata.encode({"method": "#get-schema"}),
-                state_proxy=_StateProxyNone(Address(NO_ADDR), contract_code),
+                state_proxy=state_proxy,
                 leader_results=None,
             ),
-            ["--message", json.dumps(message), "--permissions", ""],
+            ["--message", json.dumps(message), "--permissions", "", "--allow-latest"],
             None,
         )
 

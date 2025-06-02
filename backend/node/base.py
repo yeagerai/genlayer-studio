@@ -47,9 +47,6 @@ class _SnapshotView(genvmbase.StateProxy):
         self.cached[addr] = res
         return res
 
-    def get_code(self, addr: Address) -> bytes:
-        return base64.b64decode(self._get_snapshot(addr).contract_code)
-
     def storage_read(
         self, account: Address, slot: bytes, index: int, le: int, /
     ) -> bytes:
@@ -168,9 +165,27 @@ class Node:
         transaction_created_at: str | None = None,
     ) -> Receipt:
         assert self.contract_snapshot is not None
-        self.contract_snapshot.contract_code = base64.b64encode(code_to_deploy).decode(
-            "ascii"
+
+        from .genvm.origin import base_host
+
+        def no_factory(*args, **kwargs):
+            raise Exception("factory is forbidden for code deployment")
+
+        snapshot_view_for_code = _SnapshotView(
+            self.contract_snapshot,
+            no_factory,
+            False,
+            None,
         )
+
+        base_host.save_code_callback(
+            Address(self.contract_snapshot.contract_address).as_bytes,
+            code_to_deploy,
+            lambda addr, *rest: snapshot_view_for_code.storage_write(
+                Address(addr), *rest
+            ),
+        )
+
         return await self._run_genvm(
             from_address,
             calldata,
