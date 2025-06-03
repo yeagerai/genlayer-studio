@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.database_handler.llm_providers import LLMProviderRegistry
 from backend.rollup.consensus_service import ConsensusService
-from backend.database_handler.models import Base
+from backend.database_handler.models import Base, TransactionStatus
 from backend.domain.types import LLMProvider, Validator, TransactionType
 from backend.node.create_nodes.providers import (
     get_default_provider_for,
@@ -40,7 +40,7 @@ from backend.database_handler.transactions_processor import (
     TransactionsProcessor,
 )
 from backend.node.base import Node, SIMULATOR_CHAIN_ID
-from backend.node.types import ExecutionMode, ExecutionResultStatus
+from backend.node.types import ExecutionMode, ExecutionResultStatus, Vote
 from backend.consensus.base import ConsensusAlgorithm
 
 from flask_jsonrpc.exceptions import JSONRPCError
@@ -49,6 +49,8 @@ import os
 from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
 from backend.protocol_rpc.types import DecodedsubmitAppealDataArgs
 from backend.database_handler.snapshot_manager import SnapshotManager
+
+import backend.node.genvm.origin.calldata as calldata
 
 
 ####### WRAPPER TO BLOCK ENDPOINTS FOR HOSTED ENVIRONMENT #######
@@ -676,6 +678,7 @@ def send_raw_transaction(
             genlayer_transaction.max_rotations,
             None,
             transaction_hash,
+            genlayer_transaction.num_of_initial_validators,
         )
 
         return transaction_hash
