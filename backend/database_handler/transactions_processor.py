@@ -14,9 +14,7 @@ import time
 from web3 import Web3
 import os
 from sqlalchemy.orm.attributes import flag_modified
-from backend.domain.types import MAX_ROTATIONS
 from backend.node.types import Receipt
-from backend.rollup.consensus_service import ConsensusService
 
 
 class TransactionAddressFilter(Enum):
@@ -178,6 +176,7 @@ class TransactionsProcessor:
         type: int,
         nonce: int,
         leader_only: bool,
+        config_rotation_rounds: int,
         triggered_by_hash: (
             str | None
         ) = None,  # If filled, the transaction must be present in the database (committed)
@@ -227,7 +226,7 @@ class TransactionsProcessor:
             timestamp_appeal=None,
             appeal_processing_time=0,
             contract_snapshot=None,
-            config_rotation_rounds=MAX_ROTATIONS,
+            config_rotation_rounds=config_rotation_rounds,
         )
 
         self.session.add(new_transaction)

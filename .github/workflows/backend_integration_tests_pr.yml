@@ -12,8 +12,8 @@ on:
       - edited
 
 concurrency:
-  group: backend-e2e-${{ github.event.number || github.event.pull_request.number}}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: ${{ github.event.action == 'synchronize' }}
 
 jobs:
   triggers:

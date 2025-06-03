@@ -28,7 +28,7 @@ export interface NodeLog {
 }
 
 export interface TransactionItem {
-  hash: string;
+  hash: `0x${string}`;
   type: 'deploy' | 'method';
   statusName: TransactionStatus;
   contractAddress: string;

@@ -100,6 +100,7 @@ export function useContractQueries() {
       kwargs: { [key: string]: CalldataEncodable };
     },
     leaderOnly: boolean,
+    consensusMaxRotations: number,
   ) {
     isDeploying.value = true;
 
@@ -115,6 +116,7 @@ export function useContractQueries() {
         code: code_bytes as any as string, // FIXME: code should accept both bytes and string in genlayer-js
         args: args.args,
         leaderOnly,
+        consensusMaxRotations,
       });
 
       const tx: TransactionItem = {
@@ -207,6 +209,7 @@ export function useContractQueries() {
     method,
     args,
     leaderOnly,
+    consensusMaxRotations,
   }: {
     method: string;
     args: {
@@ -214,6 +217,7 @@ export function useContractQueries() {
       kwargs: { [key: string]: CalldataEncodable };
     };
     leaderOnly: boolean;
+    consensusMaxRotations?: number;
   }) {
     try {
       if (!accountsStore.selectedAccount) {
@@ -226,6 +230,7 @@ export function useContractQueries() {
         args: args.args,
         value: BigInt(0),
         leaderOnly,
+        consensusMaxRotations,
       });
 
       transactionsStore.addTransaction({

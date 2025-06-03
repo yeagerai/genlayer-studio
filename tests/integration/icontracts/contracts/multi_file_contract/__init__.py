@@ -1,11 +1,11 @@
 from genlayer import *
 
 
-class Contract(gl.Contract):
+class MultiFileContract(gl.Contract):
     other_addr: Address
 
     def __init__(self):
-        with open("/contract/other.gpy", "rt") as f:
+        with open("/contract/other.py", "rt") as f:
             text = f.read()
         self.other_addr = gl.deploy_contract(
             code=text.encode("utf-8"), args=["123"], salt_nonce=1

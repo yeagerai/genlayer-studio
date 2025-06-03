@@ -2171,19 +2171,34 @@ class AcceptedState(TransactionState):
                             "code": context.transaction.data["contract_code"],
                         },
                     }
-                    context.contract_processor.register_contract(new_contract)
+                    try:
+                        context.contract_processor.register_contract(new_contract)
 
-                    # Send a message indicating successful contract deployment
-                    context.msg_handler.send_message(
-                        LogEvent(
-                            "deployed_contract",
-                            EventType.SUCCESS,
-                            EventScope.GENVM,
-                            "Contract deployed",
-                            new_contract,
-                            transaction_hash=context.transaction.hash,
+                        # Send a message indicating successful contract deployment
+                        context.msg_handler.send_message(
+                            LogEvent(
+                                "deployed_contract",
+                                EventType.SUCCESS,
+                                EventScope.GENVM,
+                                "Contract deployed",
+                                new_contract,
+                                transaction_hash=context.transaction.hash,
+                            )
                         )
-                    )
+                    except Exception as e:
+                        # Log the error but continue with the transaction processing
+                        context.msg_handler.send_message(
+                            LogEvent(
+                                "consensus_event",
+                                EventType.ERROR,
+                                EventScope.CONSENSUS,
+                                "Failed to register contract",
+                                {
+                                    "transaction_hash": context.transaction.hash,
+                                },
+                                transaction_hash=context.transaction.hash,
+                            )
+                        )
                 # Update contract state if it is an existing contract
                 else:
                     context.contract_processor.update_contract_state(
@@ -2469,4 +2484,5 @@ def _emit_messages(
             leader_only=context.transaction.leader_only,  # Cascade
             triggered_by_hash=context.transaction.hash,
             transaction_hash=transaction_hash,
+            config_rotation_rounds=context.transaction.config_rotation_rounds,
         )
