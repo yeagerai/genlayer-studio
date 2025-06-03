@@ -12,7 +12,7 @@ on:
       - edited
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha || 'review' }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: ${{ github.event.action == 'synchronize' }}
 
 jobs:
