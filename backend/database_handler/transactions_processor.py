@@ -536,6 +536,7 @@ class TransactionsProcessor:
             )
         )
         transaction_data["messages"] = messages
+        return transaction_data
 
     def _process_queue(self, transaction_data: dict) -> dict:
         status_to_queue_type = {
