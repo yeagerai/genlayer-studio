@@ -1,6 +1,5 @@
 # consensus/services/transactions_db_service.py
 from datetime import datetime
-import time
 from enum import Enum
 import rlp
 import re
@@ -8,6 +7,7 @@ from .models import Transactions
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, desc
 
+from backend.node.types import Vote
 from .models import TransactionStatus
 from eth_utils import to_bytes, keccak, is_address
 import json
@@ -17,7 +17,6 @@ from backend.domain.types import TransactionType
 from web3 import Web3
 import os
 from sqlalchemy.orm.attributes import flag_modified
-from backend.node.types import Vote
 
 
 class TransactionAddressFilter(Enum):
@@ -27,39 +26,74 @@ class TransactionAddressFilter(Enum):
 
 
 def vote_name_to_number(vote_name: str) -> int:
+    """Convert vote name to numeric code.
+
+    Args:
+        vote_name: Vote name (AGREE, DISAGREE, etc.)
+
+    Returns:
+        int: Numeric vote code (1=AGREE, 2=DISAGREE, 0=other)
+    """
     if vote_name == Vote.AGREE.value:
         return 1
-    elif vote_name == Vote.DISAGREE.value:
+    if vote_name == Vote.DISAGREE.value:
         return 2
-    else:
-        return 0
+    return 0
 
 
 def votes_to_result(votes: list) -> str:
+    """Determine consensus result from vote list.
+
+    Args:
+        votes: List of vote strings
+
+    Returns:
+        tuple: (result_code, result_name)
+    """
     if len(votes) == 0:
         return "5", "NO_MAJORITY"
-    elif (
+    if (
         len([vote for vote in votes if vote.lower() == Vote.AGREE.value])
         > len(votes) // 2
     ):
         return "6", "MAJORITY_AGREE"
-    else:
-        return "7", "MAJORITY_DISAGREE"
+    return "7", "MAJORITY_DISAGREE"
 
 
 def get_validator_vote_hash(validator_address: str, vote_type: int, nonce: int) -> str:
-    vote_hash = Web3.solidity_keccak(
+    """
+    Generate a hash for validator vote data using Solidity keccak.
+
+    Args:
+        validator_address: Address of the validator
+        vote_type: Numeric vote type (1=AGREE, 2=DISAGREE, etc.)
+        nonce: Transaction nonce
+
+    Returns:
+        str: Hex-encoded hash with 0x prefix
+    """
+    vote_hash_bytes = Web3.solidity_keccak(
         ["address", "uint8", "uint256"], [validator_address, vote_type, nonce]
-    ).hex()
-    return "0x" + vote_hash
+    )
+    return Web3.to_hex(vote_hash_bytes)
 
 
 def get_tx_execution_hash(leader_address: str, vote_type: int) -> str:
-    tx_execution_hash = Web3.solidity_keccak(
+    """
+    Generate a hash for transaction execution data using Solidity keccak.
+
+    Args:
+        leader_address: Address of the consensus leader
+        vote_type: Numeric vote type
+
+    Returns:
+        str: Hex-encoded hash with 0x prefix
+    """
+    tx_execution_hash_bytes = Web3.solidity_keccak(
         ["address", "uint8", "bytes32", "uint256"],
         [leader_address, vote_type, b"", 4444],
-    ).hex()
-    return "0x" + tx_execution_hash
+    )
+    return Web3.to_hex(tx_execution_hash_bytes)
 
 
 class TransactionsProcessor:
@@ -354,10 +388,9 @@ class TransactionsProcessor:
             int(datetime.fromisoformat(transaction_data["created_at"]).timestamp())
         )
         transaction_data["last_vote_timestamp"] = str(
-            transaction_data["last_vote_timestamp"]
+            transaction_data.get("last_vote_timestamp", 0)
         )
         transaction_data["random_seed"] = "0x" + "0" * 64
-        transaction_data["status"] = transaction_data["status"]
         transaction_data["tx_id"] = transaction_data["hash"]
 
         transaction_data["read_state_block_range"] = {
@@ -472,27 +505,21 @@ class TransactionsProcessor:
             ]:
                 pending_transactions.append(
                     [
-                        message["address"] if "address" in message else "",  # Account
-                        (
-                            message["calldata"] if "calldata" in message else ""
-                        ),  # Calldata
-                        message["value"] if "value" in message else 0,  # Value
-                        message["on"] if "on" in message else "finalized",  # On
-                        message["code"] if "code" in message else "",  # Code
-                        (
-                            message["salt_nonce"] if "salt_nonce" in message else 0
-                        ),  # SaltNonce
+                        message.get("address", ""),  # Account
+                        message.get("calldata", ""),  # Calldata
+                        message.get("value", 0),  # Value
+                        message.get("on", "finalized"),  # On
+                        message.get("code", ""),  # Code
+                        message.get("salt_nonce", 0),  # SaltNonce
                     ]
                 )
                 messages.append(
                     {
                         "messageType": "0",
-                        "recipient": message["address"] if "address" in message else "",
-                        "value": message["value"] if "value" in message else 0,
-                        "data": message["calldata"] if "calldata" in message else "",
-                        "onAcceptance": (
-                            message["on"] == "accepted" if "on" in message else False
-                        ),
+                        "recipient": message.get("address", ""),
+                        "value": message.get("value", 0),
+                        "data": message.get("calldata", ""),
+                        "onAcceptance": message.get("on", "finalized") == "accepted",
                     }
                 )
         transaction_data["eq_blocks_outputs"] = Web3.to_hex(
@@ -878,6 +905,15 @@ class TransactionsProcessor:
         )
 
     def set_transaction_timestamp_last_vote(self, transaction_hash: str):
+        """
+        Set the last vote timestamp for a transaction to the current time.
+
+        Args:
+            transaction_hash: The hash of the transaction to update
+
+        Raises:
+            NoResultFound: If the transaction with the given hash doesn't exist
+        """
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
@@ -885,6 +921,15 @@ class TransactionsProcessor:
         self.session.commit()
 
     def increase_transaction_rotation_count(self, transaction_hash: str):
+        """
+        Increment the rotation count for a transaction by 1.
+
+        Args:
+            transaction_hash: The hash of the transaction to update
+
+        Raises:
+            NoResultFound: If the transaction with the given hash doesn't exist
+        """
         transaction = (
             self.session.query(Transactions).filter_by(hash=transaction_hash).one()
         )
@@ -893,8 +938,20 @@ class TransactionsProcessor:
         self.session.commit()
 
     def reset_transaction_rotation_count(self, transaction_hash: str):
+        """
+        Reset the rotation count for a transaction to 0.
+
+        Args:
+            transaction_hash: The hash of the transaction to update
+
+        Raises:
+            NoResultFound: If the transaction with the given hash doesn't exist
+        """
         transaction = (
-            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+            self.session.query(Transactions)
+            .filter_by(hash=transaction_hash)
+            .with_for_update()  # Add row-level locking
+            .one()
         )
         transaction.rotation_count = 0
         self.session.commit()
