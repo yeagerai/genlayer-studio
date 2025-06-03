@@ -30,9 +30,7 @@ from backend.database_handler.snapshot_manager import SnapshotManager
 from backend.consensus.base import ConsensusAlgorithm, contract_processor_factory
 from backend.database_handler.models import Base, TransactionStatus
 from backend.rollup.consensus_service import ConsensusService
-from backend.domain.types import Transaction
-
-from .aio import *
+from backend.protocol_rpc.aio import MAIN_SERVER_LOOP, MAIN_LOOP_EXITING, MAIN_LOOP_DONE
 
 
 def get_db_name(database: str) -> str:

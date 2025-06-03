@@ -1,23 +1,18 @@
-import typing
 import asyncio
 import signal
 import os
-import io
-import tempfile
 import sys
-import dataclasses
 
 from pathlib import Path
-from copy import deepcopy
 
-from .base import *
+from .base import ChangedConfigFile
 
 
 class WebModule:
     _process: asyncio.subprocess.Process | None
 
     def __init__(self):
-        self.address = f"127.0.0.1:3031"
+        self.address = "127.0.0.1:3031"
 
         self._terminated = False
 

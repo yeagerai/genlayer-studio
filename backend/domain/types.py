@@ -74,9 +74,6 @@ class Validator:
         if self.id:
             result["id"] = self.id
 
-        if self.private_key:
-            result["private_key"] = self.private_key
-
         return result
 
 

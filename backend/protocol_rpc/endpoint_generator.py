@@ -13,7 +13,7 @@ from functools import partial, wraps
 import requests
 import os
 import traceback
-
+from backend.protocol_rpc.aio import run_in_main_server_loop
 from backend.protocol_rpc.message_handler.base import MessageHandler
 
 
@@ -117,10 +117,6 @@ def setup_eth_method_handler(jsonrpc: JSONRPC):
                 print(f"Error in before_request handler: {str(e)}")
                 print(traceback.format_exc())
         return None  # Continue normal processing for non-eth methods
-
-
-import asyncio
-from .aio import *
 
 
 def generate_rpc_endpoint(

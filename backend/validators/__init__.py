@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .llm import LLMModule
 from .web import WebModule
-from .base import *
+from .base import ChangedConfigFile
 
 import backend.database_handler.validators_registry as vr
 from sqlalchemy.orm import Session

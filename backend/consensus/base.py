@@ -802,6 +802,7 @@ class ConsensusAlgorithm:
                                 async def exec_appeal_window_with_session_handling(
                                     task_session: Session,
                                     accepted_undetermined_queue: list[dict],
+                                    captured_chain_snapshot: ChainSnapshot = chain_snapshot,
                                 ):
                                     transactions_processor = (
                                         transactions_processor_factory(task_session)
@@ -811,31 +812,33 @@ class ConsensusAlgorithm:
                                     for index, transaction in enumerate(
                                         accepted_undetermined_queue
                                     ):
-                                        transaction = Transaction.from_dict(transaction)
+                                        current_transaction = Transaction.from_dict(
+                                            transaction
+                                        )
 
                                         # Check if the transaction is appealed
-                                        if not transaction.appealed:
+                                        if not current_transaction.appealed:
 
                                             # Check if the transaction can be finalized
                                             if self.can_finalize_transaction(
                                                 transactions_processor,
-                                                transaction,
+                                                current_transaction,
                                                 index,
                                                 accepted_undetermined_queue,
                                             ):
 
                                                 # Handle transactions that need to be finalized
                                                 await self.process_finalization(
-                                                    transaction,
+                                                    current_transaction,
                                                     transactions_processor,
-                                                    chain_snapshot,
+                                                    captured_chain_snapshot,
                                                     accounts_manager_factory(
                                                         task_session
                                                     ),
                                                     lambda contract_address: contract_snapshot_factory(
                                                         contract_address,
                                                         task_session,
-                                                        transaction,
+                                                        current_transaction,
                                                     ),
                                                     contract_processor_factory(
                                                         task_session
@@ -850,21 +853,21 @@ class ConsensusAlgorithm:
                                             ):
                                                 # Handle transactions that are appealed
                                                 if (
-                                                    transaction.status
+                                                    current_transaction.status
                                                     == TransactionStatus.UNDETERMINED
                                                 ):
                                                     # Leader appeal
                                                     await self.process_leader_appeal(
-                                                        transaction,
+                                                        current_transaction,
                                                         transactions_processor,
-                                                        chain_snapshot,
+                                                        captured_chain_snapshot,
                                                         accounts_manager_factory(
                                                             task_session
                                                         ),
                                                         lambda contract_address: contract_snapshot_factory(
                                                             contract_address,
                                                             task_session,
-                                                            transaction,
+                                                            current_transaction,
                                                         ),
                                                         contract_processor_factory(
                                                             task_session
@@ -876,16 +879,16 @@ class ConsensusAlgorithm:
                                                 else:
                                                     # Validator appeal
                                                     await self.process_validator_appeal(
-                                                        transaction,
+                                                        current_transaction,
                                                         transactions_processor,
-                                                        chain_snapshot,
+                                                        captured_chain_snapshot,
                                                         accounts_manager_factory(
                                                             task_session
                                                         ),
                                                         lambda contract_address: contract_snapshot_factory(
                                                             contract_address,
                                                             task_session,
-                                                            transaction,
+                                                            current_transaction,
                                                         ),
                                                         contract_processor_factory(
                                                             task_session

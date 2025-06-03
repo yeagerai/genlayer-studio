@@ -53,8 +53,7 @@ import os
 from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
 from backend.protocol_rpc.types import DecodedsubmitAppealDataArgs
 from backend.database_handler.snapshot_manager import SnapshotManager
-
-from .aio import *
+import asyncio
 
 
 ####### WRAPPER TO BLOCK ENDPOINTS FOR HOSTED ENVIRONMENT #######
@@ -108,21 +107,39 @@ def reset_defaults_llm_providers(llm_provider_registry: LLMProviderRegistry) -> 
     llm_provider_registry.reset_defaults()
 
 
+async def check_provider_is_available(
+    validators_manager: validators.Manager, provider: LLMProvider | dict
+) -> bool:
+    return await validators_manager.llm_module.provider_available(
+        provider.model if isinstance(provider, LLMProvider) else provider["model"],
+        (
+            provider.plugin_config["api_url"]
+            if isinstance(provider, LLMProvider)
+            else provider["plugin_config"]["api_url"]
+        ),
+        provider.plugin if isinstance(provider, LLMProvider) else provider["plugin"],
+        (
+            provider.plugin_config["api_key_env_var"]
+            if isinstance(provider, LLMProvider)
+            else provider["plugin_config"]["api_key_env_var"]
+        ),
+    )
+
+
 async def get_providers_and_models(
     llm_provider_registry: LLMProviderRegistry,
     validators_manager: validators.Manager,
 ) -> list[dict]:
     providers = await llm_provider_registry.get_all_dict()
-    for provider in providers:
-        if await validators_manager.llm_module.provider_available(
-            provider["model"],
-            provider["plugin_config"]["api_url"],
-            provider["plugin"],
-            provider["plugin_config"]["api_key_env_var"],
-        ):
-            provider["is_model_available"] = True
-        else:
-            provider["is_model_available"] = False
+    sem = asyncio.Semaphore(8)
+
+    async def check_with_semaphore(provider):
+        async with sem:
+            return await check_provider_is_available(validators_manager, provider)
+
+    availability = await asyncio.gather(*(check_with_semaphore(p) for p in providers))
+    for provider, is_available in zip(providers, availability):
+        provider["is_model_available"] = is_available
     return providers
 
 
@@ -235,17 +252,9 @@ async def create_random_validators(
     limit_providers = limit_providers or []
     limit_models = limit_models or []
 
-    async def check_plugin_is_available(plugin: LLMProvider) -> bool:
-        return await validators_manager.llm_module.provider_available(
-            plugin.model,
-            plugin.plugin_config["api_url"],
-            plugin.plugin,
-            plugin.plugin_config["api_key_env_var"],
-        )
-
     details = await random_validator_config(
         llm_provider_registry.get_all,
-        check_plugin_is_available,
+        partial(check_provider_is_available, validators_manager),
         limit_providers=set(limit_providers),
         limit_models=set(limit_models),
         amount=count,
@@ -428,8 +437,7 @@ async def gen_call(
 ) -> str:
     async with validators_manager.snapshot() as snapshot:
         if len(snapshot.nodes) == 0:
-            raise JSONRPCError(f"No validators exist to execute the gen_call")
-        validator = snapshot.nodes[0]
+            raise JSONRPCError("No validators exist to execute the gen_call")
         return await _gen_call_with_validator(
             session,
             accounts_manager,
@@ -575,7 +583,11 @@ async def eth_call(
 
     async with validators_manager.snapshot() as snapshot:
         if len(snapshot.nodes) == 0:
-            raise Exception("no suitable validators")
+            raise JSONRPCError(
+                code=-32000,
+                message="No validators available to execute eth_call",
+                data={"reason": "no_validators"},
+            )
         as_validator = snapshot.nodes[0].validator
         node = Node(  # Mock node just to get the data from the GenVM
             contract_snapshot=ContractSnapshot(to_address, session),

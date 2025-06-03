@@ -5,6 +5,7 @@ from numpy.random import default_rng
 from dotenv import load_dotenv
 
 from backend.domain.types import LLMProvider
+import asyncio
 
 load_dotenv()
 rng = default_rng(secrets.randbits(128))
@@ -36,9 +37,16 @@ async def random_validator_config(
             f"Requested providers '{limit_providers}' do not match any stored providers. Please review your stored providers."
         )
 
-    providers_to_use = [
-        plug for plug in providers_to_use if await check_llm_provider(plug)
-    ]
+    sem = asyncio.Semaphore(8)
+
+    async def check_with_semaphore(provider):
+        async with sem:
+            return await check_llm_provider(provider)
+
+    availability = await asyncio.gather(
+        *(check_with_semaphore(p) for p in providers_to_use)
+    )
+    providers_to_use = [p for p, ok in zip(providers_to_use, availability) if ok]
 
     if not providers_to_use:
         raise Exception("No providers available.")

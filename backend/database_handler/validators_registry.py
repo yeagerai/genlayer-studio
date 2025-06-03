@@ -1,9 +1,9 @@
 # consensus/domain/state.py
 
-from typing import List, Callable, Coroutine
+from typing import List
 from sqlalchemy.orm import Session
 
-from backend.domain.types import LLMProvider, Validator
+from backend.domain.types import Validator
 
 from .models import Validators
 from backend.errors.errors import ValidatorNotFound
