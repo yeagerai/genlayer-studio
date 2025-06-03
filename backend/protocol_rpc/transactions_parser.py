@@ -8,6 +8,7 @@ from eth_account._utils.legacy_transactions import Transaction
 import eth_utils
 from eth_utils import to_checksum_address
 from hexbytes import HexBytes
+import os
 from backend.rollup.consensus_service import ConsensusService
 from backend.domain.types import TransactionType
 
@@ -20,6 +21,7 @@ from backend.protocol_rpc.types import (
     DecodedRollupTransactionDataArgs,
     DecodedGenlayerTransaction,
     DecodedGenlayerTransactionData,
+    DecodedsubmitAppealDataArgs,
     ZERO_ADDRESS,
 )
 
@@ -143,7 +145,11 @@ class TransactionParser:
                                         data=params["_txData"],
                                     ),
                                 )
-                            break
+                            elif decoded_data["function"] == "submitAppeal":
+                                params = decoded_data["params"]
+                                decoded_data = DecodedsubmitAppealDataArgs(
+                                    tx_id=params["_txId"],
+                                )
 
             return DecodedRollupTransaction(
                 from_address=sender,
@@ -196,10 +202,12 @@ class TransactionParser:
                 from_address=rollup_transaction.from_address,
                 to_address=rollup_transaction.to_address,
                 data=None,
+                max_rotations=int(os.getenv("VITE_MAX_ROTATIONS", 3)),
             )
 
         sender = rollup_transaction.data.args.sender
         recipient = rollup_transaction.data.args.recipient
+        max_rotations = rollup_transaction.data.args.max_rotations
         type = self._get_genlayer_transaction_type(recipient)
         data = self._get_genlayer_transaction_data(type, rollup_transaction.data.args)
 
@@ -207,6 +215,7 @@ class TransactionParser:
             from_address=sender,
             to_address=recipient,
             type=type,
+            max_rotations=max_rotations,
             data=DecodedGenlayerTransactionData(
                 contract_code=(
                     data.contract_code if hasattr(data, "contract_code") else None

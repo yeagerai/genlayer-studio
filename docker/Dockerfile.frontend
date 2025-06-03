@@ -4,10 +4,7 @@ WORKDIR /app
 COPY ./frontend/package*.json .
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY ./frontend .
-# Copy examples and convert .gpy files to .py
-RUN mkdir -p src/assets/examples
-COPY ./examples src/assets/examples/
-RUN find src/assets/examples -name "*.gpy" -exec sh -c 'mv "$1" "${1%.gpy}.py"' _ {} \;
+COPY ./examples src/assets/examples
 
 COPY ./.env ./.env
 COPY ../backend/node/create_nodes/providers_schema.json /app/src/assets/schemas/providers_schema.json

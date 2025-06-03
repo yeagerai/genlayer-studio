@@ -5,12 +5,11 @@
 from dataclasses import dataclass, field
 import decimal
 from enum import Enum, IntEnum
+import os
 
 from backend.database_handler.models import TransactionStatus
 from backend.database_handler.types import ConsensusData
 from backend.database_handler.contract_snapshot import ContractSnapshot
-
-MAX_ROTATIONS = 3
 
 
 @dataclass()
@@ -115,7 +114,7 @@ class Transaction:
     timestamp_appeal: int | None = None
     appeal_processing_time: int = 0
     contract_snapshot: ContractSnapshot | None = None
-    config_rotation_rounds: int | None = MAX_ROTATIONS
+    config_rotation_rounds: int | None = int(os.getenv("VITE_MAX_ROTATIONS", 3))
 
     def to_dict(self):
         return {

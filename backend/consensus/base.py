@@ -616,6 +616,7 @@ class ConsensusAlgorithm:
         transaction_hash: str,
         new_status: TransactionStatus,
         msg_handler: MessageHandler,
+        update_current_status_changes: bool = True,
     ):
         """
         Dispatch a transaction status update.
@@ -627,7 +628,11 @@ class ConsensusAlgorithm:
             msg_handler (MessageHandler): Handler for messaging.
         """
         # Update the transaction status in the transactions processor
-        transactions_processor.update_transaction_status(transaction_hash, new_status)
+        transactions_processor.update_transaction_status(
+            transaction_hash,
+            new_status,
+            update_current_status_changes,
+        )
 
         # Send a message indicating the transaction status update
         msg_handler.send_message(
@@ -2059,14 +2064,6 @@ class AcceptedState(TransactionState):
             context.transaction.hash, context.consensus_data.to_dict()
         )
 
-        # Update the transaction status to ACCEPTED
-        ConsensusAlgorithm.dispatch_transaction_status_update(
-            context.transactions_processor,
-            context.transaction.hash,
-            TransactionStatus.ACCEPTED,
-            context.msg_handler,
-        )
-
         context.transactions_processor.update_consensus_history(
             context.transaction.hash,
             consensus_round,
@@ -2076,6 +2073,16 @@ class AcceptedState(TransactionState):
                 else context.consensus_data.leader_receipt
             ),
             context.validation_results,
+            TransactionStatus.ACCEPTED,
+        )
+
+        # Update the transaction status to ACCEPTED
+        ConsensusAlgorithm.dispatch_transaction_status_update(
+            context.transactions_processor,
+            context.transaction.hash,
+            TransactionStatus.ACCEPTED,
+            context.msg_handler,
+            False,
         )
 
         # Send a message indicating consensus was reached
@@ -2118,19 +2125,34 @@ class AcceptedState(TransactionState):
                             "code": context.transaction.data["contract_code"],
                         },
                     }
-                    context.contract_processor.register_contract(new_contract)
+                    try:
+                        context.contract_processor.register_contract(new_contract)
 
-                    # Send a message indicating successful contract deployment
-                    context.msg_handler.send_message(
-                        LogEvent(
-                            "deployed_contract",
-                            EventType.SUCCESS,
-                            EventScope.GENVM,
-                            "Contract deployed",
-                            new_contract,
-                            transaction_hash=context.transaction.hash,
+                        # Send a message indicating successful contract deployment
+                        context.msg_handler.send_message(
+                            LogEvent(
+                                "deployed_contract",
+                                EventType.SUCCESS,
+                                EventScope.GENVM,
+                                "Contract deployed",
+                                new_contract,
+                                transaction_hash=context.transaction.hash,
+                            )
                         )
-                    )
+                    except Exception as e:
+                        # Log the error but continue with the transaction processing
+                        context.msg_handler.send_message(
+                            LogEvent(
+                                "consensus_event",
+                                EventType.ERROR,
+                                EventScope.CONSENSUS,
+                                "Failed to register contract",
+                                {
+                                    "transaction_hash": context.transaction.hash,
+                                },
+                                transaction_hash=context.transaction.hash,
+                            )
+                        )
                 # Update contract state if it is an existing contract
                 else:
                     context.contract_processor.update_contract_state(
@@ -2242,19 +2264,21 @@ class UndeterminedState(TransactionState):
                 context.transaction.hash
             )
 
+        context.transactions_processor.update_consensus_history(
+            context.transaction.hash,
+            consensus_round,
+            context.consensus_data.leader_receipt,
+            context.consensus_data.validators,
+            TransactionStatus.UNDETERMINED,
+        )
+
         # Update the transaction status to undetermined
         ConsensusAlgorithm.dispatch_transaction_status_update(
             context.transactions_processor,
             context.transaction.hash,
             TransactionStatus.UNDETERMINED,
             context.msg_handler,
-        )
-
-        context.transactions_processor.update_consensus_history(
-            context.transaction.hash,
-            consensus_round,
-            context.consensus_data.leader_receipt,
-            context.consensus_data.validators,
+            False,
         )
 
         return None
@@ -2414,4 +2438,5 @@ def _emit_messages(
             leader_only=context.transaction.leader_only,  # Cascade
             triggered_by_hash=context.transaction.hash,
             transaction_hash=transaction_hash,
+            config_rotation_rounds=context.transaction.config_rotation_rounds,
         )
