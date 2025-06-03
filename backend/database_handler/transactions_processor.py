@@ -1,4 +1,6 @@
 # consensus/services/transactions_db_service.py
+from datetime import datetime
+import time
 from enum import Enum
 import rlp
 import re
@@ -13,17 +15,51 @@ import base64
 import time
 from backend.domain.types import TransactionType
 from web3 import Web3
-from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
 from sqlalchemy.orm.attributes import flag_modified
-
-from backend.rollup.consensus_service import ConsensusService
+from backend.node.types import Vote
 
 
 class TransactionAddressFilter(Enum):
     ALL = "all"
     TO = "to"
     FROM = "from"
+
+
+def vote_name_to_number(vote_name: str) -> int:
+    if vote_name == Vote.AGREE.value:
+        return 1
+    elif vote_name == Vote.DISAGREE.value:
+        return 2
+    else:
+        return 0
+
+
+def votes_to_result(votes: list) -> str:
+    if len(votes) == 0:
+        return "5", "NO_MAJORITY"
+    elif (
+        len([vote for vote in votes if vote.lower() == Vote.AGREE.value])
+        > len(votes) // 2
+    ):
+        return "6", "MAJORITY_AGREE"
+    else:
+        return "7", "MAJORITY_DISAGREE"
+
+
+def get_validator_vote_hash(validator_address: str, vote_type: int, nonce: int) -> str:
+    vote_hash = Web3.solidity_keccak(
+        ["address", "uint8", "uint256"], [validator_address, vote_type, nonce]
+    ).hex()
+    return "0x" + vote_hash
+
+
+def get_tx_execution_hash(leader_address: str, vote_type: int) -> str:
+    tx_execution_hash = Web3.solidity_keccak(
+        ["address", "uint8", "bytes32", "uint256"],
+        [leader_address, vote_type, b"", 4444],
+    ).hex()
+    return "0x" + tx_execution_hash
 
 
 class TransactionsProcessor:
@@ -242,6 +278,264 @@ class TransactionsProcessor:
 
         return new_transaction.hash
 
+    def _process_round_data(self, transaction_data: dict) -> dict:
+        """Process round data and prepare transaction data."""
+
+        if "consensus_results" in transaction_data["consensus_history"]:
+            transaction_data["num_of_rounds"] = str(
+                len(transaction_data["consensus_history"]["consensus_results"])
+            )
+        else:
+            transaction_data["num_of_rounds"] = "0"
+
+        validator_votes_name = []
+        validator_votes = []
+        validator_votes_hash = []
+        round_validators = []
+        if "consensus_results" in transaction_data["consensus_history"]:
+            round_number = str(
+                len(transaction_data["consensus_history"]["consensus_results"]) - 1
+            )
+            last_round = transaction_data["consensus_history"]["consensus_results"][-1]
+            if "leader_result" in last_round:
+                leader = last_round["leader_result"]
+                if leader is not None:
+                    validator_votes_name.append(leader["vote"].upper())
+                    vote_number = vote_name_to_number(leader["vote"])
+                    validator_votes.append(vote_number)
+                    leader_address = leader["node_config"]["address"]
+                    validator_votes_hash.append(
+                        get_validator_vote_hash(
+                            leader_address, vote_number, transaction_data["nonce"]
+                        )
+                    )
+                    round_validators.append(leader_address)
+
+            for validator in last_round["validator_results"]:
+                validator_votes_name.append(validator["vote"].upper())
+                vote_number = vote_name_to_number(validator["vote"])
+                validator_votes.append(vote_number)
+                validator_address = validator["node_config"]["address"]
+                validator_votes_hash.append(
+                    get_validator_vote_hash(
+                        validator_address, vote_number, transaction_data["nonce"]
+                    )
+                )
+                round_validators.append(validator_address)
+        else:
+            round_number = "0"
+        last_round_result, _ = votes_to_result(validator_votes_name)
+
+        transaction_data["last_round"] = {
+            "round": round_number,
+            "leader_index": "0",
+            "votes_committed": str(len(validator_votes_name)),
+            "votes_revealed": str(len(validator_votes_name)),
+            "appeal_bond": "0",
+            "rotations_left": str(
+                transaction_data["config_rotation_rounds"]
+                - transaction_data["rotation_count"]
+            ),
+            "result": last_round_result,
+            "round_validators": round_validators,
+            "validator_votes_hash": validator_votes_hash,
+            "validator_votes": validator_votes,
+            "validator_votes_name": validator_votes_name,
+        }
+        return transaction_data
+
+    def _prepare_basic_transaction_data(self, transaction_data: dict) -> dict:
+        """Prepare basic transaction data with common fields."""
+        transaction_data["current_timestamp"] = str(round(time.time()))
+        transaction_data["sender"] = transaction_data["from_address"]
+        transaction_data["recipient"] = transaction_data["to_address"]
+        transaction_data["tx_slot"] = "0"
+        transaction_data["created_timestamp"] = str(
+            int(datetime.fromisoformat(transaction_data["created_at"]).timestamp())
+        )
+        transaction_data["last_vote_timestamp"] = str(
+            transaction_data["last_vote_timestamp"]
+        )
+        transaction_data["random_seed"] = "0x" + "0" * 64
+        transaction_data["status"] = transaction_data["status"]
+        transaction_data["tx_id"] = transaction_data["hash"]
+
+        transaction_data["read_state_block_range"] = {
+            "activation_block": "0",
+            "processing_block": "0",
+            "proposal_block": "0",
+        }
+        if "consensus_results" in transaction_data["consensus_history"]:
+            transaction_data["activator"] = transaction_data["consensus_history"][
+                "consensus_results"
+            ][0]["leader_result"]["node_config"]["address"]
+        else:
+            transaction_data["activator"] = ""
+
+        if (transaction_data["consensus_data"] is not None) and (
+            "leader_receipt" in transaction_data["consensus_data"]
+        ):
+            transaction_data["last_leader"] = transaction_data["consensus_data"][
+                "leader_receipt"
+            ]["node_config"]["address"]
+        else:
+            transaction_data["last_leader"] = ""
+        return transaction_data
+
+    def _encode_transaction_data(self, transaction_data: dict) -> dict:
+        to_encode = []
+        if transaction_data["data"] is not None:
+            if "calldata" in transaction_data["data"]:
+                encoded_call_data = base64.b64decode(
+                    transaction_data["data"]["calldata"]
+                )
+                to_encode.append(encoded_call_data)
+                to_encode.append(b"\x00")
+            if "contract_code" in transaction_data["data"]:
+                contract_code_bytes = base64.b64decode(
+                    transaction_data["data"]["contract_code"]
+                )
+                to_encode.insert(0, contract_code_bytes)
+        if len(to_encode) == 0:
+            transaction_data["tx_data"] = ""
+        else:
+            transaction_data["tx_data"] = Web3.to_hex(rlp.encode(to_encode))[2:]
+        return transaction_data
+
+    def _process_execution_hash(self, transaction_data: dict) -> dict:
+        if (
+            transaction_data["consensus_data"] is not None
+            and "leader_receipt" in transaction_data["consensus_data"]
+            and "node_config" in transaction_data["consensus_data"]["leader_receipt"]
+        ):
+            transaction_data["tx_execution_hash"] = get_tx_execution_hash(
+                transaction_data["consensus_data"]["leader_receipt"]["node_config"][
+                    "address"
+                ],
+                vote_name_to_number(
+                    transaction_data["consensus_data"]["leader_receipt"]["vote"]
+                ),
+            )
+        else:
+            transaction_data["tx_execution_hash"] = ""
+
+        return transaction_data
+
+    def _process_messages(self, transaction_data: dict) -> dict:
+        eq_output = []
+        if (
+            "consensus_history" in transaction_data
+            and "consensus_results" in transaction_data["consensus_history"]
+        ):
+            for consensus_round in transaction_data["consensus_history"][
+                "consensus_results"
+            ]:
+                if consensus_round["leader_result"] is not None:
+                    eq_output.append(
+                        [
+                            len(eq_output),  # key
+                            [
+                                base64.b64decode(
+                                    consensus_round["leader_result"]["result"]
+                                )[
+                                    0
+                                ],  # kind
+                                "\x00",
+                            ],
+                        ]
+                    )  # data
+
+        kind = 0
+        if (
+            transaction_data["consensus_data"] is not None
+            and "leader_receipt" in transaction_data["consensus_data"]
+            and "result" in transaction_data["consensus_data"]["leader_receipt"]
+        ):
+            kind = base64.b64decode(
+                transaction_data["consensus_data"]["leader_receipt"]["result"]
+            )[0]
+        pending_transactions = []
+        messages = []
+        if (
+            transaction_data["consensus_data"] is not None
+            and "leader_receipt" in transaction_data["consensus_data"]
+            and transaction_data["consensus_data"]["leader_receipt"] is not None
+            and "pending_transactions"
+            in transaction_data["consensus_data"]["leader_receipt"]
+            and transaction_data["consensus_data"]["leader_receipt"][
+                "pending_transactions"
+            ]
+            is not None
+        ):
+            for message in transaction_data["consensus_data"]["leader_receipt"][
+                "pending_transactions"
+            ]:
+                pending_transactions.append(
+                    [
+                        message["address"] if "address" in message else "",  # Account
+                        (
+                            message["calldata"] if "calldata" in message else ""
+                        ),  # Calldata
+                        message["value"] if "value" in message else 0,  # Value
+                        message["on"] if "on" in message else "finalized",  # On
+                        message["code"] if "code" in message else "",  # Code
+                        (
+                            message["salt_nonce"] if "salt_nonce" in message else 0
+                        ),  # SaltNonce
+                    ]
+                )
+                messages.append(
+                    {
+                        "messageType": "0",
+                        "recipient": message["address"] if "address" in message else "",
+                        "value": message["value"] if "value" in message else 0,
+                        "data": message["calldata"] if "calldata" in message else "",
+                        "onAcceptance": (
+                            message["on"] == "accepted" if "on" in message else False
+                        ),
+                    }
+                )
+        transaction_data["eq_blocks_outputs"] = Web3.to_hex(
+            rlp.encode(
+                [
+                    [
+                        [kind, "\x00"],  # data
+                        pending_transactions,
+                        [],  # pending eth transactions
+                        bytes.fromhex(""),
+                    ],  # storage proof
+                    eq_output,
+                ]
+            )
+        )
+        transaction_data["messages"] = messages
+
+    def _process_queue(self, transaction_data: dict) -> dict:
+        status_to_queue_type = {
+            TransactionStatus.PENDING.value: "1",
+            TransactionStatus.ACTIVATED.value: "1",
+            TransactionStatus.ACCEPTED.value: "2",
+            TransactionStatus.UNDETERMINED.value: "3",
+        }
+        transaction_data["queue_type"] = status_to_queue_type.get(
+            transaction_data["status"], "0"
+        )
+        transaction_data["queue_position"] = "0"
+
+        return transaction_data
+
+    def _process_result(self, transaction_data: dict) -> dict:
+        if (transaction_data["consensus_data"] is not None) and (
+            "votes" in transaction_data["consensus_data"]
+        ):
+            votes_temp = transaction_data["consensus_data"]["votes"].values()
+        else:
+            votes_temp = []
+        transaction_data["result"], transaction_data["result_name"] = votes_to_result(
+            votes_temp
+        )
+        return transaction_data
+
     def get_transaction_by_hash(self, transaction_hash: str) -> dict | None:
         transaction = (
             self.session.query(Transactions)
@@ -252,7 +546,17 @@ class TransactionsProcessor:
         if transaction is None:
             return None
 
-        return self._parse_transaction_data(transaction)
+        transaction_data = self._parse_transaction_data(transaction)
+
+        # Process for testnet
+        transaction_data = self._prepare_basic_transaction_data(transaction_data)
+        transaction_data = self._process_result(transaction_data)
+        transaction_data = self._encode_transaction_data(transaction_data)
+        transaction_data = self._process_execution_hash(transaction_data)
+        transaction_data = self._process_messages(transaction_data)
+        transaction_data = self._process_queue(transaction_data)
+        transaction_data = self._process_round_data(transaction_data)
+        return transaction_data
 
     def update_transaction_status(
         self,
