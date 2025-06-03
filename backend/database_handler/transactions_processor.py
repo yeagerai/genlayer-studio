@@ -1,20 +1,20 @@
 # consensus/services/transactions_db_service.py
-from enum import Enum
-import rlp
-import re
-from .models import Transactions
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_, desc
-
-from .models import TransactionStatus
-from eth_utils import to_bytes, keccak, is_address
 import json
 import base64
 import time
-from web3 import Web3
 import os
+from enum import Enum
+import rlp
+import re
+
+from sqlalchemy.orm import Session
+from sqlalchemy import or_, desc
 from sqlalchemy.orm.attributes import flag_modified
+from eth_utils import to_bytes, keccak, is_address
+from web3 import Web3
+
 from backend.node.types import Receipt
+from .models import Transactions, TransactionStatus
 
 
 class TransactionAddressFilter(Enum):
