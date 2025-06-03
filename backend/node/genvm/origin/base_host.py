@@ -90,7 +90,9 @@ class IHost(metaclass=abc.ABCMeta):
     async def get_balance(self, account: bytes, /) -> int: ...
 
 
-def save_code_callback[T](
+def save_code_callback[
+    T
+](
     address: bytes, code: bytes, cb: typing.Callable[[bytes, bytes, int, bytes], T]
 ) -> tuple[T, T]:
     import hashlib
