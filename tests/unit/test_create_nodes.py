@@ -60,7 +60,7 @@ def plugins_mock(
                 ),
                 LLMProvider(
                     provider="openai",
-                    model="gpt-4",
+                    model="gpt-4-1106-preview",
                     config={},
                     plugin="openai-compatible",
                     plugin_config={},
@@ -111,7 +111,7 @@ def plugins_mock(
                 ),
                 LLMProvider(
                     provider="openai",
-                    model="gpt-4",
+                    model="gpt-4-1106-preview",
                     config={},
                     plugin="openai-compatible",
                     plugin_config={},
@@ -148,7 +148,7 @@ def plugins_mock(
             plugins_mock(
                 [
                     ("ollama", True, ["llama3", "llama3.1"]),
-                    ("openai", True, ["gpt-4", "gpt-4o"]),
+                    ("openai", True, ["gpt-4-1106-preview", "gpt-4o"]),
                     ("heuristai", True, ["other"]),
                 ]
             ),
@@ -157,7 +157,7 @@ def plugins_mock(
             [
                 LLMProvider(
                     provider="openai",
-                    model="gpt-4",
+                    model="gpt-4-1106-preview",
                     config={},
                     plugin="openai-compatible",
                     plugin_config={},
@@ -176,7 +176,7 @@ def plugins_mock(
             [
                 LLMProvider(
                     provider="openai",
-                    model="gpt-4",
+                    model="gpt-4-1106-preview",
                     config={},
                     plugin="openai-compatible",
                     plugin_config={},
@@ -206,7 +206,7 @@ def plugins_mock(
             plugins_mock(
                 [
                     ("ollama", False, ["llama3", "llama3.1"]),
-                    ("openai", False, ["gpt-4", "gpt-4o"]),
+                    ("openai", False, ["gpt-4-1106-preview", "gpt-4o"]),
                     ("heuristai", True, ["a", "b"]),
                 ]
             ),
@@ -234,7 +234,7 @@ def plugins_mock(
                 ),
                 LLMProvider(
                     provider="openai",
-                    model="gpt-4",
+                    model="gpt-4-1106-preview",
                     config={},
                     plugin="openai-compatible",
                     plugin_config={},
@@ -264,7 +264,7 @@ def plugins_mock(
             plugins_mock(
                 [
                     ("ollama", True, ["llama3", "llama3.1"]),
-                    ("openai", True, ["gpt-4", "gpt-4o"]),
+                    ("openai", True, ["gpt-4-1106-preview", "gpt-4o"]),
                     ("heuristai", True, ["a", "b"]),
                 ]
             ),
@@ -280,7 +280,7 @@ def plugins_mock(
                 ),
                 LLMProvider(
                     provider="openai",
-                    model="gpt-4",
+                    model="gpt-4-1106-preview",
                     config={},
                     plugin="openai-compatible",
                     plugin_config={},
@@ -365,7 +365,7 @@ async def test_random_validator_config(
             plugins_mock(
                 [
                     ("ollama", False, ["llama3", "llama3.1"]),
-                    ("openai", True, ["gpt-4", "gpt-4o"]),
+                    ("openai", True, ["gpt-4-1106-preview", "gpt-4o"]),
                     ("heuristai", True, ["a", "b"]),
                 ]
             ),

@@ -110,7 +110,7 @@
             "const": "openai-compatible"
           },
           "model": {
-            "enum": ["gpt-4", "gpt-4o"]
+            "enum": ["gpt-4-1106-preview", "gpt-4o"]
           }
         }
       }
