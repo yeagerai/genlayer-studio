@@ -120,9 +120,9 @@ async def get_providers_and_models(
             provider["plugin"],
             provider["plugin_config"]["api_key_env_var"],
         ):
-            provider["is_available"] = True
+            provider["is_model_available"] = True
         else:
-            provider["is_available"] = False
+            provider["is_model_available"] = False
     return providers
 
 
