@@ -1,4 +1,5 @@
 """Schema definitions for call_contract_function API responses."""
+
 from typing import Optional
 
 call_contract_function_response = {
