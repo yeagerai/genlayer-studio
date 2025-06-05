@@ -55,7 +55,7 @@ const handleCallReadMethod = async () => {
   isCalling.value = true;
 
   try {
-    const [acceptedMsg, finalizedMsg] = await Promise.all([
+    const [acceptedMsg, finalizedMsg] = await Promise.allSettled([
       callReadMethod(
         props.name,
         unfoldArgsData(calldataArguments.value),
@@ -68,14 +68,16 @@ const handleCallReadMethod = async () => {
       ),
     ]);
 
+    console.log('handleCallReadMethod', acceptedMsg, finalizedMsg);
+
     responseMessageAccepted.value =
-      acceptedMsg !== undefined
-        ? formatResponseIfNeeded(abi.calldata.toString(acceptedMsg))
-        : '<genlayer.client is undefined>';
+      acceptedMsg.status === 'fulfilled' && acceptedMsg.value !== undefined
+        ? formatResponseIfNeeded(abi.calldata.toString(acceptedMsg.value))
+        : `failed: ${acceptedMsg}`;
     responseMessageFinalized.value =
-      finalizedMsg !== undefined
-        ? formatResponseIfNeeded(abi.calldata.toString(finalizedMsg))
-        : '<genlayer.client is undefined>';
+      finalizedMsg.status === 'fulfilled' && finalizedMsg.value !== undefined
+        ? formatResponseIfNeeded(abi.calldata.toString(finalizedMsg.value))
+        : `failed: ${finalizedMsg}`;
 
     trackEvent('called_read_method', {
       contract_name: contract.value?.name || '',
