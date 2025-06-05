@@ -23,7 +23,7 @@ class ConsensusData:
         }
 
     @classmethod
-    def from_dict(cls, input: dict) -> Optional["ConsensusData"]:
+    def from_dict(cls, input: dict | None) -> Optional["ConsensusData"]:
         if input:
             return cls(
                 votes=input.get("votes", {}),

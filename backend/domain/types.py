@@ -41,6 +41,24 @@ class Validator:
     id: int | None = None
     private_key: str | None = None
 
+    @staticmethod
+    def from_dict(d: dict) -> "Validator":
+        ret = Validator.__new__(Validator)
+
+        ret.address = d["address"]
+        ret.stake = d["stake"]
+        ret.llmprovider = LLMProvider(
+            provider=d["provider"],
+            config=d["config"],
+            model=d["model"],
+            plugin=d["plugin"],
+            plugin_config=d["plugin_config"],
+        )
+        ret.id = d.get("id", None)
+        ret.private_key = d.get("private_key", None)
+
+        return ret
+
     def to_dict(self):
         result = {
             "address": self.address,
@@ -50,13 +68,11 @@ class Validator:
             "config": self.llmprovider.config,
             "plugin": self.llmprovider.plugin,
             "plugin_config": self.llmprovider.plugin_config,
+            "private_key": self.private_key,
         }
 
         if self.id:
             result["id"] = self.id
-
-        if self.private_key:
-            result["private_key"] = self.private_key
 
         return result
 
@@ -155,7 +171,7 @@ class Transaction:
             ),
             appeal_failed=input.get("appeal_failed", 0),
             appeal_undetermined=input.get("appeal_undetermined", False),
-            consensus_history=input.get("consensus_history"),
+            consensus_history=input.get("consensus_history", {}),
             timestamp_appeal=input.get("timestamp_appeal"),
             appeal_processing_time=input.get("appeal_processing_time", 0),
             contract_snapshot=ContractSnapshot.from_dict(

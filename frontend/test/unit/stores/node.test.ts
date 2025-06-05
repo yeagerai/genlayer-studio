@@ -12,7 +12,7 @@ const testValidator1: ValidatorModel = {
   address: '0x123' as Address,
   stake: 100,
   provider: 'openai',
-  model: 'gpt-4',
+  model: 'gpt-4-1106-preview',
   config: '{}',
   updated_at: new Date().toISOString(),
   plugin: 'openai',

@@ -1,6 +1,6 @@
 {
   "provider": "heuristai",
-  "plugin": "openai",
+  "plugin": "openai-compatible",
   "model": "deepseek/deepseek-v3",
   "config": {
     "temperature": 0.75,

@@ -7,6 +7,7 @@ wizard_contract_schema = {
             "ask_for_coin": {
                 "kwparams": {},
                 "params": [["request", "string"]],
+                "payable": False,
                 "readonly": False,
                 "ret": "null",
             },

@@ -1,6 +1,6 @@
 {
   "provider": "heuristai",
-  "plugin": "openai",
+  "plugin": "openai-compatible",
   "model": "meta-llama/llama-3.3-70b-instruct",
   "config": {
     "temperature": 0.75,
