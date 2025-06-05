@@ -182,7 +182,7 @@ class Receipt:
 
     def to_dict(self):
         return {
-            "vote": self.vote.value,
+            "vote": self.vote.value if self.vote else None,
             "execution_result": self.execution_result.value,
             "result": base64.b64encode(self.result).decode("ascii"),
             "calldata": str(base64.b64encode(self.calldata), encoding="ascii"),
@@ -202,7 +202,7 @@ class Receipt:
     def from_dict(cls, input: dict) -> Optional["Receipt"]:
         if input:
             return cls(
-                vote=Vote.from_string(input.get("vote")),
+                vote=Vote.from_string(input.get("vote")) if input.get("vote") else None,
                 execution_result=ExecutionResultStatus.from_string(
                     input.get("execution_result")
                 ),

@@ -1,5 +1,6 @@
 from gltest import get_contract_factory, create_account
 from gltest.assertions import tx_execution_succeeded
+from gltest.types import TransactionStatus
 
 
 def test_multi_tenant_storage(setup_validators):
@@ -39,14 +40,20 @@ def test_multi_tenant_storage(setup_validators):
     )
     # update storage for first contract
     transaction_response_call = multi_tenant_storage_contract.connect(
-        account=user_account_a
-    ).update_storage(args=["user_a_storage"])
+        account=user_account_a,
+    ).update_storage(
+        args=["user_a_storage"],
+        wait_triggered_transactions_status=TransactionStatus.FINALIZED,
+    )
     assert tx_execution_succeeded(transaction_response_call)
 
     # update storage for second contract
     transaction_response_call = multi_tenant_storage_contract.connect(
-        account=user_account_b
-    ).update_storage(args=["user_b_storage"])
+        account=user_account_b,
+    ).update_storage(
+        args=["user_b_storage"],
+        wait_triggered_transactions_status=TransactionStatus.FINALIZED,
+    )
     assert tx_execution_succeeded(transaction_response_call)
 
     # get all storages
