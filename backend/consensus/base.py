@@ -1732,14 +1732,17 @@ class CommittingState(TransactionState):
             TransactionState: The RevealingState.
         """
 
-        
-        def create_validator_node(context: TransactionContext, validator: dict):         
+        def create_validator_node(context: TransactionContext, validator: dict):
             assert context.validators_snapshot is not None
             return context.node_factory(
                 validator,
                 ExecutionMode.VALIDATOR,
                 deepcopy(context.contract_snapshot),
-                context.consensus_data.leader_receipt[0] if context.consensus_data.leader_receipt else None,
+                (
+                    context.consensus_data.leader_receipt[0]
+                    if context.consensus_data.leader_receipt
+                    else None
+                ),
                 context.msg_handler,
                 context.contract_snapshot_factory,
                 context.validators_snapshot,
@@ -1754,14 +1757,17 @@ class CommittingState(TransactionState):
         )
 
         # Leader evaluates validation function
-        if context.consensus_data.leader_receipt and len(context.consensus_data.leader_receipt) == 1:
+        if (
+            context.consensus_data.leader_receipt
+            and len(context.consensus_data.leader_receipt) == 1
+        ):
             leader_node = create_validator_node(context, context.leader)
             leader_receipt = await leader_node.exec_transaction(context.transaction)
             context.consensus_data.leader_receipt.append(leader_receipt)
             context.votes = {context.leader["address"]: leader_receipt.vote.value}
 
         # Create validator nodes for each validator
-        
+
         assert context.validators_snapshot is not None
 
         # Create validator nodes for each validator
@@ -1769,7 +1775,6 @@ class CommittingState(TransactionState):
             create_validator_node(context, validator)
             for validator in context.remaining_validators
         ]
-        
 
         # Execute the transaction on each validator node and gather the results
         sem = asyncio.Semaphore(8)
@@ -1784,7 +1789,10 @@ class CommittingState(TransactionState):
         context.validation_results = await asyncio.gather(*validation_tasks)
 
         # Send events in rollup to communicate the votes are committed
-        if context.consensus_data.leader_receipt and len(context.consensus_data.leader_receipt) == 1:
+        if (
+            context.consensus_data.leader_receipt
+            and len(context.consensus_data.leader_receipt) == 1
+        ):
             context.consensus_service.emit_transaction_event(
                 "emitVoteCommitted",
                 context.consensus_data.leader_receipt[0].node_config,

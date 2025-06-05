@@ -134,7 +134,6 @@ class Node:
 
     def _set_vote(self, receipt: Receipt) -> Receipt:
         leader_receipt = self.leader_receipt
-
         if (
             leader_receipt.execution_result == receipt.execution_result
             and leader_receipt.result == receipt.result
@@ -368,5 +367,4 @@ class Node:
 
         if self.validator_mode == ExecutionMode.LEADER:
             return result
-        else:
-            return self._set_vote(result)
+        return self._set_vote(result)
