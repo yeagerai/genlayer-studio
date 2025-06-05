@@ -22,3 +22,5 @@ jsf==0.11.2
 jsonschema==4.23.0
 loguru==0.7.3
 web3==7.10.0
+aiorwlock==1.5.0
+PyYAML==6.0.2
