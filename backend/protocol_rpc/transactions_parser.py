@@ -253,16 +253,17 @@ class TransactionParser:
         raw_bytes = eth_utils.hexadecimal.decode_hex(data)
 
         # Remove the null byte
-        raw_bytes = raw_bytes[:-1]
+        if raw_bytes[-1] == 0:
+            raw_bytes = raw_bytes[:-1]
 
-        # Try to decode the outer list first
-        if raw_bytes[0] >= 0xF8:  # Long list
-            raw_bytes = raw_bytes[2:]  # Skip list prefix and length
-        elif raw_bytes[0] >= 0xC0:  # Short list
-            raw_bytes = raw_bytes[1:]  # Skip list prefix
+            # Try to decode the outer list first
+            if raw_bytes[0] >= 0xF8:  # Long list
+                raw_bytes = raw_bytes[2:]  # Skip list prefix and length
+            elif raw_bytes[0] >= 0xC0:  # Short list
+                raw_bytes = raw_bytes[1:]  # Skip list prefix
 
-        # Now try to decode the inner string
-        raw_bytes = rlp.decode(raw_bytes)
+            # Now try to decode the inner string
+            raw_bytes = rlp.decode(raw_bytes)
 
         return DecodedMethodCallData(raw_bytes)
 
