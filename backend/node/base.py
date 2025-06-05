@@ -11,6 +11,7 @@ import os
 from backend.domain.types import Validator, Transaction, TransactionType
 from backend.protocol_rpc.message_handler.types import LogEvent, EventType, EventScope
 import backend.node.genvm.base as genvmbase
+import backend.validators as validators
 import backend.node.genvm.origin.calldata as calldata
 from backend.database_handler.contract_snapshot import ContractSnapshot
 from backend.node.types import Receipt, ExecutionMode, Vote, ExecutionResultStatus
@@ -45,9 +46,6 @@ class _SnapshotView(genvmbase.StateProxy):
         res = self.snapshot_factory(addr.as_hex)
         self.cached[addr] = res
         return res
-
-    def get_code(self, addr: Address) -> bytes:
-        return base64.b64decode(self._get_snapshot(addr).contract_code)
 
     def storage_read(
         self, account: Address, slot: bytes, index: int, le: int, /
@@ -94,6 +92,7 @@ class Node:
         contract_snapshot_factory: Callable[[str], ContractSnapshot] | None,
         leader_receipt: Optional[Receipt] = None,
         msg_handler: MessageHandler | None = None,
+        validators_snapshot: validators.Snapshot | None = None,
     ):
         self.contract_snapshot = contract_snapshot
         self.validator_mode = validator_mode
@@ -102,6 +101,7 @@ class Node:
         self.leader_receipt = leader_receipt
         self.msg_handler = msg_handler
         self.contract_snapshot_factory = contract_snapshot_factory
+        self.validators_snapshot = validators_snapshot
 
     def _create_genvm(self) -> genvmbase.IGenVM:
         return genvmbase.GenVMHost()
@@ -165,9 +165,27 @@ class Node:
         transaction_created_at: str | None = None,
     ) -> Receipt:
         assert self.contract_snapshot is not None
-        self.contract_snapshot.contract_code = base64.b64encode(code_to_deploy).decode(
-            "ascii"
+
+        from .genvm.origin import base_host
+
+        def no_factory(*args, **kwargs):
+            raise Exception("factory is forbidden for code deployment")
+
+        snapshot_view_for_code = _SnapshotView(
+            self.contract_snapshot,
+            no_factory,
+            False,
+            None,
         )
+
+        base_host.save_code_callback(
+            Address(self.contract_snapshot.contract_address).as_bytes,
+            code_to_deploy,
+            lambda addr, *rest: snapshot_view_for_code.storage_write(
+                Address(addr), *rest
+            ),
+        )
+
         return await self._run_genvm(
             from_address,
             calldata,
@@ -279,26 +297,6 @@ class Node:
             }
         assert self.contract_snapshot is not None
         assert self.contract_snapshot_factory is not None
-        config = {
-            "modules": [
-                {
-                    "path": "${genvmRoot}/lib/genvm-modules/",
-                    "id": "llm",
-                    "config": {
-                        "host": f"{os.environ['WEBREQUESTPROTOCOL']}://{os.environ['WEBREQUESTHOST']}:{os.environ['WEBREQUESTPORT']}",
-                        "provider": "simulator",
-                        "model": json.dumps(self.validator.llmprovider.__dict__),
-                    },
-                },
-                {
-                    "path": "${genvmRoot}/lib/genvm-modules/",
-                    "id": "web",
-                    "config": {
-                        "host": f"{os.environ['WEBREQUESTPROTOCOL']}://{os.environ['WEBDRIVERHOST']}:{os.environ['WEBDRIVERPORT']}"
-                    },
-                },
-            ]
-        }
         snapshot_view = _SnapshotView(
             self.contract_snapshot,
             self.contract_snapshot_factory,
@@ -306,6 +304,13 @@ class Node:
             state_status,
         )
 
+        config_path = None
+        host_data = None
+        if self.validators_snapshot is not None:
+            config_path = self.validators_snapshot.genvm_config_path
+            for n in self.validators_snapshot.nodes:
+                if n.validator.address == self.validator.address:
+                    host_data = n.genvm_host_arg
         result_exec_code: ExecutionResultStatus
         res = await genvm.run_contract(
             snapshot_view,
@@ -315,9 +320,10 @@ class Node:
             is_init=is_init,
             readonly=readonly,
             leader_results=leader_res,
-            config=json.dumps(config),
             date=transaction_datetime,
             chain_id=SIMULATOR_CHAIN_ID,
+            config_path=config_path,
+            host_data=host_data,
         )
 
         if res is None:

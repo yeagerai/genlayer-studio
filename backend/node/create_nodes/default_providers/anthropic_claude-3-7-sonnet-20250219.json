@@ -11,6 +11,6 @@
   },
   "plugin_config": {
     "api_key_env_var": "ANTHROPIC_API_KEY",
-    "api_url": null
+    "api_url": "https://api.anthropic.com"
   }
 }

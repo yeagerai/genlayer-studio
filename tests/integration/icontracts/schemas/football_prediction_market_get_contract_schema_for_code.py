@@ -17,7 +17,13 @@ football_prediction_market_contract_schema = {
                 "readonly": True,
                 "ret": {"$dict": "any"},
             },
-            "resolve": {"kwparams": {}, "params": [], "readonly": False, "ret": "any"},
+            "resolve": {
+                "kwparams": {},
+                "params": [],
+                "payable": False,
+                "readonly": False,
+                "ret": "any",
+            },
         },
     },
 }
