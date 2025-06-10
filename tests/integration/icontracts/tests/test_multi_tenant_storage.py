@@ -15,6 +15,7 @@ def test_multi_tenant_storage(setup_validators):
 
     This test demonstrates contract-to-contract interactions and multi-tenant data management.
     """
+    setup_validators()
     user_account_a = create_account()
     user_account_b = create_account()
 
