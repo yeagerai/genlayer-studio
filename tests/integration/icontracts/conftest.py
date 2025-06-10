@@ -22,7 +22,7 @@ def setup_validators():
                         {
                             "api_key_env_var": "OPENAIKEY",
                             "api_url": "https://api.openai.com",
-                            "mock_response": mock_response,
+                            "mock_response": mock_response if mock_response else {},
                         },
                     )
                 ).json()
