@@ -19,7 +19,7 @@ from backend.protocol_rpc.message_handler.base import MessageHandler
 
 from .types import Address
 
-SIMULATOR_CHAIN_ID: typing.Final[int] = 61999
+SIMULATOR_CHAIN_ID: typing.Final[int] = int(os.getenv("HARDHAT_CHAIN_ID", "61999"))
 
 
 class _SnapshotView(genvmbase.StateProxy):
@@ -325,6 +325,7 @@ class Node:
             config_path=config_path,
             host_data=host_data,
         )
+        print("bla", SIMULATOR_CHAIN_ID)
 
         if res is None:
             res = genvmbase.ExecutionResult(

@@ -31,7 +31,7 @@ module.exports = {
           order: "fifo"
         }
       },
-      chainId: 61_999,
+      chainId: parseInt(process.env.HARDHAT_CHAIN_ID || "61999"),
       gasPrice: 0,
       initialBaseFeePerGas: 0,
       blockGasLimit: 20000000000,
@@ -45,7 +45,7 @@ module.exports = {
           order: "fifo"
         }
       },
-      chainId: 61_999,
+      chainId: parseInt(process.env.HARDHAT_CHAIN_ID || "61999"),
       gasPrice: 0,
       initialBaseFeePerGas: 0,
       blockGasLimit: 20000000000,
