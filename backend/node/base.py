@@ -325,7 +325,6 @@ class Node:
             config_path=config_path,
             host_data=host_data,
         )
-        print("bla", SIMULATOR_CHAIN_ID)
 
         if res is None:
             res = genvmbase.ExecutionResult(
