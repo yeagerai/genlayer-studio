@@ -1,23 +1,20 @@
 # consensus/services/transactions_db_service.py
-from enum import Enum
-import rlp
-import re
-from .models import Transactions
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_, desc
-
-from .models import TransactionStatus
-from eth_utils import to_bytes, keccak, is_address
 import json
 import base64
 import time
-from backend.domain.types import TransactionType
-from web3 import Web3
-from backend.database_handler.contract_snapshot import ContractSnapshot
 import os
-from sqlalchemy.orm.attributes import flag_modified
+from enum import Enum
+import rlp
+import re
 
-from backend.rollup.consensus_service import ConsensusService
+from sqlalchemy.orm import Session
+from sqlalchemy import or_, desc
+from sqlalchemy.orm.attributes import flag_modified
+from eth_utils import to_bytes, keccak, is_address
+from web3 import Web3
+
+from backend.node.types import Receipt
+from .models import Transactions, TransactionStatus
 
 
 class TransactionAddressFilter(Enum):
@@ -41,11 +38,14 @@ class TransactionsProcessor:
 
     @staticmethod
     def _parse_transaction_data(transaction_data: Transactions) -> dict:
-        result = (
-            transaction_data.consensus_data.get("leader_receipt", {}).get("result", {})
-            if transaction_data.consensus_data
-            else transaction_data.consensus_data
-        )
+        if transaction_data.consensus_data:
+            leader_receipts = transaction_data.consensus_data.get("leader_receipt", [])
+            if len(leader_receipts) > 0:
+                result = leader_receipts[0].get("result", {})
+            else:
+                result = {}
+        else:
+            result = transaction_data.consensus_data
         if isinstance(result, dict):
             result = result.get("raw", {})
         return {
@@ -434,8 +434,8 @@ class TransactionsProcessor:
         self,
         transaction_hash: str,
         consensus_round: str,
-        leader_result: dict | None,
-        validator_results: list,
+        leader_result: list[Receipt] | None,
+        validator_results: list[Receipt],
         extra_status_change: TransactionStatus | None = None,
     ):
         transaction = (
@@ -452,7 +452,11 @@ class TransactionsProcessor:
 
         current_consensus_results = {
             "consensus_round": consensus_round,
-            "leader_result": leader_result.to_dict() if leader_result else None,
+            "leader_result": (
+                [receipt.to_dict() for receipt in leader_result]
+                if leader_result
+                else None
+            ),
             "validator_results": [receipt.to_dict() for receipt in validator_results],
             "status_changes": status_changes_to_use,
         }
