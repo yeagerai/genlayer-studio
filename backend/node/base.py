@@ -19,7 +19,18 @@ from backend.protocol_rpc.message_handler.base import MessageHandler
 
 from .types import Address
 
-SIMULATOR_CHAIN_ID: typing.Final[int] = int(os.getenv("HARDHAT_CHAIN_ID", "61999"))
+
+def _parse_chain_id() -> int:
+    raw = os.getenv("HARDHAT_CHAIN_ID", "61999")
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"HARDHAT_CHAIN_ID must be decimal digits, got '{raw}'"
+        ) from exc
+
+
+SIMULATOR_CHAIN_ID: typing.Final[int] = _parse_chain_id()
 
 
 class _SnapshotView(genvmbase.StateProxy):
