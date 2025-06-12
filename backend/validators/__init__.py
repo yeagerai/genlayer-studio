@@ -135,9 +135,12 @@ class Manager:
         current_validators: list[SingleValidatorSnapshot] = []
         for i in cur_validators_as_dict:
             val = domain.Validator.from_dict(i)
-            current_validators.append(
-                SingleValidatorSnapshot(val, {"studio_llm_id": f"node-{val.address}"})
-            )
+            host_data = {"studio_llm_id": f"node-{val.address}"}
+            if "mock_response" in val.llmprovider.plugin_config:
+                host_data["mock_response"] = val.llmprovider.plugin_config[
+                    "mock_response"
+                ]
+            current_validators.append(SingleValidatorSnapshot(val, host_data))
         return Snapshot(
             nodes=current_validators, genvm_config_path=self._genvm_config.new_path
         )
