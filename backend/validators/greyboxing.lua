@@ -1,6 +1,9 @@
 local lib = require("lib-greyboxing")
 local inspect = require("inspect")
 
+
+-- Used to look up mock responses for testing
+-- It returns the response that is linked to a substring of the message
 function get_mock_response_from_table(table, message)
 	for key, value in pairs(table) do
 		if string.find(message, key) then
@@ -17,13 +20,17 @@ function just_in_backend(args, prompt, format)
 
 	local handler = args.handler
 
+	-- Return mock response if it exists
 	if args.host_data and args.host_data.mock_response then
 		if args.payload then
 			if args.payload.principle then
+				-- Return the matching response to gl.eq_principle_prompt_comparative request which contains a principle key in the payload
 				result = get_mock_response_from_table(args.host_data.mock_response.eq_principle_prompt_comparative, prompt.user_message)
 			elseif args.payload.output then
+				-- Return the matching response to gl.eq_principle_prompt_non_comparative request which contains an output key in the payload
 				result = get_mock_response_from_table(args.host_data.mock_response.eq_principle_prompt_non_comparative, prompt.user_message)
 			else
+				-- Return the matching response to gl.exec_prompt request which does not contain any specific key in the payload
 				result = get_mock_response_from_table(args.host_data.mock_response.response, prompt.user_message)
 			end
 		end

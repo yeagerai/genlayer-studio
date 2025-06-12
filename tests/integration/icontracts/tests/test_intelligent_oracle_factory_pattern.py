@@ -106,37 +106,8 @@ def test_intelligent_oracle_factory_pattern(setup_validators):
         args=[intelligent_oracle_factory.contract_code]
     )
 
-    markets_data = [
-        {
-            "prediction_market_id": "marathon2024",
-            "title": "Marathon Winner Prediction",
-            "description": "Predict the male winner of a major marathon event.",
-            "potential_outcomes": ["Bekele Fikre", "Tafa Mitku", "Chebii Douglas"],
-            "rules": [
-                "The outcome is based on the official race results announced by the marathon organizers."
-            ],
-            "data_source_domains": ["thepostrace.com"],
-            "resolution_urls": [],
-            "earliest_resolution_date": "2024-01-01T00:00:00+00:00",
-            "outcome": "Tafa Mitku",
-            "evidence_urls": "https://thepostrace.com/en/blog/marathon-de-madrid-2024-results-and-rankings/?srsltid=AfmBOor1uG6O3_4oJ447hkah_ilOYuy0XXMvl8j70EApe1Z7Bzd94XJl",
-        },
-        {
-            "prediction_market_id": "election2024",
-            "title": "Election Prediction",
-            "description": "Predict the winner of the 2024 US presidential election.",
-            "potential_outcomes": ["Kamala Harris", "Donald Trump"],
-            "rules": ["The outcome is based on official election results."],
-            "data_source_domains": ["bbc.com"],
-            "resolution_urls": [],
-            "earliest_resolution_date": "2024-01-01T00:00:00+00:00",
-            "outcome": "Donald Trump",
-            "evidence_urls": "https://www.bbc.com/news/election/2024/us/results",
-        },
-    ]
-    created_market_contracts = []
-
     # Create markets through factory
+    created_market_contracts = []
     for market_data in markets_data:
         create_result = registry_contract.create_new_prediction_market(
             args=[
