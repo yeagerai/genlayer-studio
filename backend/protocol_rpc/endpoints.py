@@ -439,7 +439,10 @@ async def gen_call(
     model = params.get("model")
 
     if provider is not None and model is not None:
-        llm_provider = get_default_provider_for(provider, model)
+        try:
+            llm_provider = get_default_provider_for(provider, model)
+        except ValueError as e:
+            raise JSONRPCError(code=-32602, message=str(e), data={}) from e
         account = accounts_manager.create_new_account()
         validator = Validator(
             address=account.address,
@@ -447,11 +450,17 @@ async def gen_call(
             stake=0,
             llmprovider=llm_provider,
         )
-        snapshot_func = validators_manager.snapshot_with_custom_validators
+        snapshot_func = validators_manager.temporal_snapshot
         args = [[validator]]
-    else:
+    elif provider is None and model is None:
         snapshot_func = validators_manager.snapshot
         args = []
+    else:
+        raise JSONRPCError(
+            code=-32602,
+            message="Both 'provider' and 'model' must be supplied together.",
+            data={},
+        )
 
     async with snapshot_func(*args) as snapshot:
         if len(snapshot.nodes) == 0:
