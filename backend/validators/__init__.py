@@ -165,14 +165,22 @@ class Manager:
             self.lock.reader.release()
 
     @contextlib.asynccontextmanager
-    async def snapshot_with_custom_validators(self, validators: list[domain.Validator]):
+    async def temporal_snapshot(self, validators: list[domain.Validator]):
         await self.lock.reader.acquire()
         try:
             await self.llm_module.verify_for_read()
             await self.web_module.verify_for_read()
 
-            snap = await self._get_snap_from_validators(validators)
-            yield snap
+            original_snapshot = deepcopy(self._cached_snapshot)
+
+            temp_snapshot = await self._get_snap_from_validators(validators)
+            await self._change_providers_from_snapshot(temp_snapshot)
+
+            try:
+                yield deepcopy(temp_snapshot)
+            finally:
+                if original_snapshot is not None:
+                    await self._change_providers_from_snapshot(original_snapshot)
         finally:
             self.lock.reader.release()
 
