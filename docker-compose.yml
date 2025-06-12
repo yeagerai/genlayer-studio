@@ -173,6 +173,8 @@ services:
       dockerfile: docker/Dockerfile.hardhat
     ports:
       - "${HARDHAT_PORT:-8545}:8545"
+    env_file:
+      - .env
     volumes:
       - ./hardhat:/app/hardhat_src
       - hardhat_artifacts:/app/artifacts
