@@ -11,6 +11,7 @@ def test_read_erc20(setup_validators):
 
     It's like a linked list, but with contracts.
     """
+    setup_validators()
     TOKEN_TOTAL_SUPPLY = 1000
 
     # LLM ERC20
