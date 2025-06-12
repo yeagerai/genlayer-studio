@@ -132,9 +132,14 @@ class Manager:
 
     async def _get_snap_from_registry(self) -> Snapshot:
         cur_validators_as_dict = self.registry.get_all_validators()
+        validators = [domain.Validator.from_dict(i) for i in cur_validators_as_dict]
+        return await self._get_snap_from_validators(validators)
+
+    async def _get_snap_from_validators(
+        self, validators: list[domain.Validator]
+    ) -> Snapshot:
         current_validators: list[SingleValidatorSnapshot] = []
-        for i in cur_validators_as_dict:
-            val = domain.Validator.from_dict(i)
+        for val in validators:
             host_data = {"studio_llm_id": f"node-{val.address}"}
             if "mock_response" in val.llmprovider.plugin_config:
                 host_data["mock_response"] = val.llmprovider.plugin_config[
@@ -155,6 +160,18 @@ class Manager:
             assert self._cached_snapshot is not None
 
             snap = deepcopy(self._cached_snapshot)
+            yield snap
+        finally:
+            self.lock.reader.release()
+
+    @contextlib.asynccontextmanager
+    async def snapshot_with_custom_validators(self, validators: list[domain.Validator]):
+        await self.lock.reader.acquire()
+        try:
+            await self.llm_module.verify_for_read()
+            await self.web_module.verify_for_read()
+
+            snap = await self._get_snap_from_validators(validators)
             yield snap
         finally:
             self.lock.reader.release()

@@ -435,7 +435,25 @@ async def gen_call(
     validators_manager: validators.Manager,
     params: dict,
 ) -> str:
-    async with validators_manager.snapshot() as snapshot:
+    provider = params.get("provider")
+    model = params.get("model")
+
+    if provider is not None and model is not None:
+        llm_provider = get_default_provider_for(provider, model)
+        account = accounts_manager.create_new_account()
+        validator = Validator(
+            address=account.address,
+            private_key=account.key,
+            stake=0,
+            llmprovider=llm_provider,
+        )
+        snapshot_func = validators_manager.snapshot_with_custom_validators
+        args = [[validator]]
+    else:
+        snapshot_func = validators_manager.snapshot
+        args = []
+
+    async with snapshot_func(*args) as snapshot:
         if len(snapshot.nodes) == 0:
             raise JSONRPCError("No validators exist to execute the gen_call")
         return await _gen_call_with_validator(
