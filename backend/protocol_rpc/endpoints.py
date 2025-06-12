@@ -439,8 +439,22 @@ async def gen_call(
     model = params.get("model")
 
     if provider is not None and model is not None:
+        config = params.get("config")
+        plugin = params.get("plugin")
+        plugin_config = params.get("plugin_config")
+
         try:
-            llm_provider = get_default_provider_for(provider, model)
+            if config is None or plugin is None or plugin_config is None:
+                llm_provider = get_default_provider_for(provider, model)
+            else:
+                llm_provider = LLMProvider(
+                    provider=provider,
+                    model=model,
+                    config=config,
+                    plugin=plugin,
+                    plugin_config=plugin_config,
+                )
+                validate_provider(llm_provider)
         except ValueError as e:
             raise JSONRPCError(code=-32602, message=str(e), data={}) from e
         account = accounts_manager.create_new_account()
