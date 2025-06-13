@@ -435,7 +435,49 @@ async def gen_call(
     validators_manager: validators.Manager,
     params: dict,
 ) -> str:
-    async with validators_manager.snapshot() as snapshot:
+    sim_config = params.get("sim_config", {})
+    provider = sim_config.get("provider")
+    model = sim_config.get("model")
+
+    if provider is not None and model is not None:
+        config = sim_config.get("config")
+        plugin = sim_config.get("plugin")
+        plugin_config = sim_config.get("plugin_config")
+
+        try:
+            if config is None or plugin is None or plugin_config is None:
+                llm_provider = get_default_provider_for(provider, model)
+            else:
+                llm_provider = LLMProvider(
+                    provider=provider,
+                    model=model,
+                    config=config,
+                    plugin=plugin,
+                    plugin_config=plugin_config,
+                )
+                validate_provider(llm_provider)
+        except ValueError as e:
+            raise JSONRPCError(code=-32602, message=str(e), data={}) from e
+        account = accounts_manager.create_new_account()
+        validator = Validator(
+            address=account.address,
+            private_key=account.key,
+            stake=0,
+            llmprovider=llm_provider,
+        )
+        snapshot_func = validators_manager.temporal_snapshot
+        args = [[validator]]
+    elif provider is None and model is None:
+        snapshot_func = validators_manager.snapshot
+        args = []
+    else:
+        raise JSONRPCError(
+            code=-32602,
+            message="Both 'provider' and 'model' must be supplied together.",
+            data={},
+        )
+
+    async with snapshot_func(*args) as snapshot:
         if len(snapshot.nodes) == 0:
             raise JSONRPCError("No validators exist to execute the gen_call")
         return await _gen_call_with_validator(
