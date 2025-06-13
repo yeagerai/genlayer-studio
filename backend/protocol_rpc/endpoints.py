@@ -435,13 +435,14 @@ async def gen_call(
     validators_manager: validators.Manager,
     params: dict,
 ) -> str:
-    provider = params.get("provider")
-    model = params.get("model")
+    sim_config = params.get("sim_config", {})
+    provider = sim_config.get("provider")
+    model = sim_config.get("model")
 
     if provider is not None and model is not None:
-        config = params.get("config")
-        plugin = params.get("plugin")
-        plugin_config = params.get("plugin_config")
+        config = sim_config.get("config")
+        plugin = sim_config.get("plugin")
+        plugin_config = sim_config.get("plugin_config")
 
         try:
             if config is None or plugin is None or plugin_config is None:
