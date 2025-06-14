@@ -1131,15 +1131,17 @@ class ConsensusAlgorithm:
         validators_snapshot: validators.Snapshot,
     ):
         """
-        Process the leader appeal of a transaction.
+        Handle the appeal process for a transaction that experienced a leader timeout.
 
         Args:
-            transaction (Transaction): The transaction to appeal.
-            transactions_processor (TransactionsProcessor): Instance responsible for handling transaction operations within the database.
-            chain_snapshot (ChainSnapshot): Snapshot of the chain state.
-            accounts_manager (AccountsManager): Manager for accounts.
-            contract_snapshot_factory (Callable[[str], ContractSnapshot]): Factory function to create contract snapshots.
-            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Factory function to create nodes.
+            transaction (Transaction): The transaction undergoing the appeal process.
+            transactions_processor (TransactionsProcessor): Manages transaction operations within the database.
+            chain_snapshot (ChainSnapshot): Represents the current state of the blockchain.
+            accounts_manager (AccountsManager): Handles account-related operations.
+            contract_snapshot_factory (Callable[[str], ContractSnapshot]): Function to generate contract snapshots.
+            contract_processor (ContractProcessor): Responsible for processing contract-related operations.
+            node_factory (Callable[[dict, ExecutionMode, ContractSnapshot, Receipt | None, MessageHandler, Callable[[str], ContractSnapshot]], Node]): Function to create nodes for processing.
+            validators_snapshot (validators.Snapshot): Snapshot of the current validators' state.
         """
         # Create a transaction context for the appeal
         context = TransactionContext(
