@@ -55,7 +55,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Create new enum without LEADER TIMEOUT
+    # Create new enum without LEADER_TIMEOUT
     op.execute(
         "CREATE TYPE transaction_status_new AS ENUM ('PENDING', 'ACTIVATED', 'CANCELED', 'PROPOSING', 'COMMITTING', 'REVEALING', 'ACCEPTED', 'FINALIZED', 'UNDETERMINED')"
     )

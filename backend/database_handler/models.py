@@ -38,7 +38,7 @@ class TransactionStatus(enum.Enum):
     ACCEPTED = "ACCEPTED"
     FINALIZED = "FINALIZED"
     UNDETERMINED = "UNDETERMINED"
-    LEADER_TIMEOUT = "LEADER TIMEOUT"
+    LEADER_TIMEOUT = "LEADER_TIMEOUT"
 
 
 # We map them to `DataClass`es in order to have better type hints https://docs.sqlalchemy.org/en/20/orm/dataclasses.html#declarative-dataclass-mapping

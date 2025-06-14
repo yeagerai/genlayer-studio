@@ -196,7 +196,7 @@ function prettifyTxData(x: any): any {
           transaction.statusName !== 'FINALIZED' &&
           transaction.statusName !== 'ACCEPTED' &&
           transaction.statusName !== 'UNDETERMINED' &&
-          transaction.statusName !== 'LEADER TIMEOUT'
+          transaction.statusName !== 'LEADER_TIMEOUT'
         "
       />
 
@@ -206,7 +206,7 @@ function prettifyTxData(x: any): any {
             transaction.data.leader_only == false &&
             (transaction.statusName == 'ACCEPTED' ||
               transaction.statusName == 'UNDETERMINED' ||
-              transaction.statusName == 'LEADER TIMEOUT') &&
+              transaction.statusName == 'LEADER_TIMEOUT') &&
             Date.now() / 1000 -
               transaction.data.timestamp_awaiting_finalization -
               transaction.data.appeal_processing_time <=
@@ -279,7 +279,7 @@ function prettifyTxData(x: any): any {
                 transaction.statusName !== 'FINALIZED' &&
                 transaction.statusName !== 'ACCEPTED' &&
                 transaction.statusName !== 'UNDETERMINED' &&
-                transaction.statusName !== 'LEADER TIMEOUT'
+                transaction.statusName !== 'LEADER_TIMEOUT'
               "
             />
             <TransactionStatusBadge

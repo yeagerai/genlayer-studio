@@ -1865,10 +1865,7 @@ class ProposingState(TransactionState):
         if (
             context.consensus_data.leader_receipt[0].result[0]
             == ResultCode.CONTRACT_ERROR
-        ) and (
-            context.consensus_data.leader_receipt[0].result[1:].decode("ascii")
-            == "timeout"
-        ):
+        ) and (context.consensus_data.leader_receipt[0].result[1:] == b"timeout"):
             # Save the contract snapshot for potential future appeals
             if not context.transaction.contract_snapshot:
                 context.transactions_processor.set_transaction_contract_snapshot(
