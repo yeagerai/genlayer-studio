@@ -19,7 +19,18 @@ from backend.protocol_rpc.message_handler.base import MessageHandler
 
 from .types import Address
 
-SIMULATOR_CHAIN_ID: typing.Final[int] = 61999
+
+def _parse_chain_id() -> int:
+    raw = os.getenv("HARDHAT_CHAIN_ID", "61999")
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"HARDHAT_CHAIN_ID must be decimal digits, got '{raw}'"
+        ) from exc
+
+
+SIMULATOR_CHAIN_ID: typing.Final[int] = _parse_chain_id()
 
 
 class _SnapshotView(genvmbase.StateProxy):
@@ -134,9 +145,7 @@ class Node:
 
     def _set_vote(self, receipt: Receipt) -> Receipt:
         leader_receipt = self.leader_receipt
-        if self.validator_mode == ExecutionMode.LEADER:
-            receipt.vote = Vote.AGREE
-        elif (
+        if (
             leader_receipt.execution_result == receipt.execution_result
             and leader_receipt.result == receipt.result
             and leader_receipt.contract_state == receipt.contract_state
@@ -334,24 +343,26 @@ class Node:
             else ExecutionResultStatus.ERROR
         )
 
-        return self._set_vote(
-            Receipt(
-                result=genvmbase.encode_result_to_bytes(res.result),
-                gas_used=0,
-                eq_outputs={
-                    k: base64.b64encode(v).decode("ascii")
-                    for k, v in res.eq_outputs.items()
-                },
-                pending_transactions=res.pending_transactions,
-                vote=None,
-                execution_result=result_exec_code,
-                contract_state=self.contract_snapshot.states["accepted"],
-                calldata=calldata,
-                mode=self.validator_mode,
-                node_config=self.validator.to_dict(),
-                genvm_result={
-                    "stdout": res.stdout,
-                    "stderr": res.stderr,
-                },
-            )
+        result = Receipt(
+            result=genvmbase.encode_result_to_bytes(res.result),
+            gas_used=0,
+            eq_outputs={
+                k: base64.b64encode(v).decode("ascii")
+                for k, v in res.eq_outputs.items()
+            },
+            pending_transactions=res.pending_transactions,
+            vote=None,
+            execution_result=result_exec_code,
+            contract_state=self.contract_snapshot.states["accepted"],
+            calldata=calldata,
+            mode=self.validator_mode,
+            node_config=self.validator.to_dict(),
+            genvm_result={
+                "stdout": res.stdout,
+                "stderr": res.stderr,
+            },
         )
+
+        if self.validator_mode == ExecutionMode.LEADER:
+            return result
+        return self._set_vote(result)

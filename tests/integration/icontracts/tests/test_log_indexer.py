@@ -9,6 +9,7 @@ from tests.common.response import assert_dict_struct
 
 
 def test_log_indexer(setup_validators):
+    setup_validators()
     # Deploy Contract
     factory = get_contract_factory("LogIndexer")
     contract = factory.deploy(args=[])
