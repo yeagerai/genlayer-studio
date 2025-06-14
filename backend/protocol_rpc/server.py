@@ -192,6 +192,12 @@ def restore_stuck_transactions():
             transactions_processor.reset_transaction_appeal_processing_time(
                 restore_transaction["hash"]
             )
+            transactions_processor.set_transaction_appeal_leader_timeout(
+                restore_transaction["hash"], False
+            )
+            transactions_processor.set_leader_timeout_validators(
+                restore_transaction["hash"], []
+            )
 
         # Restore the contract state
         contract_processor = contract_processor_factory(request_session)
