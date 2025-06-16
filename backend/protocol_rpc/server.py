@@ -221,11 +221,8 @@ def restore_stuck_transactions():
                     finalized_state={},
                 )
             else:
-                contract_processor.update_contract_state(
-                    contract_address=tx2["to_address"],
-                    accepted_state={},
-                    finalized_state={},
-                )
+                # Deploy contract
+                contract_processor.reset_contract(contract_address=tx2["to_address"])
 
 
 # Restore stuck transactions
