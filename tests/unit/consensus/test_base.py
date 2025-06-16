@@ -91,7 +91,7 @@ async def test_exec_transaction_no_consensus(consensus_algorithm):
         assert_transaction_status_match(
             transactions_processor, transaction, [TransactionStatus.UNDETERMINED.value]
         )
-        assert len(created_nodes) == ( transaction.num_of_initial_validators  + 1 ) * (
+        assert len(created_nodes) == (transaction.num_of_initial_validators + 1) * (
             rotation_rounds + 1
         )
 
@@ -433,7 +433,9 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
             transactions_processor, transaction, [TransactionStatus.FINALIZED.value]
         )
 
-        expected_nb_created_nodes += (2 * transaction.num_of_initial_validators + 2) - 1 + 1
+        expected_nb_created_nodes += (
+            (2 * transaction.num_of_initial_validators + 2) - 1 + 1
+        )
         assert len(created_nodes) == expected_nb_created_nodes
 
         if current_status == TransactionStatus.PENDING.value:
@@ -634,13 +636,19 @@ async def test_exec_accepted_appeal_successful_twice(consensus_algorithm):
             len(created_nodes) < 2 * transaction.num_of_initial_validators + 2 + 1
         ):
             return Vote.DISAGREE
-        elif (len(created_nodes) >= 2 * transaction.num_of_initial_validators + 2 + 1) and (
-            len(created_nodes) < 2 * (2 * transaction.num_of_initial_validators + 2) - 1 + 2
+        elif (
+            len(created_nodes) >= 2 * transaction.num_of_initial_validators + 2 + 1
+        ) and (
+            len(created_nodes)
+            < 2 * (2 * transaction.num_of_initial_validators + 2) - 1 + 2
         ):
             return Vote.AGREE
         elif (
-            len(created_nodes) >= 2 * (2 * transaction.num_of_initial_validators + 2) - 1 + 2
-        ) and (len(created_nodes) < 3 * (2 * transaction.num_of_initial_validators + 2) + 2):
+            len(created_nodes)
+            >= 2 * (2 * transaction.num_of_initial_validators + 2) - 1 + 2
+        ) and (
+            len(created_nodes) < 3 * (2 * transaction.num_of_initial_validators + 2) + 2
+        ):
             return Vote.DISAGREE
         else:
             return Vote.AGREE
@@ -1022,12 +1030,18 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
             len(created_nodes) < 2 * transaction.num_of_initial_validators + 2 + 1
         ):
             return Vote.DISAGREE
-        elif (len(created_nodes) >= 2 * transaction.num_of_initial_validators + 2 + 1) and (
+        elif (
+            len(created_nodes) >= 2 * transaction.num_of_initial_validators + 2 + 1
+        ) and (
             len(created_nodes) < 3 * (2 * transaction.num_of_initial_validators + 2) + 2
         ):
             return Vote.AGREE
-        elif (len(created_nodes) >= 3 * (2 * transaction.num_of_initial_validators + 2) + 2) and (
-            len(created_nodes) < 5 * (2 * transaction.num_of_initial_validators + 2) + 1 + 2
+        elif (
+            len(created_nodes)
+            >= 3 * (2 * transaction.num_of_initial_validators + 2) + 2
+        ) and (
+            len(created_nodes)
+            < 5 * (2 * transaction.num_of_initial_validators + 2) + 1 + 2
         ):
             return Vote.DISAGREE
         else:
@@ -1543,9 +1557,12 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
         """
         if len(created_nodes) < (2 * (transaction_1.num_of_initial_validators + 1)):
             return Vote.AGREE
-        elif (len(created_nodes) >= (2 * (transaction_1.num_of_initial_validators + 1))) and (
+        elif (
+            len(created_nodes) >= (2 * (transaction_1.num_of_initial_validators + 1))
+        ) and (
             len(created_nodes)
-            < (2 * (transaction_1.num_of_initial_validators + 1)) + (transaction_1.num_of_initial_validators + 2)
+            < (2 * (transaction_1.num_of_initial_validators + 1))
+            + (transaction_1.num_of_initial_validators + 2)
         ):
             return Vote.DISAGREE
         else:
@@ -1578,8 +1595,10 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
         )
         assert (
             len(created_nodes)
-            == transaction_1.num_of_initial_validators + 1
-            + transaction_2.num_of_initial_validators + 1
+            == transaction_1.num_of_initial_validators
+            + 1
+            + transaction_2.num_of_initial_validators
+            + 1
         )
 
         check_contract_state_with_timeout(
@@ -1683,7 +1702,10 @@ async def test_exec_leader_appeal_succes_with_rollback_second_tx(consensus_algor
         Transaction 2: Leader agrees + 4 validators agree.
         """
         exec_rounds = transaction_1.config_rotation_rounds + 1
-        if len(created_nodes) < (transaction_1.num_of_initial_validators + 1) * exec_rounds:
+        if (
+            len(created_nodes)
+            < (transaction_1.num_of_initial_validators + 1) * exec_rounds
+        ):
             return Vote.DISAGREE
         else:
             return Vote.AGREE

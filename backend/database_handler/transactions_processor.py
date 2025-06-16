@@ -21,11 +21,6 @@ import rlp
 import re
 
 
-
-
-
-
-
 class TransactionAddressFilter(Enum):
     ALL = "all"
     TO = "to"
@@ -341,19 +336,18 @@ class TransactionsProcessor:
                 len(transaction_data["consensus_history"]["consensus_results"]) - 1
             )
             last_round = transaction_data["consensus_history"]["consensus_results"][-1]
-            if "leader_result" in last_round:
-                leader = last_round["leader_result"]
-                if leader is not None:
-                    validator_votes_name.append(leader["vote"].upper())
-                    vote_number = vote_name_to_number(leader["vote"])
-                    validator_votes.append(vote_number)
-                    leader_address = leader["node_config"]["address"]
-                    validator_votes_hash.append(
-                        get_validator_vote_hash(
-                            leader_address, vote_number, transaction_data["nonce"]
-                        )
+            if "leader_result" in last_round and last_round["leader_result"]:
+                leader = last_round["leader_result"][1]
+                validator_votes_name.append(leader["vote"].upper())
+                vote_number = vote_name_to_number(leader["vote"])
+                validator_votes.append(vote_number)
+                leader_address = leader["node_config"]["address"]
+                validator_votes_hash.append(
+                    get_validator_vote_hash(
+                        leader_address, vote_number, transaction_data["nonce"]
                     )
-                    round_validators.append(leader_address)
+                )
+                round_validators.append(leader_address)
 
             for validator in last_round["validator_results"]:
                 validator_votes_name.append(validator["vote"].upper())
@@ -411,7 +405,7 @@ class TransactionsProcessor:
         if "consensus_results" in transaction_data["consensus_history"]:
             transaction_data["activator"] = transaction_data["consensus_history"][
                 "consensus_results"
-            ][0]["leader_result"]["node_config"]["address"]
+            ][0]["leader_result"][0]["node_config"]["address"]
         else:
             transaction_data["activator"] = ""
 
@@ -420,7 +414,7 @@ class TransactionsProcessor:
         ):
             transaction_data["last_leader"] = transaction_data["consensus_data"][
                 "leader_receipt"
-            ]["node_config"]["address"]
+            ][0]["node_config"]["address"]
         else:
             transaction_data["last_leader"] = ""
         return transaction_data
@@ -449,14 +443,14 @@ class TransactionsProcessor:
         if (
             transaction_data["consensus_data"] is not None
             and "leader_receipt" in transaction_data["consensus_data"]
-            and "node_config" in transaction_data["consensus_data"]["leader_receipt"]
+            and "node_config" in transaction_data["consensus_data"]["leader_receipt"][0]
         ):
             transaction_data["tx_execution_hash"] = get_tx_execution_hash(
-                transaction_data["consensus_data"]["leader_receipt"]["node_config"][
+                transaction_data["consensus_data"]["leader_receipt"][0]["node_config"][
                     "address"
                 ],
                 vote_name_to_number(
-                    transaction_data["consensus_data"]["leader_receipt"]["vote"]
+                    transaction_data["consensus_data"]["leader_receipt"][0]["vote"]
                 ),
             )
         else:
@@ -479,7 +473,7 @@ class TransactionsProcessor:
                             len(eq_output),  # key
                             [
                                 base64.b64decode(
-                                    consensus_round["leader_result"]["result"]
+                                    consensus_round["leader_result"][0]["result"]
                                 )[
                                     0
                                 ],  # kind
@@ -495,7 +489,7 @@ class TransactionsProcessor:
             and "result" in transaction_data["consensus_data"]["leader_receipt"]
         ):
             kind = base64.b64decode(
-                transaction_data["consensus_data"]["leader_receipt"]["result"]
+                transaction_data["consensus_data"]["leader_receipt"][0]["result"]
             )[0]
         pending_transactions = []
         messages = []
@@ -504,13 +498,13 @@ class TransactionsProcessor:
             and "leader_receipt" in transaction_data["consensus_data"]
             and transaction_data["consensus_data"]["leader_receipt"] is not None
             and "pending_transactions"
-            in transaction_data["consensus_data"]["leader_receipt"]
-            and transaction_data["consensus_data"]["leader_receipt"][
+            in transaction_data["consensus_data"]["leader_receipt"][0]
+            and transaction_data["consensus_data"]["leader_receipt"][0][
                 "pending_transactions"
             ]
             is not None
         ):
-            for message in transaction_data["consensus_data"]["leader_receipt"][
+            for message in transaction_data["consensus_data"]["leader_receipt"][0][
                 "pending_transactions"
             ]:
                 pending_transactions.append(
