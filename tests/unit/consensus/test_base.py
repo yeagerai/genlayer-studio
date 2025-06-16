@@ -359,12 +359,11 @@ async def test_exec_accepted_appeal_successful(consensus_algorithm):
         """
         if len(created_nodes) < transaction.num_of_initial_validators + 1:
             return Vote.AGREE
-        elif (len(created_nodes) >= transaction.num_of_initial_validators + 1) and (
+        if (len(created_nodes) >= transaction.num_of_initial_validators + 1) and (
             len(created_nodes) < 2 * transaction.num_of_initial_validators + 2
         ):
             return Vote.DISAGREE
-        else:
-            return Vote.AGREE
+        return Vote.AGREE
 
     event, *threads = setup_test_environment(
         consensus_algorithm,
@@ -520,8 +519,7 @@ async def test_exec_accepted_appeal_successful_rotations_undetermined(
         """
         if len(created_nodes) < transaction.num_of_initial_validators + 1:
             return Vote.AGREE
-        else:
-            return Vote.DISAGREE
+        return Vote.DISAGREE
 
     event, *threads = setup_test_environment(
         consensus_algorithm, transactions_processor, nodes, created_nodes, get_vote
@@ -1026,17 +1024,17 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
         """
         if len(created_nodes) < transaction.num_of_initial_validators + 1:
             return Vote.AGREE
-        elif (len(created_nodes) >= transaction.num_of_initial_validators + 1) and (
+        if (len(created_nodes) >= transaction.num_of_initial_validators + 1) and (
             len(created_nodes) < 2 * transaction.num_of_initial_validators + 2 + 1
         ):
             return Vote.DISAGREE
-        elif (
+        if (
             len(created_nodes) >= 2 * transaction.num_of_initial_validators + 2 + 1
         ) and (
             len(created_nodes) < 3 * (2 * transaction.num_of_initial_validators + 2) + 2
         ):
             return Vote.AGREE
-        elif (
+        if (
             len(created_nodes)
             >= 3 * (2 * transaction.num_of_initial_validators + 2) + 2
         ) and (
@@ -1044,8 +1042,7 @@ async def test_exec_accepted_appeal_successful_fail_successful(consensus_algorit
             < 5 * (2 * transaction.num_of_initial_validators + 2) + 1 + 2
         ):
             return Vote.DISAGREE
-        else:
-            return Vote.AGREE
+        return Vote.AGREE
 
     event, *threads = setup_test_environment(
         consensus_algorithm, transactions_processor, nodes, created_nodes, get_vote
@@ -1557,7 +1554,7 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
         """
         if len(created_nodes) < (2 * (transaction_1.num_of_initial_validators + 1)):
             return Vote.AGREE
-        elif (
+        if (
             len(created_nodes) >= (2 * (transaction_1.num_of_initial_validators + 1))
         ) and (
             len(created_nodes)
@@ -1565,8 +1562,7 @@ async def test_exec_validator_appeal_success_with_rollback_second_tx(
             + (transaction_1.num_of_initial_validators + 2)
         ):
             return Vote.DISAGREE
-        else:
-            return Vote.AGREE
+        return Vote.AGREE
 
     event, *threads = setup_test_environment(
         consensus_algorithm,
@@ -1707,8 +1703,7 @@ async def test_exec_leader_appeal_succes_with_rollback_second_tx(consensus_algor
             < (transaction_1.num_of_initial_validators + 1) * exec_rounds
         ):
             return Vote.DISAGREE
-        else:
-            return Vote.AGREE
+        return Vote.AGREE
 
     event, *threads = setup_test_environment(
         consensus_algorithm,

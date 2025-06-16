@@ -16,9 +16,6 @@ import time
 from backend.domain.types import TransactionType
 from web3 import Web3
 import os
-from enum import Enum
-import rlp
-import re
 
 
 class TransactionAddressFilter(Enum):
@@ -371,8 +368,8 @@ class TransactionsProcessor:
             "votes_revealed": str(len(validator_votes_name)),
             "appeal_bond": "0",
             "rotations_left": str(
-                transaction_data["config_rotation_rounds"]
-                - transaction_data["rotation_count"]
+                transaction_data.get("config_rotation_rounds", 0)
+                - transaction_data.get("rotation_count", 0)
             ),
             "result": last_round_result,
             "round_validators": round_validators,
@@ -940,8 +937,14 @@ class TransactionsProcessor:
             NoResultFound: If the transaction with the given hash doesn't exist
         """
         transaction = (
-            self.session.query(Transactions).filter_by(hash=transaction_hash).one()
+            self.session.query(Transactions)
+            .filter_by(hash=transaction_hash)
+            .with_for_update()  # lock row
+            .one()
         )
+        max_rotations = transaction.config_rotation_rounds or 0
+        if max_rotations and transaction.rotation_count >= max_rotations:
+            return  # already at the ceiling
         transaction.rotation_count += 1
         flag_modified(transaction, "rotation_count")
         self.session.commit()
