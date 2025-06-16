@@ -602,6 +602,7 @@ class ConsensusAlgorithm:
                     TransactionStatus.ACCEPTED.value,
                     TransactionStatus.UNDETERMINED.value,
                     TransactionStatus.FINALIZED.value,
+                    TransactionStatus.LEADER_TIMEOUT.value,
                 ]
             )
         ):
