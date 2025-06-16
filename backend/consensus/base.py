@@ -1866,93 +1866,34 @@ class ProposingState(TransactionState):
             context.consensus_data.leader_receipt[0].result[0]
             == ResultCode.CONTRACT_ERROR
         ) and (context.consensus_data.leader_receipt[0].result[1:] == b"timeout"):
-            # Save the contract snapshot for potential future appeals
-            if not context.transaction.contract_snapshot:
-                context.transactions_processor.set_transaction_contract_snapshot(
-                    context.transaction.hash, context.contract_snapshot.to_dict()
-                )
+            return LeaderTimeoutState()
 
-            if context.transaction.appeal_undetermined:
-                consensus_round = "Leader Appeal Successful"
-                context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
-                    context.transaction.hash
-                )
-                context.transactions_processor.reset_transaction_appeal_processing_time(
-                    context.transaction.hash
-                )
-                context.transactions_processor.set_transaction_timestamp_appeal(
-                    context.transaction.hash, None
-                )
-            elif context.transaction.appeal_leader_timeout:
-                consensus_round = "Leader Timeout Appeal Failed"
-                context.transactions_processor.set_transaction_appeal_processing_time(
-                    context.transaction.hash
-                )
-            else:
-                consensus_round = "Leader Timeout"
-                context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
-                    context.transaction.hash
-                )
-
-            # Save involved validators for appeal
-            context.transactions_processor.set_leader_timeout_validators(
-                context.transaction.hash, context.remaining_validators
+        if context.transaction.appeal_leader_timeout:
+            # Successful leader timeout appeal
+            context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
+                context.transaction.hash
             )
-
-            # Update the consensus history
-            context.transactions_processor.update_consensus_history(
-                context.transaction.hash,
-                consensus_round,
-                context.consensus_data.leader_receipt,
-                [],
-                TransactionStatus.LEADER_TIMEOUT,
+            context.transactions_processor.reset_transaction_appeal_processing_time(
+                context.transaction.hash
             )
-
-            # Update the transaction status to LEADER_TIMEOUT
-            ConsensusAlgorithm.dispatch_transaction_status_update(
-                context.transactions_processor,
-                context.transaction.hash,
-                TransactionStatus.LEADER_TIMEOUT,
-                context.msg_handler,
-                False,
+            context.transactions_processor.set_transaction_timestamp_appeal(
+                context.transaction.hash, None
             )
+            context.transaction.timestamp_appeal = None
 
-            # Send event in rollup to communicate the leader timeout
-            context.consensus_service.emit_transaction_event(
-                "emitTransactionLeaderTimeout",
-                context.leader,
-                context.transaction.hash,
-            )
+        context.transactions_processor.set_leader_timeout_validators(
+            context.transaction.hash, []
+        )
 
-            return None
+        # Send event in rollup to communicate the receipt proposed
+        context.consensus_service.emit_transaction_event(
+            "emitTransactionReceiptProposed",
+            context.leader,
+            context.transaction.hash,
+        )
 
-        else:
-            if context.transaction.appeal_leader_timeout:
-                # Successful leader timeout appeal
-                context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
-                    context.transaction.hash
-                )
-                context.transactions_processor.reset_transaction_appeal_processing_time(
-                    context.transaction.hash
-                )
-                context.transactions_processor.set_transaction_timestamp_appeal(
-                    context.transaction.hash, None
-                )
-                context.transaction.timestamp_appeal = None
-
-            context.transactions_processor.set_leader_timeout_validators(
-                context.transaction.hash, []
-            )
-
-            # Send event in rollup to communicate the receipt proposed
-            context.consensus_service.emit_transaction_event(
-                "emitTransactionReceiptProposed",
-                context.leader,
-                context.transaction.hash,
-            )
-
-            # Transition to the CommittingState
-            return CommittingState()
+        # Transition to the CommittingState
+        return CommittingState()
 
 
 class CommittingState(TransactionState):
@@ -2564,6 +2505,82 @@ class UndeterminedState(TransactionState):
             TransactionStatus.UNDETERMINED,
             context.msg_handler,
             False,
+        )
+
+        return None
+
+
+class LeaderTimeoutState(TransactionState):
+    """
+    Class representing the leader timeout state of a transaction.
+    """
+
+    async def handle(self, context):
+        """
+        Handle the leader timeout state transition.
+
+        Args:
+            context (TransactionContext): The context of the transaction.
+
+        Returns:
+            None: The transaction is in a leader timeout state.
+        """
+        # Save the contract snapshot for potential future appeals
+        if not context.transaction.contract_snapshot:
+            context.transactions_processor.set_transaction_contract_snapshot(
+                context.transaction.hash, context.contract_snapshot.to_dict()
+            )
+
+        if context.transaction.appeal_undetermined:
+            consensus_round = "Leader Appeal Successful"
+            context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
+                context.transaction.hash
+            )
+            context.transactions_processor.reset_transaction_appeal_processing_time(
+                context.transaction.hash
+            )
+            context.transactions_processor.set_transaction_timestamp_appeal(
+                context.transaction.hash, None
+            )
+        elif context.transaction.appeal_leader_timeout:
+            consensus_round = "Leader Timeout Appeal Failed"
+            context.transactions_processor.set_transaction_appeal_processing_time(
+                context.transaction.hash
+            )
+        else:
+            consensus_round = "Leader Timeout"
+            context.transactions_processor.set_transaction_timestamp_awaiting_finalization(
+                context.transaction.hash
+            )
+
+        # Save involved validators for appeal
+        context.transactions_processor.set_leader_timeout_validators(
+            context.transaction.hash, context.remaining_validators
+        )
+
+        # Update the consensus history
+        context.transactions_processor.update_consensus_history(
+            context.transaction.hash,
+            consensus_round,
+            context.consensus_data.leader_receipt,
+            [],
+            TransactionStatus.LEADER_TIMEOUT,
+        )
+
+        # Update the transaction status to LEADER_TIMEOUT
+        ConsensusAlgorithm.dispatch_transaction_status_update(
+            context.transactions_processor,
+            context.transaction.hash,
+            TransactionStatus.LEADER_TIMEOUT,
+            context.msg_handler,
+            False,
+        )
+
+        # Send event in rollup to communicate the leader timeout
+        context.consensus_service.emit_transaction_event(
+            "emitTransactionLeaderTimeout",
+            context.leader,
+            context.transaction.hash,
         )
 
         return None
