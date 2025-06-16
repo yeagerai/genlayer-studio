@@ -256,10 +256,20 @@ class TransactionParser:
 
     def decode_method_call_data(self, data: str) -> DecodedMethodCallData:
         raw_bytes = eth_utils.hexadecimal.decode_hex(data)
-        # Check if we have the newer format with extra bytes
-        if len(raw_bytes) > 3 and raw_bytes[-1] == 0:
-            # Strip the first 2 bytes and the last null byte
-            raw_bytes = raw_bytes[2:-1]
+
+        # Remove the null byte
+        if raw_bytes[-1] == 0:
+            raw_bytes = raw_bytes[:-1]
+
+            # Try to decode the outer list first
+            if raw_bytes[0] >= 0xF8:  # Long list
+                raw_bytes = raw_bytes[2:]  # Skip list prefix and length
+            elif raw_bytes[0] >= 0xC0:  # Short list
+                raw_bytes = raw_bytes[1:]  # Skip list prefix
+
+            # Now try to decode the inner string
+            raw_bytes = rlp.decode(raw_bytes)
+
         return DecodedMethodCallData(raw_bytes)
 
     def decode_deployment_data(self, data: str) -> DecodedDeploymentData:

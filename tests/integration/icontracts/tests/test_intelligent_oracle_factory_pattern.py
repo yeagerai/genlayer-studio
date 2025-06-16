@@ -2,6 +2,7 @@ import time
 
 from gltest import get_contract_factory
 from gltest.assertions import tx_execution_succeeded
+import json
 
 
 def wait_for_contract_deployment(intelligent_oracle_contract, max_retries=10, delay=5):
@@ -19,15 +20,6 @@ def wait_for_contract_deployment(intelligent_oracle_contract, max_retries=10, de
 
 
 def test_intelligent_oracle_factory_pattern(setup_validators):
-    # Get the intelligent oracle factory
-    intelligent_oracle_factory = get_contract_factory("IntelligentOracle")
-
-    # Deploy the Registry contract with the IntelligentOracle code
-    registry_factory = get_contract_factory("Registry")
-    registry_contract = registry_factory.deploy(
-        args=[intelligent_oracle_factory.contract_code]
-    )
-
     markets_data = [
         {
             "prediction_market_id": "marathon2024",
@@ -56,9 +48,66 @@ def test_intelligent_oracle_factory_pattern(setup_validators):
             "evidence_urls": "https://www.bbc.com/news/election/2024/us/results",
         },
     ]
-    created_market_contracts = []
+
+    reasoning_single_source_marathon = "The HTML content contains the results of the Madrid Marathon 2024, which occurred on April 28, 2024. Mitku Tafa won and matches the name 'Tafa Mitku' in the list of potential outcomes."
+    reasoning_all_sources_marathon = "The URL indicates that the Madrid Marathon 2024 has occurred on April 28, 2024, and Mitku Tafa was the winner. The name matches one of the potential outcomes. There are no conflicting sources."
+    reasoning_single_source_election = "The URL is a valid news page. The election has occurred, and Donald Trump is reported to have won with 312 votes. The rule specifies that the outcome is based on official election results."
+    reasoning_all_sources_election = "The only data source provided is from BBC News. It reports that Donald Trump won the 2024 US presidential election with 312 votes. The rule specifies that the outcome is based on official election results. There are no other sources contradicting this information."
+
+    mock_response = {
+        "response": {
+            f"outcomes.\n\n### Inputs\n<title>\n{markets_data[0]['title']}": json.dumps(
+                {
+                    "valid_source": "true",
+                    "event_has_occurred": "true",
+                    "reasoning": reasoning_single_source_marathon,
+                    "outcome": markets_data[0]["outcome"],
+                }
+            ),
+            f"inputs\n\n    ### Inputs\n    <title>\n    {markets_data[0]['title']}\n": json.dumps(
+                {
+                    "relevant_sources": [markets_data[0]["evidence_urls"]],
+                    "reasoning": reasoning_all_sources_marathon,
+                    "outcome": markets_data[0]["outcome"],
+                }
+            ),
+            f"outcomes.\n\n### Inputs\n<title>\n{markets_data[1]['title']}": json.dumps(
+                {
+                    "valid_source": "true",
+                    "event_has_occurred": "true",
+                    "reasoning": reasoning_single_source_election,
+                    "outcome": markets_data[1]["outcome"],
+                }
+            ),
+            f"inputs\n\n    ### Inputs\n    <title>\n    {markets_data[1]['title']}\n": json.dumps(
+                {
+                    "relevant_sources": [markets_data[1]["evidence_urls"]],
+                    "reasoning": reasoning_all_sources_election,
+                    "outcome": markets_data[1]["outcome"],
+                }
+            ),
+        },
+        "eq_principle_prompt_comparative": {
+            reasoning_single_source_marathon: True,
+            reasoning_all_sources_marathon: True,
+            reasoning_single_source_election: True,
+            reasoning_all_sources_election: True,
+        },
+    }
+
+    setup_validators(mock_response)
+
+    # Get the intelligent oracle factory
+    intelligent_oracle_factory = get_contract_factory("IntelligentOracle")
+
+    # Deploy the Registry contract with the IntelligentOracle code
+    registry_factory = get_contract_factory("Registry")
+    registry_contract = registry_factory.deploy(
+        args=[intelligent_oracle_factory.contract_code]
+    )
 
     # Create markets through factory
+    created_market_contracts = []
     for market_data in markets_data:
         create_result = registry_contract.create_new_prediction_market(
             args=[

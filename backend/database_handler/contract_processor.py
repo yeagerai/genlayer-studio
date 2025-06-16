@@ -57,3 +57,17 @@ class ContractProcessor:
 
             contract.data = new_contract_data
             self.session.commit()
+
+    def reset_contract(self, contract_address: str):
+        """
+        Reset a contract from the database.
+
+        Args:
+            contract_address: The address of the contract to reset
+        """
+        current_contract = (
+            self.session.query(CurrentState).filter_by(id=contract_address).one()
+        )
+        current_contract.data = {}
+        current_contract.balance = 0
+        self.session.commit()

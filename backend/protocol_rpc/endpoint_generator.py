@@ -13,7 +13,7 @@ from functools import partial, wraps
 import requests
 import os
 import traceback
-
+from backend.protocol_rpc.aio import run_in_main_server_loop
 from backend.protocol_rpc.message_handler.base import MessageHandler
 
 
@@ -134,7 +134,7 @@ def generate_rpc_endpoint(
         try:
             result = partial_function(*endpoint_args, **endpoint_kwargs)
             if hasattr(result, "__await__"):
-                result = await result
+                result = await run_in_main_server_loop(result)
             return _serialize(result)
         except JSONRPCError as e:
             raise e
