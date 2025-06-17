@@ -105,7 +105,7 @@ def reset_defaults_llm_providers(llm_provider_registry: LLMProviderRegistry) -> 
 async def get_providers_and_models(
     llm_provider_registry: LLMProviderRegistry,
 ) -> list[dict]:
-    return await llm_provider_registry.get_all_dict()
+    pass
 
 
 @check_forbidden_method_in_hosted_studio
