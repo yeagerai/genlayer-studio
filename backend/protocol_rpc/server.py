@@ -181,46 +181,46 @@ def restore_stuck_transactions():
             restore_transactions = [tx2, *newer_transactions]
 
             for restore_transaction in restore_transactions:
-                if restore_failed:
-                    failed_transactions.append(restore_transaction["hash"])
-                else:
-                    try:
-                        ConsensusAlgorithm.dispatch_transaction_status_update(
-                            transactions_processor,
-                            restore_transaction["hash"],
-                            TransactionStatus.PENDING,
-                            msg_handler,
-                        )
-                        transactions_processor.set_transaction_contract_snapshot(
-                            restore_transaction["hash"], None
-                        )
-                        transactions_processor.set_transaction_result(
-                            restore_transaction["hash"], None
-                        )
-                        transactions_processor.set_transaction_appeal(
-                            restore_transaction["hash"], False
-                        )
-                        transactions_processor.set_transaction_appeal_failed(
-                            restore_transaction["hash"], 0
-                        )
-                        transactions_processor.set_transaction_appeal_undetermined(
-                            restore_transaction["hash"], False
-                        )
-                        transactions_processor.reset_consensus_history(
-                            restore_transaction["hash"]
-                        )
-                        transactions_processor.set_transaction_timestamp_appeal(
-                            restore_transaction["hash"], None
-                        )
-                        transactions_processor.reset_transaction_appeal_processing_time(
-                            restore_transaction["hash"]
-                        )
-                    except Exception as e:
-                        print(
-                            f"ERROR: Failed to reset transaction {restore_transaction['hash']}: {str(e)}"
-                        )
+                try:
+                    if not restore_failed:
                         failed_transactions.append(restore_transaction["hash"])
-                        restore_failed = True
+
+                    ConsensusAlgorithm.dispatch_transaction_status_update(
+                        transactions_processor,
+                        restore_transaction["hash"],
+                        TransactionStatus.PENDING,
+                        msg_handler,
+                    )
+                    transactions_processor.set_transaction_contract_snapshot(
+                        restore_transaction["hash"], None
+                    )
+                    transactions_processor.set_transaction_result(
+                        restore_transaction["hash"], None
+                    )
+                    transactions_processor.set_transaction_appeal(
+                        restore_transaction["hash"], False
+                    )
+                    transactions_processor.set_transaction_appeal_failed(
+                        restore_transaction["hash"], 0
+                    )
+                    transactions_processor.set_transaction_appeal_undetermined(
+                        restore_transaction["hash"], False
+                    )
+                    transactions_processor.reset_consensus_history(
+                        restore_transaction["hash"]
+                    )
+                    transactions_processor.set_transaction_timestamp_appeal(
+                        restore_transaction["hash"], None
+                    )
+                    transactions_processor.reset_transaction_appeal_processing_time(
+                        restore_transaction["hash"]
+                    )
+                except Exception as e:
+                    print(
+                        f"ERROR: Failed to reset transaction {restore_transaction['hash']}: {str(e)}"
+                    )
+                    failed_transactions.append(restore_transaction["hash"])
+                    restore_failed = True
 
             # Restore the contract state
             try:
