@@ -66,8 +66,12 @@ class ContractProcessor:
             contract_address: The address of the contract to reset
         """
         current_contract = (
-            self.session.query(CurrentState).filter_by(id=contract_address).one()
+            self.session.query(CurrentState)
+            .filter_by(id=contract_address)
+            .one_or_none()
         )
-        current_contract.data = {}
-        current_contract.balance = 0
-        self.session.commit()
+
+        if current_contract:
+            current_contract.data = {}
+            current_contract.balance = 0
+            self.session.commit()

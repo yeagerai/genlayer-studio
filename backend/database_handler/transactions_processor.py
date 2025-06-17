@@ -566,3 +566,14 @@ class TransactionsProcessor:
             if closest_transaction
             else None
         )
+
+    def delete_transactions(self, transactions: list[str]):
+        """Delete multiple transactions from the database.
+
+        Args:
+            transactions: List of transaction hashes
+        """
+        for tx_hash in transactions:
+            self.session.query(Transactions).filter_by(hash=tx_hash).delete()
+
+        self.session.commit()
