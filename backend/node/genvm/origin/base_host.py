@@ -90,9 +90,7 @@ class IHost(metaclass=abc.ABCMeta):
     async def get_balance(self, account: bytes, /) -> int: ...
 
 
-def save_code_callback[
-    T
-](
+def save_code_callback[T](
     address: bytes, code: bytes, cb: typing.Callable[[bytes, bytes, int, bytes], T]
 ) -> tuple[T, T]:
     import hashlib
@@ -401,7 +399,7 @@ async def run_host_and_program(
         ):
             errors.append(Exception("no result provided"))
         else:
-            await handler.consume_result(ResultCode.CONTRACT_ERROR, b"timeout")
+            await handler.consume_result(ResultCode.VM_ERROR, b"timeout")
 
     result = RunHostAndProgramRes(
         b"".join(stdout).decode(),
