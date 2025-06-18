@@ -113,7 +113,12 @@ class LLMModule:
     async def provider_available(
         self, model: str, url: str, plugin: str, key_env: str
     ) -> bool:
-        exe_path = Path(os.environ["GENVM_BIN"]).joinpath("genvm-modules")
+        genvm_bin = os.environ["GENVM_BIN"]
+        exe_path = Path(genvm_bin).joinpath("genvm-modules")
+
+        print(
+            f"Log: args provider_available: {genvm_bin=}, {str(exe_path)}, {model=}, {url=}, {plugin=}, {key_env=}"
+        )
 
         proc = await asyncio.subprocess.create_subprocess_exec(
             exe_path,

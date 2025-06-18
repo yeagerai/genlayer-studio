@@ -87,6 +87,7 @@ async def create_app():
     initialize_validators_db_session.commit()
 
     validators_manager = validators.Manager(create_session())
+    print(f"Log: {validators_manager=}")
     await validators_manager.restart()
 
     validators_registry = validators_manager.registry

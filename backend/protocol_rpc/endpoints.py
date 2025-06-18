@@ -110,6 +110,7 @@ def reset_defaults_llm_providers(llm_provider_registry: LLMProviderRegistry) -> 
 async def check_provider_is_available(
     validators_manager: validators.Manager, provider: LLMProvider | dict
 ) -> bool:
+    print(f"Log: check_provider_is_available {provider=}")
     return await validators_manager.llm_module.provider_available(
         provider.model if isinstance(provider, LLMProvider) else provider["model"],
         (
@@ -133,11 +134,15 @@ async def get_providers_and_models(
     providers = await llm_provider_registry.get_all_dict()
     sem = asyncio.Semaphore(8)
 
-    async def check_with_semaphore(provider):
+    print(f"Log: get_providers_and_models {providers=}")
+
+    async def check_with_semaphore(validators_manager, provider):
         async with sem:
             return await check_provider_is_available(validators_manager, provider)
 
-    availability = await asyncio.gather(*(check_with_semaphore(p) for p in providers))
+    availability = await asyncio.gather(
+        *(check_with_semaphore(validators_manager, p) for p in providers)
+    )
     for provider, is_available in zip(providers, availability):
         provider["is_model_available"] = is_available
     return providers
