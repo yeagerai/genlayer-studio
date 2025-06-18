@@ -701,6 +701,7 @@ def send_raw_transaction(
             to_address = new_contract_address
         elif genlayer_transaction.type == TransactionType.RUN_CONTRACT:
             # Contract Call
+            to_address = genlayer_transaction.to_address
             if not accounts_manager.is_valid_address(to_address):
                 raise InvalidAddressError(
                     to_address, f"Invalid address to_address: {to_address}"
@@ -709,7 +710,6 @@ def send_raw_transaction(
             if accounts_manager.get_account(to_address) is None:
                 raise JSONRPCError(f"Contract address does not exist: {to_address}")
 
-            to_address = genlayer_transaction.to_address
             transaction_data = {"calldata": genlayer_transaction.data.calldata}
 
         # Obtain transaction hash from new transaction event

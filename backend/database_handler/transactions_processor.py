@@ -565,19 +565,19 @@ class TransactionsProcessor:
             # Handle both formats of leader_receipt (dict and array)
             filters.append(
                 and_(
-                    consensus_data.is_(None).is_(False),
-                    consensus_data["leader_receipt"].is_(None).is_(False),
+                    consensus_data.isnot(None),
+                    consensus_data["leader_receipt"].isnot(None),
                     text(
-                        f"""
+                        """
                         (
                             (jsonb_typeof(consensus_data::jsonb->'leader_receipt') = 'object'
-                             AND consensus_data::jsonb->'leader_receipt'->>'execution_result' = '{ExecutionResultStatus.SUCCESS.value}')
+                             AND consensus_data::jsonb->'leader_receipt'->>'execution_result' = :status)
                             OR
                             (jsonb_typeof(consensus_data::jsonb->'leader_receipt') = 'array'
-                             AND consensus_data::jsonb->'leader_receipt'->0->>'execution_result' = '{ExecutionResultStatus.SUCCESS.value}')
+                             AND consensus_data::jsonb->'leader_receipt'->0->>'execution_result' = :status)
                         )
                     """
-                    ),
+                    ).bindparams(status=ExecutionResultStatus.SUCCESS.value),
                 )
             )
 
