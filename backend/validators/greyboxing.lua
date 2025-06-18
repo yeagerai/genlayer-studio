@@ -80,6 +80,15 @@ local function just_in_backend(ctx, args, mapped_prompt)
 
 		lib.rs.sleep_seconds(1.5)
 	end
+
+	lib.rs.user_error({
+		causes = {"NO_PROVIDER_FOR_PROMPT"},
+		fatal = true,
+		ctx = {
+			prompt = mapped_prompt,
+			host_data = ctx.host_data,
+		}
+	})
 end
 
 function ExecPrompt(ctx, args)
@@ -93,7 +102,9 @@ end
 function ExecPromptTemplate(ctx, args)
 	---@cast args LLMExecPromptTemplatePayload
 
+	local template = args.template -- workaround by kp2pml30 (Kira) GVM-86
 	local mapped = llm.exec_prompt_template_transform(args)
+	args.template = template
 
 	return just_in_backend(ctx, args, mapped)
 end
