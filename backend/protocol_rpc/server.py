@@ -263,6 +263,18 @@ def restore_stuck_transactions():
 
                 for restore_transaction in restore_transactions:
                     try:
+                        if (
+                            accounts_manager.get_account(
+                                restore_transaction["to_address"]
+                            )
+                            is None
+                        ):
+                            transaction_to_canceled(
+                                transactions_processor,
+                                msg_handler,
+                                restore_transaction["hash"],
+                            )
+
                         ConsensusAlgorithm.dispatch_transaction_status_update(
                             transactions_processor,
                             restore_transaction["hash"],

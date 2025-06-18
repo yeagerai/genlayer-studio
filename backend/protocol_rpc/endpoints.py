@@ -706,6 +706,9 @@ def send_raw_transaction(
                     to_address, f"Invalid address to_address: {to_address}"
                 )
 
+            if accounts_manager.get_account(to_address) is None:
+                raise JSONRPCError(f"Contract address does not exist: {to_address}")
+
             to_address = genlayer_transaction.to_address
             transaction_data = {"calldata": genlayer_transaction.data.calldata}
 
