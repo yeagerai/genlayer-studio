@@ -274,37 +274,37 @@ def restore_stuck_transactions():
                                 msg_handler,
                                 restore_transaction["hash"],
                             )
-
-                        ConsensusAlgorithm.dispatch_transaction_status_update(
-                            transactions_processor,
-                            restore_transaction["hash"],
-                            TransactionStatus.PENDING,
-                            msg_handler,
-                        )
-                        transactions_processor.set_transaction_contract_snapshot(
-                            restore_transaction["hash"], None
-                        )
-                        transactions_processor.set_transaction_result(
-                            restore_transaction["hash"], None
-                        )
-                        transactions_processor.set_transaction_appeal(
-                            restore_transaction["hash"], False
-                        )
-                        transactions_processor.set_transaction_appeal_failed(
-                            restore_transaction["hash"], 0
-                        )
-                        transactions_processor.set_transaction_appeal_undetermined(
-                            restore_transaction["hash"], False
-                        )
-                        transactions_processor.reset_consensus_history(
-                            restore_transaction["hash"]
-                        )
-                        transactions_processor.set_transaction_timestamp_appeal(
-                            restore_transaction["hash"], None
-                        )
-                        transactions_processor.reset_transaction_appeal_processing_time(
-                            restore_transaction["hash"]
-                        )
+                        else:
+                            ConsensusAlgorithm.dispatch_transaction_status_update(
+                                transactions_processor,
+                                restore_transaction["hash"],
+                                TransactionStatus.PENDING,
+                                msg_handler,
+                            )
+                            transactions_processor.set_transaction_contract_snapshot(
+                                restore_transaction["hash"], None
+                            )
+                            transactions_processor.set_transaction_result(
+                                restore_transaction["hash"], None
+                            )
+                            transactions_processor.set_transaction_appeal(
+                                restore_transaction["hash"], False
+                            )
+                            transactions_processor.set_transaction_appeal_failed(
+                                restore_transaction["hash"], 0
+                            )
+                            transactions_processor.set_transaction_appeal_undetermined(
+                                restore_transaction["hash"], False
+                            )
+                            transactions_processor.reset_consensus_history(
+                                restore_transaction["hash"]
+                            )
+                            transactions_processor.set_transaction_timestamp_appeal(
+                                restore_transaction["hash"], None
+                            )
+                            transactions_processor.reset_transaction_appeal_processing_time(
+                                restore_transaction["hash"]
+                            )
                     except Exception as e:
                         print(
                             f"ERROR: Failed to reset transaction {restore_transaction['hash']}: {str(e)}"
