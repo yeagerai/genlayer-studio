@@ -24,7 +24,7 @@ class TransactionAddressFilter(Enum):
     FROM = "from"
 
 
-def vote_name_to_number(vote_name: str) -> int:
+def vote_name_to_number(vote_name: str | None) -> int:
     """Convert vote name to numeric code.
 
     Args:
@@ -33,9 +33,11 @@ def vote_name_to_number(vote_name: str) -> int:
     Returns:
         int: Numeric vote code (1=AGREE, 2=DISAGREE, 0=other)
     """
-    if vote_name == Vote.AGREE.value:
+    if vote_name is None:
+        return 0
+    if vote_name.lower() == Vote.AGREE.value:
         return 1
-    if vote_name == Vote.DISAGREE.value:
+    if vote_name.lower() == Vote.DISAGREE.value:
         return 2
     return 0
 
@@ -946,6 +948,7 @@ class TransactionsProcessor:
         )
         max_rotations = transaction.config_rotation_rounds or 0
         if max_rotations and transaction.rotation_count >= max_rotations:
+            self.session.commit()
             return  # already at the ceiling
         transaction.rotation_count += 1
         flag_modified(transaction, "rotation_count")
