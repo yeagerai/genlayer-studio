@@ -61,6 +61,7 @@ RUN cd /genvm \
     && unzip genvm-runners.zip \
     && rm *.zip \
     && ls -R . \
+    && chown -R backend-user:backend-group /genvm \
     && su - backend-user -c 'python3 /genvm/scripts/runners-registry download --registry /genvm/share/lib/genvm/runners/all.json --dest /genvm/share/lib/genvm/runners/' \
     && su - backend-user -c '/genvm/bin/genvm precompile' \
     && cd "$path" \
